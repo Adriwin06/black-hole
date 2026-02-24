@@ -33,7 +33,7 @@ uniform vec3 cam_vel;
 uniform float planet_distance, planet_radius;
 
 uniform sampler2D galaxy_texture, star_texture,
-    accretion_disk_texture, planet_texture, spectrum_texture;
+    planet_texture, spectrum_texture;
 
 // stepping and anti-aliasing parameters
 const int NSTEPS = {{n_steps}};
@@ -137,6 +137,46 @@ float hash12(vec2 p) {
     vec3 p3 = fract(vec3(p.xyx) * 0.1031);
     p3 += dot(p3, p3.yzx + 33.33);
     return fract((p3.x + p3.y) * p3.z);
+}
+
+float value_noise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+
+    float a = hash12(i);
+    float b = hash12(i + vec2(1.0, 0.0));
+    float c = hash12(i + vec2(0.0, 1.0));
+    float d = hash12(i + vec2(1.0, 1.0));
+
+    vec2 u = f*f*(3.0 - 2.0*f);
+    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+float fbm(vec2 p) {
+    float sum = 0.0;
+    float amp = 0.5;
+    for (int i = 0; i < 4; i++) {
+        sum += amp * value_noise(p);
+        p = p*2.03 + vec2(17.13, -11.70);
+        amp *= 0.5;
+    }
+    return sum;
+}
+
+float accretion_emissivity(float radius, float angle, float t) {
+    float r_norm = (radius - ACCRETION_MIN_R) / ACCRETION_WIDTH;
+    float edge_fade = smoothstep(0.02, 0.18, r_norm) *
+        (1.0 - smoothstep(0.78, 1.0, r_norm));
+
+    float orbit_phase = angle - 0.45*t / pow(max(radius, 1.001), 1.5);
+    float swirl = sin(18.0*orbit_phase + 10.0*log(max(radius, 1.001)));
+
+    float large_scale = fbm(vec2(radius*1.6, orbit_phase*3.5));
+    float small_scale = fbm(vec2(radius*7.0, orbit_phase*11.0 + 1.5*large_scale));
+    float filaments = 0.6 + 0.4*swirl;
+    float plasma = mix(large_scale, small_scale, 0.6);
+
+    return max((0.45 + 1.1*plasma) * (0.8 + 0.2*filaments) * edge_fade, 0.02);
 }
 
 float accretion_flux_profile(float radius) {
@@ -428,17 +468,13 @@ vec4 trace_ray(vec3 ray) {
 
                 float r = length(isec);
                 if (r > ACCRETION_MIN_R && r < ACCRETION_MIN_R + ACCRETION_WIDTH) {
-                    vec2 tex_coord = vec2(
-                            (r-ACCRETION_MIN_R)/ACCRETION_WIDTH,
-                            atan(isec.x, isec.y)/M_PI*0.5+0.5
-                    );
+                    float angle = atan(isec.x, isec.y);
 
                     float temperature = accretion_temperature(r) * gravitational_shift(r);
-                    float texture_mod = texture2D(accretion_disk_texture, tex_coord).r;
-                    float turbulence = 0.85 + 0.3 * (hash12(tex_coord*vec2(4096.0, 1024.0) +
-                        vec2(time*0.07, time*0.13)) - 0.5);
+                    float turbulence = accretion_emissivity(r, angle, t);
+                    float inner_glow = exp(-8.0 * (r - ACCRETION_MIN_R));
                     float accretion_intensity = ACCRETION_BRIGHTNESS * accretion_flux_profile(r) *
-                        (0.45 + 0.9*texture_mod) * turbulence;
+                        turbulence * (1.0 + 0.7*inner_glow);
 
                     vec3 accretion_v = vec3(-isec.y, isec.x, 0.0) / sqrt(2.0*(r-1.0)) / (r*r);
                     gamma = 1.0/sqrt(max(1.0-dot(accretion_v,accretion_v), 0.0001));

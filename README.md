@@ -16,7 +16,7 @@ Example: runs 30+ fps at resolution 1920 x 1080 in Chrome 48 on a Linux desktop 
 
 ### Known artefacts
 
- * The striped accretion disk and planet textures are (obviously?) fake and are included to help visualizing motion.
+ * The accretion disk is stylized and procedurally textured for visual turbulence; it is not a full GRMHD/volumetric simulation.
  * The spectrum used in modeling the Doppler shift of the Milky Way background image is quite arbitrary (not based on real spectral data) and consequently the Doppler-shifted background colors may be wrong.
  * The lighting model of the planet is based on a point-like light source and a quite unphysical ambient component.
  * In the "medium" quality mode, the planet deforms unphysically when it travels between the camera and the black hole.

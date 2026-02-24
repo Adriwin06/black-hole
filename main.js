@@ -158,7 +158,6 @@ function degToRad(a) { return Math.PI * a / 180.0; }
     loadTexture('spectra', 'img/spectra.png', THREE.LinearFilter);
     loadTexture('moon', 'img/beach-ball.png', THREE.LinearFilter);
     loadTexture('stars', 'img/stars.png', THREE.LinearFilter);
-    loadTexture('accretion_disk', 'img/accretion-disk.png', THREE.LinearFilter);
 })();
 
 var updateUniforms;
@@ -185,7 +184,6 @@ function init(textures) {
         planet_radius: { type: "f" },
 
         star_texture: { type: "t", value: textures.stars },
-        accretion_disk_texture: { type: "t",  value: textures.accretion_disk },
         galaxy_texture: { type: "t", value: textures.galaxy },
         planet_texture: { type: "t", value: textures.moon },
         spectrum_texture: { type: "t", value: textures.spectra }
