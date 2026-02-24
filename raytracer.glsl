@@ -35,14 +35,15 @@ uniform float planet_distance, planet_radius;
 uniform sampler2D galaxy_texture, star_texture,
     accretion_disk_texture, planet_texture, spectrum_texture;
 
-// stepping parameters
+// stepping and anti-aliasing parameters
 const int NSTEPS = {{n_steps}};
-const float MAX_REVOLUTIONS = 2.0;
+const int SAMPLE_COUNT = {{sample_count}};
+const float MAX_REVOLUTIONS = float({{max_revolutions}});
 
 const float ACCRETION_MIN_R = 1.5;
 const float ACCRETION_WIDTH = 5.0;
-const float ACCRETION_BRIGHTNESS = 0.9;
-const float ACCRETION_TEMPERATURE = 3900.0;
+const float ACCRETION_BRIGHTNESS = 1.2;
+const float ACCRETION_TEMPERATURE = 8500.0;
 
 const float STAR_MIN_TEMPERATURE = 4000.0;
 const float STAR_MAX_TEMPERATURE = 15000.0;
@@ -99,11 +100,92 @@ vec3 contract(vec3 x, vec3 d, float mult) {
     return (x-par*d) + d*par*mult;
 }
 
+float geodesic_accel(float u) {
+    return -u*(1.0 - 1.5*u*u);
+}
+
+void integrate_geodesic_step(inout float u, inout float du, float step) {
+    {{#rk4_integration}}
+    float k1_u = du;
+    float k1_du = geodesic_accel(u);
+
+    float u2 = u + 0.5*step*k1_u;
+    float du2 = du + 0.5*step*k1_du;
+    float k2_u = du2;
+    float k2_du = geodesic_accel(u2);
+
+    float u3 = u + 0.5*step*k2_u;
+    float du3 = du + 0.5*step*k2_du;
+    float k3_u = du3;
+    float k3_du = geodesic_accel(u3);
+
+    float u4 = u + step*k3_u;
+    float du4 = du + step*k3_du;
+    float k4_u = du4;
+    float k4_du = geodesic_accel(u4);
+
+    u += (step/6.0) * (k1_u + 2.0*k2_u + 2.0*k3_u + k4_u);
+    du += (step/6.0) * (k1_du + 2.0*k2_du + 2.0*k3_du + k4_du);
+    {{/rk4_integration}}
+    {{^rk4_integration}}
+    u += du*step;
+    du += geodesic_accel(u)*step;
+    {{/rk4_integration}}
+}
+
+float hash12(vec2 p) {
+    vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+}
+
+float accretion_flux_profile(float radius) {
+    float x = max(radius / ACCRETION_MIN_R, 1.0001);
+    float inner_edge = max(1.0 - sqrt(1.0 / x), 0.0);
+    float flux = inner_edge / (x*x*x);
+    return flux * 18.0;
+}
+
+float accretion_temperature(float radius) {
+    float x = max(radius / ACCRETION_MIN_R, 1.0001);
+    float inner_edge = max(1.0 - sqrt(1.0 / x), 0.02);
+    return ACCRETION_TEMPERATURE * pow(1.0 / x, 0.75) * pow(inner_edge, 0.25);
+}
+
+float gravitational_shift(float emission_radius) {
+    float observer_term = max(1.0 - 1.0 / max(length(cam_pos), 1.0001), 0.0001);
+    float emission_term = max(1.0 - 1.0 / max(emission_radius, 1.0001), 0.0001);
+    return sqrt(emission_term / observer_term);
+}
+
+vec2 sample_offset(int i) {
+    if (SAMPLE_COUNT <= 1) return vec2(0.0, 0.0);
+    if (i == 0) return vec2(-0.35, -0.15);
+    if (i == 1) return vec2(0.15, -0.35);
+    if (i == 2) return vec2(-0.15, 0.35);
+    if (i == 3) return vec2(0.35, 0.15);
+    return vec2(0.0, 0.0);
+}
+
+vec3 aces_filmic(vec3 x) {
+    return clamp((x*(2.51*x + 0.03)) / (x*(2.43*x + 0.59) + 0.14), 0.0, 1.0);
+}
+
+vec4 finalize_color(vec4 color) {
+    {{#cinematic_tonemap}}
+    vec3 mapped = aces_filmic(max(color.rgb, vec3(0.0)));
+    mapped = pow(mapped, vec3(1.0/2.2));
+    return vec4(mapped, 1.0);
+    {{/cinematic_tonemap}}
+    {{^cinematic_tonemap}}
+    return color;
+    {{/cinematic_tonemap}}
+}
+
 vec4 planet_intersection(vec3 old_pos, vec3 ray, float t, float dt,
         vec3 planet_pos0, float ray_doppler_factor) {
 
     vec4 ret = vec4(0,0,0,0);
-    vec3 ray0 = ray;
     ray = ray/dt;
 
     vec3 planet_dir = vec3(planet_pos0.y, -planet_pos0.x, 0.0) / PLANET_DISTANCE;
@@ -144,7 +226,6 @@ vec4 planet_intersection(vec3 old_pos, vec3 ray, float t, float dt,
     if (isec_t < MIN_ISEC_DT || isec_t > dt) return ret;
 
     vec3 surface_point = (d + isec_t*ray) / PLANET_RADIUS;
-
     isec_t = isec_t/dt;
 
     vec3 light_dir = planet_pos0;
@@ -180,7 +261,7 @@ vec4 planet_intersection(vec3 old_pos, vec3 ray, float t, float dt,
     float doppler_factor = SQ(PLANET_GAMMA) *
         (1.0 + dot(planet_vel, light_dir)) *
         (1.0 - dot(planet_vel, normalize(ray)));
-    light_temperature /= doppler_factor * ray_doppler_factor;
+    light_temperature /= max(doppler_factor * ray_doppler_factor, 0.05);
     {{/doppler_shift}}
 
     vec4 light_color = BLACK_BODY_COLOR(light_temperature);
@@ -228,23 +309,8 @@ vec4 galaxy_color(vec2 tex_coord, float doppler_factor) {
     {{/observerMotion}}
 }
 
-void main() {
-
-    {{#planetEnabled}}
-    // "constants" derived from uniforms
-    PLANET_RADIUS = planet_radius;
-    PLANET_DISTANCE = max(planet_distance,planet_radius+1.5);
-    PLANET_ORBITAL_ANG_VEL = -1.0 / sqrt(2.0*(PLANET_DISTANCE-1.0)) / PLANET_DISTANCE;
-    float MAX_PLANET_ROT = max((1.0 + PLANET_ORBITAL_ANG_VEL*PLANET_DISTANCE) / PLANET_RADIUS,0.0);
-    PLANET_ROTATION_ANG_VEL = -PLANET_ORBITAL_ANG_VEL + MAX_PLANET_ROT * 0.5;
-    PLANET_GAMMA = 1.0/sqrt(1.0-SQ(PLANET_ORBITAL_ANG_VEL*PLANET_DISTANCE));
-    {{/planetEnabled}}
-
-    vec2 p = -1.0 + 2.0 * gl_FragCoord.xy / resolution.xy;
-    p.y *= resolution.y / resolution.x;
-
+vec4 trace_ray(vec3 ray) {
     vec3 pos = cam_pos;
-    vec3 ray = normalize(p.x*cam_x + p.y*cam_y + FOV_MULT*cam_z);
 
     {{#aberration}}
     ray = lorentz_velocity_transformation(ray, cam_vel);
@@ -253,7 +319,7 @@ void main() {
     float ray_intensity = 1.0;
     float ray_doppler_factor = 1.0;
 
-    float gamma = 1.0/sqrt(1.0-dot(cam_vel,cam_vel));
+    float gamma = 1.0/sqrt(max(1.0-dot(cam_vel,cam_vel), 0.0001));
     ray_doppler_factor = gamma*(1.0 + dot(ray,-cam_vel));
     {{#beaming}}
     ray_intensity /= ray_doppler_factor*ray_doppler_factor*ray_doppler_factor;
@@ -284,16 +350,17 @@ void main() {
     vec3 planet_pos0 = vec3(cos(planet_ang0), sin(planet_ang0), 0)*PLANET_DISTANCE;
     {{/light_travel_time}}
 
-    vec3 old_pos;
+    vec3 old_pos = pos;
 
     for (int j=0; j < NSTEPS; j++) {
 
         step = MAX_REVOLUTIONS * 2.0*M_PI / float(NSTEPS);
 
-        // adaptive step size, some ad hoc formulas
-        float max_rel_u_change = (1.0-log(u))*10.0 / float(NSTEPS);
-        if ((du > 0.0 || (du0 < 0.0 && u0/u < 5.0)) && abs(du) > abs(max_rel_u_change*u) / step)
+        // adaptive step size
+        float max_rel_u_change = (1.0-log(max(u, 0.0001)))*10.0 / float(NSTEPS);
+        if ((du > 0.0 || (du0 < 0.0 && u0/u < 5.0)) && abs(du) > abs(max_rel_u_change*u) / step) {
             step = max_rel_u_change*u/abs(du);
+        }
 
         old_u = u;
 
@@ -303,10 +370,7 @@ void main() {
         {{/gravitational_time_dilation}}
         {{/light_travel_time}}
 
-        // Leapfrog scheme
-        u += du*step;
-        float ddu = -u*(1.0 - 1.5*u*u);
-        du += ddu*step;
+        integrate_geodesic_step(u, du, step);
 
         if (u < 0.0) break;
 
@@ -363,30 +427,32 @@ void main() {
                 vec3 isec = old_pos + ray*acc_isec_t;
 
                 float r = length(isec);
-
-                if (r > ACCRETION_MIN_R) {
+                if (r > ACCRETION_MIN_R && r < ACCRETION_MIN_R + ACCRETION_WIDTH) {
                     vec2 tex_coord = vec2(
                             (r-ACCRETION_MIN_R)/ACCRETION_WIDTH,
                             atan(isec.x, isec.y)/M_PI*0.5+0.5
                     );
 
-                    float accretion_intensity = ACCRETION_BRIGHTNESS;
-                    //accretion_intensity *= 1.0 / abs(ray.z/ray_l);
-                    float temperature = ACCRETION_TEMPERATURE;
+                    float temperature = accretion_temperature(r) * gravitational_shift(r);
+                    float texture_mod = texture2D(accretion_disk_texture, tex_coord).r;
+                    float turbulence = 0.85 + 0.3 * (hash12(tex_coord*vec2(4096.0, 1024.0) +
+                        vec2(time*0.07, time*0.13)) - 0.5);
+                    float accretion_intensity = ACCRETION_BRIGHTNESS * accretion_flux_profile(r) *
+                        (0.45 + 0.9*texture_mod) * turbulence;
 
                     vec3 accretion_v = vec3(-isec.y, isec.x, 0.0) / sqrt(2.0*(r-1.0)) / (r*r);
-                    gamma = 1.0/sqrt(1.0-dot(accretion_v,accretion_v));
+                    gamma = 1.0/sqrt(max(1.0-dot(accretion_v,accretion_v), 0.0001));
                     float doppler_factor = gamma*(1.0+dot(ray/ray_l,accretion_v));
                     {{#beaming}}
-                    accretion_intensity /= doppler_factor*doppler_factor*doppler_factor;
+                    float clamped_doppler = max(doppler_factor, 0.05);
+                    accretion_intensity /= clamped_doppler*clamped_doppler*clamped_doppler;
                     {{/beaming}}
                     {{#doppler_shift}}
-                    temperature /= ray_doppler_factor*doppler_factor;
+                    temperature /= max(ray_doppler_factor*doppler_factor, 0.05);
                     {{/doppler_shift}}
 
-                    color += texture2D(accretion_disk_texture,tex_coord)
-                        * accretion_intensity
-                        * BLACK_BODY_COLOR(temperature);
+                    vec4 thermal_color = BLACK_BODY_COLOR(temperature);
+                    color += vec4(thermal_color.rgb * accretion_intensity, 1.0);
                 }
             }
         }
@@ -418,5 +484,32 @@ void main() {
         color += galaxy_color(tex_coord, ray_doppler_factor) * GALAXY_BRIGHTNESS;
     }
 
-    gl_FragColor = color*ray_intensity;
+    return color*ray_intensity;
+}
+
+void main() {
+
+    {{#planetEnabled}}
+    // "constants" derived from uniforms
+    PLANET_RADIUS = planet_radius;
+    PLANET_DISTANCE = max(planet_distance,planet_radius+1.5);
+    PLANET_ORBITAL_ANG_VEL = -1.0 / sqrt(2.0*(PLANET_DISTANCE-1.0)) / PLANET_DISTANCE;
+    float MAX_PLANET_ROT = max((1.0 + PLANET_ORBITAL_ANG_VEL*PLANET_DISTANCE) / PLANET_RADIUS,0.0);
+    PLANET_ROTATION_ANG_VEL = -PLANET_ORBITAL_ANG_VEL + MAX_PLANET_ROT * 0.5;
+    PLANET_GAMMA = 1.0/sqrt(1.0-SQ(PLANET_ORBITAL_ANG_VEL*PLANET_DISTANCE));
+    {{/planetEnabled}}
+
+    vec4 accumulated = vec4(0.0, 0.0, 0.0, 0.0);
+
+    for (int sample_index = 0; sample_index < SAMPLE_COUNT; sample_index++) {
+        vec2 jitter = sample_offset(sample_index);
+        vec2 p = -1.0 + 2.0 * (gl_FragCoord.xy + jitter) / resolution.xy;
+        p.y *= resolution.y / resolution.x;
+
+        vec3 ray = normalize(p.x*cam_x + p.y*cam_y + FOV_MULT*cam_z);
+        accumulated += trace_ray(ray);
+    }
+
+    vec4 color = accumulated / float(SAMPLE_COUNT);
+    gl_FragColor = finalize_color(color);
 }

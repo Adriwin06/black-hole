@@ -76,6 +76,10 @@ function Shader(mustacheTemplate) {
     // Compile-time shader parameters
     this.parameters = {
         n_steps: 100,
+        sample_count: 1,
+        max_revolutions: 2.0,
+        rk4_integration: false,
+        cinematic_tonemap: false,
         quality: 'medium',
         accretion_disk: true,
         planet: {
@@ -265,23 +269,46 @@ function setupGUI() {
 
     var gui = new dat.GUI();
 
-    gui.add(p, 'quality', ['fast', 'medium', 'high']).onChange(function (value) {
+    function applyQualityPreset(value) {
         $('.planet-controls').show();
+
         switch(value) {
         case 'fast':
             p.n_steps = 40;
+            p.sample_count = 1;
+            p.max_revolutions = 1.5;
+            p.rk4_integration = false;
+            p.cinematic_tonemap = false;
             $('.planet-controls').hide();
             break;
         case 'medium':
             p.n_steps = 100;
+            p.sample_count = 1;
+            p.max_revolutions = 2.0;
+            p.rk4_integration = false;
+            p.cinematic_tonemap = false;
             break;
         case 'high':
-            p.n_steps = 200;
+            p.n_steps = 240;
+            p.sample_count = 2;
+            p.max_revolutions = 3.0;
+            p.rk4_integration = true;
+            p.cinematic_tonemap = false;
+            break;
+        case 'interstellar':
+            p.n_steps = 520;
+            p.sample_count = 4;
+            p.max_revolutions = 4.0;
+            p.rk4_integration = true;
+            p.cinematic_tonemap = true;
             break;
         }
 
         updateShader();
-    });
+    }
+
+    gui.add(p, 'quality', ['fast', 'medium', 'high', 'interstellar']).onChange(applyQualityPreset);
+    applyQualityPreset(p.quality);
     gui.add(p, 'accretion_disk').onChange(updateShader);
 
     var folder = gui.addFolder('Observer');
