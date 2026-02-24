@@ -431,6 +431,7 @@ vec4 trace_ray(vec3 ray) {
     float phi = 0.0;
     float t = time;
     float dt = 1.0;
+    bool shadow_capture = false;
 
     {{^light_travel_time}}
     float planet_ang0 = t * PLANET_ORBITAL_ANG_VEL;
@@ -460,6 +461,10 @@ vec4 trace_ray(vec3 ray) {
         integrate_geodesic_step(u, du, step, spin_alignment);
 
         if (u < 0.0) break;
+        if (u >= 1.0) {
+            shadow_capture = true;
+            break;
+        }
 
         phi += step;
 
@@ -557,11 +562,14 @@ vec4 trace_ray(vec3 ray) {
         float capture_u = 1.0 + bh_rotation_enabled * bh_spin * bh_spin_strength *
             spin_alignment * 0.12;
         capture_u = clamp(capture_u, 0.82, 1.18);
-        if (u > capture_u) break;
+        if (u > capture_u) {
+            shadow_capture = true;
+            break;
+        }
     }
 
     // the event horizon is at u = 1
-    if (u < 1.0) {
+    if (!shadow_capture && u < 1.0) {
         ray = normalize(pos - old_pos);
         vec2 tex_coord = sphere_map(ray * BG_COORDS);
         float t_coord;
