@@ -80,7 +80,7 @@ function Shader(mustacheTemplate) {
         max_revolutions: 2.0,
         rk4_integration: false,
         cinematic_tonemap: false,
-        quality: 'medium',
+        quality: 'high',
         accretion_disk: true,
         planet: {
             enabled: true,
@@ -229,7 +229,10 @@ function init(textures) {
     var mesh = new THREE.Mesh( geometry, material );
     scene.add( mesh );
 
-    renderer = new THREE.WebGLRenderer();
+    renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        powerPreference: 'high-performance'
+    });
     renderer.setPixelRatio( window.devicePixelRatio );
     container.appendChild( renderer.domElement );
 
@@ -287,9 +290,9 @@ function setupGUI() {
             p.cinematic_tonemap = false;
             break;
         case 'high':
-            p.n_steps = 240;
-            p.sample_count = 2;
-            p.max_revolutions = 3.0;
+            p.n_steps = 320;
+            p.sample_count = 4;
+            p.max_revolutions = 3.2;
             p.rk4_integration = true;
             p.cinematic_tonemap = false;
             break;

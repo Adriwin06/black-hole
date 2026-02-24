@@ -48,8 +48,11 @@ const float ACCRETION_TEMPERATURE = 8500.0;
 const float STAR_MIN_TEMPERATURE = 4000.0;
 const float STAR_MAX_TEMPERATURE = 15000.0;
 
-const float STAR_BRIGHTNESS = 1.0;
-const float GALAXY_BRIGHTNESS = 0.4;
+const float STAR_BRIGHTNESS = 0.7;
+const float GALAXY_BRIGHTNESS = 0.22;
+const float GLOBAL_EXPOSURE = 0.72;
+const float GALAXY_DOPPLER_STRENGTH = 0.45;
+const float GALAXY_MAX_BOOST = 1.30;
 
 const float PLANET_AMBIENT = 0.1;
 const float PLANET_LIGHTNESS = 1.5;
@@ -169,10 +172,18 @@ float accretion_emissivity(float radius, float angle, float t) {
         (1.0 - smoothstep(0.78, 1.0, r_norm));
 
     float orbit_phase = angle - 0.45*t / pow(max(radius, 1.001), 1.5);
+    vec2 orbit_unit = vec2(cos(orbit_phase), sin(orbit_phase));
     float swirl = sin(18.0*orbit_phase + 10.0*log(max(radius, 1.001)));
 
-    float large_scale = fbm(vec2(radius*1.6, orbit_phase*3.5));
-    float small_scale = fbm(vec2(radius*7.0, orbit_phase*11.0 + 1.5*large_scale));
+    // Use periodic angular coordinates to avoid seam artifacts at angle wrap.
+    float large_scale = fbm(vec2(
+        radius*1.5 + orbit_unit.x*2.7,
+        orbit_unit.y*2.7 + t*0.05
+    ));
+    float small_scale = fbm(vec2(
+        radius*7.2 + orbit_unit.x*9.0 + 1.5*large_scale,
+        orbit_unit.y*9.0 - t*0.11
+    ));
     float filaments = 0.6 + 0.4*swirl;
     float plasma = mix(large_scale, small_scale, 0.6);
 
@@ -198,27 +209,34 @@ float gravitational_shift(float emission_radius) {
     return sqrt(emission_term / observer_term);
 }
 
-vec2 sample_offset(int i) {
+vec2 sample_offset(int i, vec2 pixel) {
     if (SAMPLE_COUNT <= 1) return vec2(0.0, 0.0);
-    if (i == 0) return vec2(-0.35, -0.15);
-    if (i == 1) return vec2(0.15, -0.35);
-    if (i == 2) return vec2(-0.15, 0.35);
-    if (i == 3) return vec2(0.35, 0.15);
-    return vec2(0.0, 0.0);
+    float fi = float(i);
+    float sample_count_f = float(SAMPLE_COUNT);
+    float radius = 0.5 * sqrt((fi + 0.5) / sample_count_f);
+    float base_angle = 2.0*M_PI*fract(fi*0.61803398875 + hash12(pixel*0.5));
+    return radius * vec2(cos(base_angle), sin(base_angle));
 }
 
 vec3 aces_filmic(vec3 x) {
     return clamp((x*(2.51*x + 0.03)) / (x*(2.43*x + 0.59) + 0.14), 0.0, 1.0);
 }
 
+float screen_dither() {
+    return (hash12(gl_FragCoord.xy) - 0.5) / 255.0;
+}
+
 vec4 finalize_color(vec4 color) {
     {{#cinematic_tonemap}}
-    vec3 mapped = aces_filmic(max(color.rgb, vec3(0.0)));
+    vec3 mapped = aces_filmic(max(color.rgb * GLOBAL_EXPOSURE, vec3(0.0)));
     mapped = pow(mapped, vec3(1.0/2.2));
+    mapped += vec3(screen_dither());
+    mapped = clamp(mapped, 0.0, 1.0);
     return vec4(mapped, 1.0);
     {{/cinematic_tonemap}}
     {{^cinematic_tonemap}}
-    return color;
+    vec3 mapped = color.rgb + vec3(screen_dither());
+    return vec4(clamp(mapped, 0.0, 1.0), color.a);
     {{/cinematic_tonemap}}
 }
 
@@ -314,7 +332,8 @@ vec4 planet_intersection(vec3 old_pos, vec3 ray, float t, float dt,
 
 vec4 galaxy_color(vec2 tex_coord, float doppler_factor) {
 
-    vec4 color = texture2D(galaxy_texture, tex_coord);
+    vec4 base_color = texture2D(galaxy_texture, tex_coord);
+    vec4 color = base_color;
     {{^observerMotion}}
     return color;
     {{/observerMotion}}
@@ -338,13 +357,16 @@ vec4 galaxy_color(vec2 tex_coord, float doppler_factor) {
 
         float i0 = max(color.r, max(color.g, color.b));
         if (i0 > 0.0) {
-            temperature /= doppler_factor;
-            ret = BLACK_BODY_COLOR(temperature) * max(i1/i0,0.0);
+            temperature /= max(doppler_factor, 0.75);
+            float remap_gain = clamp(i1 / max(i0, 0.18), 0.0, GALAXY_MAX_BOOST);
+            ret = BLACK_BODY_COLOR(temperature) * remap_gain;
         }
     }
 
     ret += SINGLE_WAVELENGTH_COLOR(656.28 * doppler_factor) * red / 0.214 * H_ALPHA_RATIO;
 
+    ret = mix(base_color, ret, GALAXY_DOPPLER_STRENGTH);
+    ret.rgb = min(ret.rgb, base_color.rgb * GALAXY_MAX_BOOST + vec3(0.03));
     return ret;
     {{/observerMotion}}
 }
@@ -362,7 +384,8 @@ vec4 trace_ray(vec3 ray) {
     float gamma = 1.0/sqrt(max(1.0-dot(cam_vel,cam_vel), 0.0001));
     ray_doppler_factor = gamma*(1.0 + dot(ray,-cam_vel));
     {{#beaming}}
-    ray_intensity /= ray_doppler_factor*ray_doppler_factor*ray_doppler_factor;
+    float beaming_factor = clamp(ray_doppler_factor, 0.78, 1.22);
+    ray_intensity /= beaming_factor*beaming_factor*beaming_factor;
     {{/beaming}}
     {{^doppler_shift}}
     ray_doppler_factor = 1.0;
@@ -538,7 +561,7 @@ void main() {
     vec4 accumulated = vec4(0.0, 0.0, 0.0, 0.0);
 
     for (int sample_index = 0; sample_index < SAMPLE_COUNT; sample_index++) {
-        vec2 jitter = sample_offset(sample_index);
+        vec2 jitter = sample_offset(sample_index, gl_FragCoord.xy);
         vec2 p = -1.0 + 2.0 * (gl_FragCoord.xy + jitter) / resolution.xy;
         p.y *= resolution.y / resolution.x;
 
