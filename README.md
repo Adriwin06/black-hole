@@ -8,6 +8,16 @@ The simulation has normalized units such that the Schwarzschild radius of the bl
 
 See **[this page](https://oseiskar.github.io/black-hole/docs/physics.html)** ([PDF version](https://oseiskar.github.io/black-hole/docs/physics.pdf)) for a more detailed description of the physics of the simulation.
 
+### Interstellar-style controls
+
+The GUI now includes controls matching the visual effects discussed in the Interstellar black-hole breakdown:
+
+ * **Accretion disk > temperature (K):** directly adjusts disk black-body color over the 4,500 K to 13,673 K range (orange to blue).
+ * **Black hole > rotating shadow:** enables/disables spin-induced asymmetry of the black-hole shadow.
+ * **Black hole > a/M:** sets the dimensionless spin parameter.
+ * **Black hole > shadow squeeze:** scales the spin deformation strength (use lower values for a film-like reduced effect).
+ * **Relativistic effects > doppler shift / beaming:** controls blue-shifted brightening of approaching plasma and red-shifted dimming of receding plasma.
+
 ### System requirements
 
 The simulation needs a decent GPU and a recent variant of Chrome or Firefox to run smoothly. In addition to changing simulation quality from the GUI, frame rate can be increased by shrinking the browser window and/or reducing screen resolution. Disabling the planet from the GUI also increases frame rate.

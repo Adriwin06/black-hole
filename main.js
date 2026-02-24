@@ -12,6 +12,10 @@ function Observer() {
     this.time = 0.0;
 }
 
+function formatThousands(value) {
+    return Math.round(value).toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+}
+
 Observer.prototype.orbitalFrame = function() {
 
     //var orbital_y = observer.velocity.clone().normalize();
@@ -71,6 +75,25 @@ Observer.prototype.move = function(dt) {
 var container, stats;
 var camera, scene, renderer, cameraControls, shader = null;
 var observer = new Observer();
+var effectLabels = {
+    spin: null,
+    temperature: null
+};
+
+function updateEffectLabels() {
+    if (!shader || !effectLabels.spin || !effectLabels.temperature) return;
+
+    var spinPercent = shader.parameters.black_hole.spin * 100.0;
+    effectLabels.spin.textContent = 'a/M = ' + spinPercent.toFixed(1) + '%';
+    effectLabels.temperature.textContent =
+        'T = ' + formatThousands(shader.parameters.disk_temperature) + ' K';
+
+    if (shader.parameters.black_hole.spin_enabled) {
+        effectLabels.spin.classList.remove('is-disabled');
+    } else {
+        effectLabels.spin.classList.add('is-disabled');
+    }
+}
 
 function Shader(mustacheTemplate) {
     // Compile-time shader parameters
@@ -82,6 +105,12 @@ function Shader(mustacheTemplate) {
         cinematic_tonemap: false,
         quality: 'high',
         accretion_disk: true,
+        disk_temperature: 8500.0,
+        black_hole: {
+            spin_enabled: true,
+            spin: 0.60,
+            spin_strength: 0.55
+        },
         planet: {
             enabled: true,
             distance: 7.0,
@@ -182,6 +211,10 @@ function init(textures) {
 
         planet_distance: { type: "f" },
         planet_radius: { type: "f" },
+        disk_temperature: { type: "f", value: 8500.0 },
+        bh_spin: { type: "f", value: 0.60 },
+        bh_spin_strength: { type: "f", value: 0.55 },
+        bh_rotation_enabled: { type: "f", value: 1.0 },
 
         star_texture: { type: "t", value: textures.stars },
         galaxy_texture: { type: "t", value: textures.galaxy },
@@ -192,6 +225,10 @@ function init(textures) {
     updateUniforms = function() {
         uniforms.planet_distance.value = shader.parameters.planet.distance;
         uniforms.planet_radius.value = shader.parameters.planet.radius;
+        uniforms.disk_temperature.value = shader.parameters.disk_temperature;
+        uniforms.bh_spin.value = shader.parameters.black_hole.spin;
+        uniforms.bh_spin_strength.value = shader.parameters.black_hole.spin_strength;
+        uniforms.bh_rotation_enabled.value = shader.parameters.black_hole.spin_enabled ? 1.0 : 0.0;
 
         uniforms.resolution.value.x = renderer.domElement.width;
         uniforms.resolution.value.y = renderer.domElement.height;
@@ -211,6 +248,8 @@ function init(textures) {
 
         setVec('cam_pos', observer.position);
         setVec('cam_vel', observer.velocity);
+
+        updateEffectLabels();
     };
 
     var material = new THREE.ShaderMaterial( {
@@ -242,6 +281,10 @@ function init(textures) {
     container.appendChild( stats.domElement );
     $(stats.domElement).addClass('hidden-phone');
 
+    effectLabels.spin = document.getElementById('spin-label');
+    effectLabels.temperature = document.getElementById('temperature-label');
+    updateEffectLabels();
+
     // Orbit camera from three.js
     camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 1, 80000 );
     initializeCamera(camera);
@@ -266,6 +309,11 @@ function setupGUI() {
     function updateShader() {
         hint.hide();
         scene.updateShader();
+    }
+
+    function updateUniformsLive() {
+        updateUniforms();
+        shader.needsUpdate = true;
     }
 
     var gui = new dat.GUI();
@@ -303,7 +351,33 @@ function setupGUI() {
 
     gui.add(p, 'quality', ['fast', 'medium', 'high']).onChange(applyQualityPreset);
     applyQualityPreset(p.quality);
-    gui.add(p, 'accretion_disk').onChange(updateShader);
+    var diskFolder = gui.addFolder('Accretion disk');
+    diskFolder.add(p, 'accretion_disk').onChange(updateShader);
+    diskFolder.add(p, 'disk_temperature')
+        .min(4500)
+        .max(13673)
+        .step(1)
+        .name('temperature (K)')
+        .onChange(updateUniformsLive);
+    diskFolder.open();
+
+    var spinFolder = gui.addFolder('Black hole');
+    spinFolder.add(p.black_hole, 'spin_enabled')
+        .name('rotating shadow')
+        .onChange(updateUniformsLive);
+    spinFolder.add(p.black_hole, 'spin')
+        .min(-0.99)
+        .max(0.99)
+        .step(0.01)
+        .name('a/M')
+        .onChange(updateUniformsLive);
+    spinFolder.add(p.black_hole, 'spin_strength')
+        .min(0.0)
+        .max(1.4)
+        .step(0.01)
+        .name('shadow squeeze')
+        .onChange(updateUniformsLive);
+    spinFolder.open();
 
     var folder = gui.addFolder('Observer');
     folder.add(p.observer, 'motion').onChange(function(motion) {
@@ -384,7 +458,7 @@ function updateCamera( event ) {
     if (shader.parameters.observer.motion) {
         camera_matrix = new THREE.Matrix3();
     }
-    else {
+    else {
         camera_matrix = observer.orientation;
     }
 

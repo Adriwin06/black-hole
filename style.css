@@ -45,6 +45,27 @@ body {
     color: #cccccc;
 }
 
+#effect-readout {
+    position: absolute;
+    left: 56px;
+    bottom: 72px;
+    color: #f3f3f3;
+    font-family: "Times New Roman", serif;
+    font-style: italic;
+    text-shadow: 0 0 14px rgba(0, 0, 0, 0.75);
+    pointer-events: none;
+}
+
+#effect-readout > div {
+    font-size: 62px;
+    font-weight: normal;
+    line-height: 1.1;
+}
+
+#spin-label.is-disabled {
+    opacity: 0.35;
+}
+
 a {
     color: white;
     text-decoration: none;
@@ -61,5 +82,14 @@ a:hover {
 @media screen and (max-width: 800px) {
     .hidden-phone {
         visibility: hidden;
+    }
+
+    #effect-readout {
+        left: 16px;
+        bottom: 54px;
+    }
+
+    #effect-readout > div {
+        font-size: 30px;
     }
 }

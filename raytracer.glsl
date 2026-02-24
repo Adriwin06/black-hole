@@ -31,6 +31,8 @@ uniform vec3 cam_z;
 uniform vec3 cam_vel;
 
 uniform float planet_distance, planet_radius;
+uniform float disk_temperature;
+uniform float bh_spin, bh_spin_strength, bh_rotation_enabled;
 
 uniform sampler2D galaxy_texture, star_texture,
     planet_texture, spectrum_texture;
@@ -43,7 +45,6 @@ const float MAX_REVOLUTIONS = float({{max_revolutions}});
 const float ACCRETION_MIN_R = 1.5;
 const float ACCRETION_WIDTH = 5.0;
 const float ACCRETION_BRIGHTNESS = 1.2;
-const float ACCRETION_TEMPERATURE = 8500.0;
 
 const float STAR_MIN_TEMPERATURE = 4000.0;
 const float STAR_MAX_TEMPERATURE = 15000.0;
@@ -103,36 +104,56 @@ vec3 contract(vec3 x, vec3 d, float mult) {
     return (x-par*d) + d*par*mult;
 }
 
-float geodesic_accel(float u) {
-    return -u*(1.0 - 1.5*u*u);
+vec3 safe_normalize(vec3 v) {
+    float l = length(v);
+    if (l > 1e-6) return v/l;
+    return vec3(0.0, 0.0, 0.0);
 }
 
-void integrate_geodesic_step(inout float u, inout float du, float step) {
+vec3 rotate_about_z(vec3 p, float angle) {
+    float c = cos(angle);
+    float s = sin(angle);
+    return vec3(
+        c*p.x - s*p.y,
+        s*p.x + c*p.y,
+        p.z
+    );
+}
+
+float geodesic_accel(float u, float spin_alignment) {
+    float schwarzschild_accel = -u*(1.0 - 1.5*u*u);
+    float frame_drag_term = bh_rotation_enabled * bh_spin * bh_spin_strength *
+        spin_alignment * 0.55 * u*u*u*u;
+    return schwarzschild_accel + frame_drag_term;
+}
+
+void integrate_geodesic_step(inout float u, inout float du, float step,
+        float spin_alignment) {
     {{#rk4_integration}}
     float k1_u = du;
-    float k1_du = geodesic_accel(u);
+    float k1_du = geodesic_accel(u, spin_alignment);
 
     float u2 = u + 0.5*step*k1_u;
     float du2 = du + 0.5*step*k1_du;
     float k2_u = du2;
-    float k2_du = geodesic_accel(u2);
+    float k2_du = geodesic_accel(u2, spin_alignment);
 
     float u3 = u + 0.5*step*k2_u;
     float du3 = du + 0.5*step*k2_du;
     float k3_u = du3;
-    float k3_du = geodesic_accel(u3);
+    float k3_du = geodesic_accel(u3, spin_alignment);
 
     float u4 = u + step*k3_u;
     float du4 = du + step*k3_du;
     float k4_u = du4;
-    float k4_du = geodesic_accel(u4);
+    float k4_du = geodesic_accel(u4, spin_alignment);
 
     u += (step/6.0) * (k1_u + 2.0*k2_u + 2.0*k3_u + k4_u);
     du += (step/6.0) * (k1_du + 2.0*k2_du + 2.0*k3_du + k4_du);
     {{/rk4_integration}}
     {{^rk4_integration}}
     u += du*step;
-    du += geodesic_accel(u)*step;
+    du += geodesic_accel(u, spin_alignment)*step;
     {{/rk4_integration}}
 }
 
@@ -200,7 +221,7 @@ float accretion_flux_profile(float radius) {
 float accretion_temperature(float radius) {
     float x = max(radius / ACCRETION_MIN_R, 1.0001);
     float inner_edge = max(1.0 - sqrt(1.0 / x), 0.02);
-    return ACCRETION_TEMPERATURE * pow(1.0 / x, 0.75) * pow(inner_edge, 0.25);
+    return disk_temperature * pow(1.0 / x, 0.75) * pow(inner_edge, 0.25);
 }
 
 float gravitational_shift(float emission_radius) {
@@ -314,7 +335,7 @@ vec4 planet_intersection(vec3 old_pos, vec3 ray, float t, float dt,
     float lightness = ((1.0-PLANET_AMBIENT)*diffuse + PLANET_AMBIENT) *
         PLANET_LIGHTNESS;
 
-    float light_temperature = ACCRETION_TEMPERATURE;
+    float light_temperature = disk_temperature;
     {{#doppler_shift}}
     float doppler_factor = SQ(PLANET_GAMMA) *
         (1.0 + dot(planet_vel, light_dir)) *
@@ -400,6 +421,9 @@ vec4 trace_ray(vec3 ray) {
 
     vec3 normal_vec = normalize(pos);
     vec3 tangent_vec = normalize(cross(cross(normal_vec, ray), normal_vec));
+    vec3 spin_axis = vec3(0.0, 0.0, 1.0);
+    float spin_alignment = clamp(dot(safe_normalize(cross(pos, ray)), spin_axis), -1.0, 1.0);
+    float frame_drag_phase = 0.0;
 
     float du = -dot(ray,normal_vec) / dot(ray,tangent_vec) * u;
     float du0 = du;
@@ -433,14 +457,21 @@ vec4 trace_ray(vec3 ray) {
         {{/gravitational_time_dilation}}
         {{/light_travel_time}}
 
-        integrate_geodesic_step(u, du, step);
+        integrate_geodesic_step(u, du, step, spin_alignment);
 
         if (u < 0.0) break;
 
         phi += step;
 
         old_pos = pos;
-        pos = (cos(phi)*normal_vec + sin(phi)*tangent_vec)/u;
+        vec3 planar_pos = (cos(phi)*normal_vec + sin(phi)*tangent_vec)/u;
+
+        float drag_u = clamp(u, 0.0, 1.15);
+        float frame_drag_step = bh_rotation_enabled * bh_spin * bh_spin_strength *
+            spin_alignment * step * 0.85 * drag_u*drag_u*drag_u;
+        frame_drag_phase += frame_drag_step;
+
+        pos = rotate_about_z(planar_pos, frame_drag_phase);
 
         ray = pos-old_pos;
         float solid_isec_t = 2.0;
@@ -522,7 +553,11 @@ vec4 trace_ray(vec3 ray) {
         {{/light_travel_time}}
 
         if (solid_isec_t <= 1.0) u = 2.0; // break
-        if (u > 1.0) break;
+
+        float capture_u = 1.0 + bh_rotation_enabled * bh_spin * bh_spin_strength *
+            spin_alignment * 0.12;
+        capture_u = clamp(capture_u, 0.82, 1.18);
+        if (u > capture_u) break;
     }
 
     // the event horizon is at u = 1
