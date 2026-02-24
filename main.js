@@ -295,19 +295,12 @@ function setupGUI() {
             p.rk4_integration = true;
             p.cinematic_tonemap = false;
             break;
-        case 'interstellar':
-            p.n_steps = 520;
-            p.sample_count = 4;
-            p.max_revolutions = 4.0;
-            p.rk4_integration = true;
-            p.cinematic_tonemap = true;
-            break;
         }
 
         updateShader();
     }
 
-    gui.add(p, 'quality', ['fast', 'medium', 'high', 'interstellar']).onChange(applyQualityPreset);
+    gui.add(p, 'quality', ['fast', 'medium', 'high']).onChange(applyQualityPreset);
     applyQualityPreset(p.quality);
     gui.add(p, 'accretion_disk').onChange(updateShader);
 
