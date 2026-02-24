@@ -34,6 +34,7 @@ uniform float planet_distance, planet_radius;
 uniform float disk_temperature;
 uniform float bh_spin, bh_spin_strength, bh_rotation_enabled;
 uniform float look_exposure, look_disk_gain, look_glow, look_doppler_boost;
+uniform float look_aberration_strength;
 uniform float look_star_gain, look_galaxy_gain;
 
 uniform sampler2D galaxy_texture, star_texture,
@@ -424,17 +425,23 @@ vec4 trace_ray(vec3 ray) {
     vec3 pos = cam_pos;
 
     {{#aberration}}
-    ray = lorentz_velocity_transformation(ray, cam_vel);
+    vec3 aberration_vel = cam_vel * max(look_aberration_strength, 0.0);
+    float aberration_speed = length(aberration_vel);
+    if (aberration_speed > 0.999) {
+        aberration_vel *= 0.999 / aberration_speed;
+    }
+    ray = lorentz_velocity_transformation(ray, aberration_vel);
     {{/aberration}}
 
     float ray_intensity = 1.0;
     float ray_doppler_factor = 1.0;
+    float doppler_boost = clamp(look_doppler_boost, 0.0, 2.5);
 
     float gamma = 1.0/sqrt(max(1.0-dot(cam_vel,cam_vel), 0.0001));
     ray_doppler_factor = gamma*(1.0 + dot(ray,-cam_vel));
     {{#beaming}}
-    float beaming_factor = clamp(ray_doppler_factor, 0.78, 1.28);
-    ray_intensity *= pow(beaming_factor, 0.9 * look_doppler_boost);
+    float beaming_factor = clamp(ray_doppler_factor, 0.84, 1.16);
+    ray_intensity /= pow(beaming_factor, 0.65 + 0.75*doppler_boost);
     {{/beaming}}
     {{^doppler_shift}}
     ray_doppler_factor = 1.0;
@@ -567,8 +574,8 @@ vec4 trace_ray(vec3 ray) {
                     gamma = 1.0/sqrt(max(1.0-dot(accretion_v,accretion_v), 0.0001));
                     float doppler_factor = gamma*(1.0+dot(ray/ray_l,accretion_v));
                     {{#beaming}}
-                    float clamped_doppler = clamp(doppler_factor, 0.45, 1.8);
-                    accretion_intensity *= pow(clamped_doppler, 1.05 * look_doppler_boost);
+                    float clamped_doppler = clamp(doppler_factor, 0.62, 1.48);
+                    accretion_intensity /= pow(clamped_doppler, 1.05 + 1.10*doppler_boost);
                     {{/beaming}}
                     {{#doppler_shift}}
                     temperature /= max(ray_doppler_factor*doppler_factor, 0.05);

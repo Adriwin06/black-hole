@@ -119,6 +119,7 @@ function Shader(mustacheTemplate) {
             disk_gain: 1.75,
             glow: 0.42,
             doppler_boost: 1.0,
+            aberration_strength: 1.4,
             star_gain: 0.55,
             galaxy_gain: 0.55
         },
@@ -230,6 +231,7 @@ function init(textures) {
         look_disk_gain: { type: "f", value: 1.75 },
         look_glow: { type: "f", value: 0.42 },
         look_doppler_boost: { type: "f", value: 1.0 },
+        look_aberration_strength: { type: "f", value: 1.4 },
         look_star_gain: { type: "f", value: 0.55 },
         look_galaxy_gain: { type: "f", value: 0.55 },
 
@@ -250,6 +252,7 @@ function init(textures) {
         uniforms.look_disk_gain.value = shader.parameters.look.disk_gain;
         uniforms.look_glow.value = shader.parameters.look.glow;
         uniforms.look_doppler_boost.value = shader.parameters.look.doppler_boost;
+        uniforms.look_aberration_strength.value = shader.parameters.look.aberration_strength;
         uniforms.look_star_gain.value = shader.parameters.look.star_gain;
         uniforms.look_galaxy_gain.value = shader.parameters.look.galaxy_gain;
 
@@ -427,6 +430,12 @@ function setupGUI() {
         .step(0.01)
         .name('doppler boost')
         .onChange(updateUniformsLive);
+    lookFolder.add(p.look, 'aberration_strength')
+        .min(0.0)
+        .max(3.0)
+        .step(0.01)
+        .name('aberration strength')
+        .onChange(updateUniformsLive);
     lookFolder.add(p.look, 'star_gain')
         .min(0.0)
         .max(2.5)
@@ -472,9 +481,9 @@ function setupGUI() {
     }
 
     folder = gui.addFolder('Relativistic effects');
-    folder.add(p, 'aberration').onChange(updateShader);
-    folder.add(p, 'beaming').onChange(updateShader);
-    folder.add(p, 'doppler_shift').onChange(updateShader);
+    folder.add(p, 'aberration').name('aberration (ray dir)').onChange(updateShader);
+    folder.add(p, 'beaming').name('beaming (intensity)').onChange(updateShader);
+    folder.add(p, 'doppler_shift').name('doppler shift (color)').onChange(updateShader);
     setGuiRowClass(
         folder.add(p, 'gravitational_time_dilation').onChange(updateShader),
         'planet-controls indirect-planet-controls');
