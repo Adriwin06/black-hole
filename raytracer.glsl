@@ -33,6 +33,8 @@ uniform vec3 cam_vel;
 uniform float planet_distance, planet_radius;
 uniform float disk_temperature;
 uniform float bh_spin, bh_spin_strength, bh_rotation_enabled;
+uniform float look_exposure, look_disk_gain, look_glow, look_doppler_boost;
+uniform float look_star_gain, look_galaxy_gain;
 
 uniform sampler2D galaxy_texture, star_texture,
     planet_texture, spectrum_texture;
@@ -44,14 +46,14 @@ const float MAX_REVOLUTIONS = float({{max_revolutions}});
 
 const float ACCRETION_MIN_R = 1.5;
 const float ACCRETION_WIDTH = 5.0;
-const float ACCRETION_BRIGHTNESS = 1.2;
+const float ACCRETION_BRIGHTNESS = 0.95;
 
 const float STAR_MIN_TEMPERATURE = 4000.0;
 const float STAR_MAX_TEMPERATURE = 15000.0;
 
-const float STAR_BRIGHTNESS = 0.7;
-const float GALAXY_BRIGHTNESS = 0.22;
-const float GLOBAL_EXPOSURE = 0.72;
+const float STAR_BRIGHTNESS = 0.52;
+const float GALAXY_BRIGHTNESS = 0.14;
+const float GLOBAL_EXPOSURE = 0.60;
 const float GALAXY_DOPPLER_STRENGTH = 0.45;
 const float GALAXY_MAX_BOOST = 1.30;
 
@@ -249,7 +251,9 @@ float screen_dither() {
 
 vec4 finalize_color(vec4 color) {
     {{#cinematic_tonemap}}
-    vec3 mapped = aces_filmic(max(color.rgb * GLOBAL_EXPOSURE, vec3(0.0)));
+    vec3 mapped = aces_filmic(max(color.rgb * (GLOBAL_EXPOSURE * look_exposure), vec3(0.0)));
+    float lum = dot(mapped, vec3(0.2126, 0.7152, 0.0722));
+    mapped += mapped * smoothstep(0.82, 1.0, lum) * 0.06;
     mapped = pow(mapped, vec3(1.0/2.2));
     mapped += vec3(screen_dither());
     mapped = clamp(mapped, 0.0, 1.0);
@@ -405,8 +409,8 @@ vec4 trace_ray(vec3 ray) {
     float gamma = 1.0/sqrt(max(1.0-dot(cam_vel,cam_vel), 0.0001));
     ray_doppler_factor = gamma*(1.0 + dot(ray,-cam_vel));
     {{#beaming}}
-    float beaming_factor = clamp(ray_doppler_factor, 0.78, 1.22);
-    ray_intensity /= beaming_factor*beaming_factor*beaming_factor;
+    float beaming_factor = clamp(ray_doppler_factor, 0.78, 1.28);
+    ray_intensity *= pow(beaming_factor, 0.9 * look_doppler_boost);
     {{/beaming}}
     {{^doppler_shift}}
     ray_doppler_factor = 1.0;
@@ -539,14 +543,16 @@ vec4 trace_ray(vec3 ray) {
                     gamma = 1.0/sqrt(max(1.0-dot(accretion_v,accretion_v), 0.0001));
                     float doppler_factor = gamma*(1.0+dot(ray/ray_l,accretion_v));
                     {{#beaming}}
-                    float clamped_doppler = max(doppler_factor, 0.05);
-                    accretion_intensity /= clamped_doppler*clamped_doppler*clamped_doppler;
+                    float clamped_doppler = clamp(doppler_factor, 0.45, 1.8);
+                    accretion_intensity *= pow(clamped_doppler, 1.05 * look_doppler_boost);
                     {{/beaming}}
                     {{#doppler_shift}}
                     temperature /= max(ray_doppler_factor*doppler_factor, 0.05);
                     {{/doppler_shift}}
 
                     vec4 thermal_color = BLACK_BODY_COLOR(temperature);
+                    accretion_intensity *= look_disk_gain;
+                    accretion_intensity *= 1.0 + look_glow * (0.22 + 0.78*inner_glow);
                     color += vec4(thermal_color.rgb * accretion_intensity, 1.0);
                 }
             }
@@ -580,10 +586,10 @@ vec4 trace_ray(vec3 ray) {
                 (STAR_MAX_TEMPERATURE-STAR_MIN_TEMPERATURE) * star_color.g)
                  / ray_doppler_factor;
 
-            color += BLACK_BODY_COLOR(t_coord) * star_color.r * STAR_BRIGHTNESS;
+            color += BLACK_BODY_COLOR(t_coord) * star_color.r * STAR_BRIGHTNESS * look_star_gain;
         }
 
-        color += galaxy_color(tex_coord, ray_doppler_factor) * GALAXY_BRIGHTNESS;
+        color += galaxy_color(tex_coord, ray_doppler_factor) * GALAXY_BRIGHTNESS * look_galaxy_gain;
     }
 
     return color*ray_intensity;

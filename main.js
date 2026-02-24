@@ -111,6 +111,14 @@ function Shader(mustacheTemplate) {
             spin: 0.60,
             spin_strength: 0.55
         },
+        look: {
+            exposure: 0.96,
+            disk_gain: 1.75,
+            glow: 0.42,
+            doppler_boost: 1.0,
+            star_gain: 0.55,
+            galaxy_gain: 0.55
+        },
         planet: {
             enabled: true,
             distance: 7.0,
@@ -215,6 +223,12 @@ function init(textures) {
         bh_spin: { type: "f", value: 0.60 },
         bh_spin_strength: { type: "f", value: 0.55 },
         bh_rotation_enabled: { type: "f", value: 1.0 },
+        look_exposure: { type: "f", value: 0.96 },
+        look_disk_gain: { type: "f", value: 1.75 },
+        look_glow: { type: "f", value: 0.42 },
+        look_doppler_boost: { type: "f", value: 1.0 },
+        look_star_gain: { type: "f", value: 0.55 },
+        look_galaxy_gain: { type: "f", value: 0.55 },
 
         star_texture: { type: "t", value: textures.stars },
         galaxy_texture: { type: "t", value: textures.galaxy },
@@ -229,6 +243,12 @@ function init(textures) {
         uniforms.bh_spin.value = shader.parameters.black_hole.spin;
         uniforms.bh_spin_strength.value = shader.parameters.black_hole.spin_strength;
         uniforms.bh_rotation_enabled.value = shader.parameters.black_hole.spin_enabled ? 1.0 : 0.0;
+        uniforms.look_exposure.value = shader.parameters.look.exposure;
+        uniforms.look_disk_gain.value = shader.parameters.look.disk_gain;
+        uniforms.look_glow.value = shader.parameters.look.glow;
+        uniforms.look_doppler_boost.value = shader.parameters.look.doppler_boost;
+        uniforms.look_star_gain.value = shader.parameters.look.star_gain;
+        uniforms.look_galaxy_gain.value = shader.parameters.look.galaxy_gain;
 
         uniforms.resolution.value.x = renderer.domElement.width;
         uniforms.resolution.value.y = renderer.domElement.height;
@@ -327,7 +347,7 @@ function setupGUI() {
             p.sample_count = 1;
             p.max_revolutions = 1.5;
             p.rk4_integration = false;
-            p.cinematic_tonemap = false;
+            p.cinematic_tonemap = true;
             $('.planet-controls').hide();
             break;
         case 'medium':
@@ -335,14 +355,14 @@ function setupGUI() {
             p.sample_count = 1;
             p.max_revolutions = 2.0;
             p.rk4_integration = false;
-            p.cinematic_tonemap = false;
+            p.cinematic_tonemap = true;
             break;
         case 'high':
             p.n_steps = 320;
             p.sample_count = 4;
             p.max_revolutions = 3.2;
             p.rk4_integration = true;
-            p.cinematic_tonemap = false;
+            p.cinematic_tonemap = true;
             break;
         }
 
@@ -378,6 +398,45 @@ function setupGUI() {
         .name('shadow squeeze')
         .onChange(updateUniformsLive);
     spinFolder.open();
+
+    var lookFolder = gui.addFolder('Look');
+    lookFolder.add(p.look, 'exposure')
+        .min(0.6)
+        .max(2.5)
+        .step(0.01)
+        .name('exposure')
+        .onChange(updateUniformsLive);
+    lookFolder.add(p.look, 'disk_gain')
+        .min(0.4)
+        .max(4.0)
+        .step(0.01)
+        .name('disk intensity')
+        .onChange(updateUniformsLive);
+    lookFolder.add(p.look, 'glow')
+        .min(0.0)
+        .max(2.0)
+        .step(0.01)
+        .name('inner glow')
+        .onChange(updateUniformsLive);
+    lookFolder.add(p.look, 'doppler_boost')
+        .min(0.0)
+        .max(2.5)
+        .step(0.01)
+        .name('doppler boost')
+        .onChange(updateUniformsLive);
+    lookFolder.add(p.look, 'star_gain')
+        .min(0.0)
+        .max(2.5)
+        .step(0.01)
+        .name('star gain')
+        .onChange(updateUniformsLive);
+    lookFolder.add(p.look, 'galaxy_gain')
+        .min(0.0)
+        .max(2.5)
+        .step(0.01)
+        .name('galaxy gain')
+        .onChange(updateUniformsLive);
+    lookFolder.open();
 
     var folder = gui.addFolder('Observer');
     folder.add(p.observer, 'motion').onChange(function(motion) {
