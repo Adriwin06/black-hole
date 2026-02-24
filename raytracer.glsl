@@ -50,6 +50,8 @@ const float ACCRETION_BRIGHTNESS = 0.95;
 
 const float STAR_MIN_TEMPERATURE = 4000.0;
 const float STAR_MAX_TEMPERATURE = 15000.0;
+const float DISK_MIN_TEMPERATURE = 4500.0;
+const float DISK_MAX_TEMPERATURE = 30000.0;
 
 const float STAR_BRIGHTNESS = 0.52;
 const float GALAXY_BRIGHTNESS = 0.14;
@@ -347,8 +349,30 @@ vec4 planet_intersection(vec3 old_pos, vec3 ray, float t, float dt,
     light_temperature /= max(doppler_factor * ray_doppler_factor, 0.05);
     {{/doppler_shift}}
 
-    vec4 light_color = BLACK_BODY_COLOR(light_temperature);
-    ret = texture2D(planet_texture, tex_coord) * lightness * light_color;
+    vec3 blackbody_rgb = BLACK_BODY_COLOR(light_temperature).rgb;
+    float bb_max = max(max(blackbody_rgb.r, blackbody_rgb.g), blackbody_rgb.b);
+    vec3 physical_tint = vec3(1.0, 1.0, 1.0);
+    if (bb_max > 1e-5) {
+        physical_tint = blackbody_rgb / bb_max;
+    }
+
+    // Force a clear blue<->orange slider response on the planet illumination.
+    float temp_norm = clamp(
+        (disk_temperature - DISK_MIN_TEMPERATURE) /
+        (DISK_MAX_TEMPERATURE - DISK_MIN_TEMPERATURE),
+        0.0, 1.0);
+    vec3 slider_tint = mix(
+        vec3(1.00, 0.57, 0.28), // warm/orange
+        vec3(0.62, 0.80, 1.00), // hot/blue
+        temp_norm
+    );
+
+    vec3 light_tint = mix(physical_tint, slider_tint, 0.68);
+    float tint_luma = dot(light_tint, vec3(0.2126, 0.7152, 0.0722));
+    light_tint = clamp(mix(vec3(tint_luma), light_tint, 1.20), 0.0, 1.5);
+
+    ret = texture2D(planet_texture, tex_coord) * lightness;
+    ret.rgb *= light_tint;
     if (isec_t < 0.0) isec_t = 0.5;
     ret.w = isec_t;
 

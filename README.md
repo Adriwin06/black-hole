@@ -12,7 +12,7 @@ See **[this page](https://oseiskar.github.io/black-hole/docs/physics.html)** ([P
 
 The GUI now includes controls matching the visual effects discussed in the Interstellar black-hole breakdown:
 
- * **Accretion disk > temperature (K):** directly adjusts disk black-body color over the 4,500 K to 13,673 K range (orange to blue).
+* **Accretion disk > temperature (K):** directly adjusts disk black-body color over the 4,500 K to 30,000 K range (orange to blue-white).
  * **Black hole > rotating shadow:** enables/disables spin-induced asymmetry of the black-hole shadow.
  * **Black hole > a/M:** sets the dimensionless spin parameter.
  * **Black hole > shadow squeeze:** scales the spin deformation strength (use lower values for a film-like reduced effect).

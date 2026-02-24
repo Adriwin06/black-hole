@@ -5,6 +5,9 @@
 
 if ( ! Detector.webgl ) Detector.addGetWebGLMessage();
 
+var DISK_TEMPERATURE_MIN = 4500.0;
+var DISK_TEMPERATURE_MAX = 30000.0;
+
 function Observer() {
     this.position = new THREE.Vector3(10,0,0);
     this.velocity = new THREE.Vector3(0,1,0);
@@ -374,8 +377,8 @@ function setupGUI() {
     var diskFolder = gui.addFolder('Accretion disk');
     diskFolder.add(p, 'accretion_disk').onChange(updateShader);
     diskFolder.add(p, 'disk_temperature')
-        .min(4500)
-        .max(13673)
+        .min(DISK_TEMPERATURE_MIN)
+        .max(DISK_TEMPERATURE_MAX)
         .step(1)
         .name('temperature (K)')
         .onChange(updateUniformsLive);
