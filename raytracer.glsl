@@ -147,189 +147,6 @@ float kerr_horizon_radius(float a) {
     return KERR_M + sqrt(max(KERR_M*KERR_M - a*a, 0.0));
 }
 
-void cartesian_to_spherical(vec3 p, out float r, out float theta, out float phi) {
-    r = max(length(p), 1e-5);
-    theta = acos(clamp(p.z / r, -1.0, 1.0));
-    phi = atan(p.y, p.x);
-}
-
-vec3 spherical_to_cartesian(float r, float theta, float phi) {
-    float st = sin(theta);
-    return vec3(
-        r * st * cos(phi),
-        r * st * sin(phi),
-        r * cos(theta)
-    );
-}
-
-void spherical_basis(float theta, float phi, out vec3 e_r, out vec3 e_theta, out vec3 e_phi) {
-    float st = sin(theta);
-    float ct = cos(theta);
-    float sp = sin(phi);
-    float cp = cos(phi);
-
-    e_r = vec3(st*cp, st*sp, ct);
-    e_theta = vec3(ct*cp, ct*sp, -st);
-    e_phi = vec3(-sp, cp, 0.0);
-}
-
-float kerr_radial_potential(float r, float a, float Lz, float Q) {
-    float Delta = kerr_delta(r, a);
-    float P = r*r + a*a - a*Lz;
-    float B = (Lz - a)*(Lz - a) + Q;
-    return P*P - Delta*B;
-}
-
-float kerr_polar_potential(float theta, float a, float Lz, float Q) {
-    float st = max(sin(theta), 1e-4);
-    float ct = cos(theta);
-    return Q - ct*ct * (Lz*Lz/(st*st) - a*a);
-}
-
-// Simplified Kerr ray step using coordinate velocity approach
-// Uses effective potential derivative for photon geodesics
-void kerr_accel(vec3 pos, vec3 vel, float a, out vec3 accel) {
-    float r = max(length(pos), 0.5);  // Prevent divide by zero
-    float r2 = r*r;
-    float r3 = r2*r;
-    float r4 = r2*r2;
-    float a2 = a*a;
-    float M = 0.5;  // M = rs/2 where rs = 1
-    float rs = 1.0; // Schwarzschild radius
-    
-    vec3 r_hat = pos / r;
-    vec3 z_hat = vec3(0.0, 0.0, 1.0);
-    
-    // Angular momentum magnitude squared
-    vec3 L_vec = cross(pos, vel);
-    float h2 = dot(L_vec, L_vec);  // specific angular momentum squared
-    
-    // From geodesic equation, radial acceleration for photons:
-    // a_r = -M/r² + h²/r³ - 3Mh²/r⁴
-    // The last term is the key GR correction causing photon sphere at r=3M=1.5rs
-    float radial_accel = -M/r2 + h2/r3 - 3.0*M*h2/r4;
-    
-    accel = r_hat * radial_accel;
-    
-    // Transverse acceleration to maintain geodesic (angular momentum evolution)
-    // For non-radial motion, there's also theta/phi acceleration
-    vec3 v_radial = r_hat * dot(vel, r_hat);
-    vec3 v_perp = vel - v_radial;
-    float v_perp_mag = length(v_perp);
-    if (v_perp_mag > 0.001) {
-        vec3 theta_hat = v_perp / v_perp_mag;
-        // Centripetal-like term from spherical coordinates
-        float v_r = dot(vel, r_hat);
-        accel -= theta_hat * v_r * v_perp_mag / r;
-    }
-    
-    // Frame dragging for Kerr
-    float cos_theta = clamp(dot(r_hat, z_hat), -1.0, 1.0);
-    float sin_theta = sqrt(max(1.0 - cos_theta*cos_theta, 0.0001));
-    if (abs(a) > 0.001 && sin_theta > 0.001) {
-        float omega_fd = 2.0*M*a*r / (r4 + a2*r2 + 2.0*M*a2*r);
-        vec3 phi_hat = normalize(cross(z_hat, pos));
-        accel += phi_hat * omega_fd * sin_theta;
-    }
-}
-
-void integrate_kerr_simple_step(inout vec3 pos, inout vec3 vel, float h, float a) {
-    vec3 k1_v, k1_a;
-    vec3 k2_v, k2_a;
-    vec3 k3_v, k3_a;
-    vec3 k4_v, k4_a;
-    
-    kerr_accel(pos, vel, a, k1_a);
-    k1_v = vel;
-    
-    kerr_accel(pos + 0.5*h*k1_v, vel + 0.5*h*k1_a, a, k2_a);
-    k2_v = vel + 0.5*h*k1_a;
-    
-    kerr_accel(pos + 0.5*h*k2_v, vel + 0.5*h*k2_a, a, k3_a);
-    k3_v = vel + 0.5*h*k2_a;
-    
-    kerr_accel(pos + h*k3_v, vel + h*k3_a, a, k4_a);
-    k4_v = vel + h*k3_a;
-    
-    pos += (h/6.0) * (k1_v + 2.0*k2_v + 2.0*k3_v + k4_v);
-    vel += (h/6.0) * (k1_a + 2.0*k2_a + 2.0*k3_a + k4_a);
-    
-    // Re-normalize velocity to maintain null geodesic (light speed = 1)
-    vel = normalize(vel);
-}
-
-void kerr_constants_from_ray(vec3 pos, vec3 ray, float a,
-        out float Lz, out float Q, out float sign_r, out float sign_theta) {
-
-    float r, theta, phi;
-    cartesian_to_spherical(pos, r, theta, phi);
-
-    vec3 e_r, e_theta, e_phi;
-    spherical_basis(theta, phi, e_r, e_theta, e_phi);
-
-    // ray points in the direction we trace (toward scene, backward along photon path)
-    float p_r = dot(ray, e_r);
-    float p_theta = dot(ray, e_theta) * r;
-    float p_phi = dot(ray, e_phi) * r * max(sin(theta), 1e-4);
-
-    Lz = p_phi;
-
-    float st = max(sin(theta), 1e-4);
-    float ct = cos(theta);
-    Q = p_theta*p_theta + ct*ct * (Lz*Lz/(st*st) - a*a);
-    Q = max(Q, 0.0);
-
-    sign_r = (p_r >= 0.0) ? 1.0 : -1.0;
-    sign_theta = (dot(ray, e_theta) >= 0.0) ? 1.0 : -1.0;
-}
-
-void kerr_derivatives(float r, float theta, float a, float Lz, float Q,
-        float sign_r, float sign_theta,
-        out float dr, out float dtheta, out float dphi) {
-
-    float Sigma = max(kerr_sigma(r, theta, a), 1e-5);
-    float Delta = max(kerr_delta(r, a), 1e-5);
-    float st = max(sin(theta), 1e-4);
-
-    float R = max(kerr_radial_potential(r, a, Lz, Q), 0.0);
-    float T = max(kerr_polar_potential(theta, a, Lz, Q), 0.0);
-    float P = r*r + a*a - a*Lz;
-
-    dr = sign_r * sqrt(R) / Sigma;
-    dtheta = sign_theta * sqrt(T) / Sigma;
-    dphi = (Lz/(st*st) - a + a*P/Delta) / Sigma;
-}
-
-void integrate_kerr_bl_step(inout float r, inout float theta, inout float phi,
-        float h, float a, float Lz, float Q,
-        inout float sign_r, inout float sign_theta) {
-
-    float k1_r, k1_t, k1_p;
-    float k2_r, k2_t, k2_p;
-    float k3_r, k3_t, k3_p;
-    float k4_r, k4_t, k4_p;
-
-    kerr_derivatives(r, theta, a, Lz, Q, sign_r, sign_theta, k1_r, k1_t, k1_p);
-    kerr_derivatives(r + 0.5*h*k1_r, theta + 0.5*h*k1_t, a, Lz, Q,
-        sign_r, sign_theta, k2_r, k2_t, k2_p);
-    kerr_derivatives(r + 0.5*h*k2_r, theta + 0.5*h*k2_t, a, Lz, Q,
-        sign_r, sign_theta, k3_r, k3_t, k3_p);
-    kerr_derivatives(r + h*k3_r, theta + h*k3_t, a, Lz, Q,
-        sign_r, sign_theta, k4_r, k4_t, k4_p);
-
-    r += (h/6.0) * (k1_r + 2.0*k2_r + 2.0*k3_r + k4_r);
-    theta += (h/6.0) * (k1_t + 2.0*k2_t + 2.0*k3_t + k4_t);
-    phi += (h/6.0) * (k1_p + 2.0*k2_p + 2.0*k3_p + k4_p);
-
-    theta = clamp(theta, 1e-4, M_PI - 1e-4);
-
-    float R = kerr_radial_potential(r, a, Lz, Q);
-    float T = kerr_polar_potential(theta, a, Lz, Q);
-
-    if (R < 1e-7) sign_r *= -1.0;
-    if (T < 1e-7) sign_theta *= -1.0;
-}
-
 float geodesic_accel(float u, float spin_alignment) {
     // Schwarzschild photon geodesic (Binet equation): d²u/dφ² = -u + (3/2)u² in units where r_s = 1
     // Photon sphere at u = 2/3 (r = 1.5 r_s), see e.g. MTW "Gravitation" or
@@ -816,16 +633,6 @@ vec4 trace_ray(vec3 ray) {
     float du0 = du;
 
     float phi = 0.0;
-    float kerr_r = length(pos);
-    float kerr_theta = acos(clamp(pos.z/max(kerr_r, 1e-5), -1.0, 1.0));
-    float kerr_phi = atan(pos.y, pos.x);
-    float kerr_a = kerr_spin_a();
-    float kerr_horizon = kerr_horizon_radius(kerr_a);
-    float kerr_Lz = 0.0;
-    float kerr_Q = 0.0;
-    float kerr_sign_r = 1.0;
-    float kerr_sign_theta = 1.0;
-    kerr_constants_from_ray(pos, ray, kerr_a, kerr_Lz, kerr_Q, kerr_sign_r, kerr_sign_theta);
 
     float t = time;
     float dt = 1.0;
@@ -883,7 +690,6 @@ vec4 trace_ray(vec3 ray) {
         {{/kerr_fast_mode}}
 
         {{#kerr_full_core}}
-        {{^kerr_offline}}
         // Realtime Kerr: Binet equation with frame-drag approximation
         // Same geodesic integration as fast mode, with full Kerr disk kinematics
         step = MAX_REVOLUTIONS * 2.0*M_PI / float(NSTEPS);
@@ -926,57 +732,10 @@ vec4 trace_ray(vec3 ray) {
         frame_drag_phase += frame_drag_step_fc;
 
         pos = rotate_about_z(planar_pos_fc, frame_drag_phase);
-        kerr_r = length(pos);
 
         {{#light_travel_time}}
         dt = length(pos - old_pos);
         {{/light_travel_time}}
-        {{/kerr_offline}}
-
-        {{#kerr_offline}}
-        // Offline: Exact Boyer-Lindquist Kerr geodesic integration
-        // Uses conserved quantities Lz, Q from Carter (1968)
-
-        float bl_dr_est, bl_dtheta_est, bl_dphi_est;
-        kerr_derivatives(kerr_r, kerr_theta, kerr_a, kerr_Lz, kerr_Q,
-            kerr_sign_r, kerr_sign_theta, bl_dr_est, bl_dtheta_est, bl_dphi_est);
-
-        // Use angular rate to set step for consistent coverage
-        float phi_rate = max(abs(bl_dphi_est), 0.001);
-        float phi_step_bl = MAX_REVOLUTIONS * 2.0*M_PI / float(NSTEPS);
-        step = phi_step_bl / phi_rate;
-
-        // Conservative limits: never exceed 5% of current radius
-        step = min(step, kerr_r * 0.05);
-        step = max(step, 0.0001);
-
-        // Refine near photon sphere and horizon
-        float ps_dist_bl = kerr_r - 1.5;
-        float ps_prox_bl = exp(-4.0 * ps_dist_bl * ps_dist_bl);
-        step *= max(1.0 - 0.9 * ps_prox_bl, 0.05);
-
-        float horizon_margin = max((kerr_r - kerr_horizon) / kerr_r, 0.0);
-        step *= clamp(horizon_margin * 5.0, 0.01, 1.0);
-
-        old_u = u;
-        old_pos = pos;
-
-        integrate_kerr_bl_step(kerr_r, kerr_theta, kerr_phi,
-            step, kerr_a, kerr_Lz, kerr_Q,
-            kerr_sign_r, kerr_sign_theta);
-
-        if (kerr_r <= kerr_horizon + 0.005) {
-            shadow_capture = true;
-            break;
-        }
-
-        pos = spherical_to_cartesian(kerr_r, kerr_theta, kerr_phi);
-        u = 1.0 / max(kerr_r, 0.01);
-
-        {{#light_travel_time}}
-        dt = length(pos - old_pos);
-        {{/light_travel_time}}
-        {{/kerr_offline}}
         {{/kerr_full_core}}
 
         ray = pos-old_pos;
@@ -1287,21 +1046,7 @@ vec4 trace_ray(vec3 ray) {
         }
         {{/kerr_fast_mode}}
         {{#kerr_full_core}}
-        {{^kerr_offline}}
-        // Capture when photon reaches Kerr horizon radius
-        float capture_u_fc = 1.0 / max(kerr_horizon, 0.01);
-        if (u > capture_u_fc) {
-            shadow_capture = true;
-            break;
-        }
-        {{/kerr_offline}}
-        {{#kerr_offline}}
-        // BL integrator: capture handled above during integration
-        if (kerr_r <= kerr_horizon + 0.005) {
-            shadow_capture = true;
-            break;
-        }
-        {{/kerr_offline}}
+        // Realtime Kerr: capture at horizon (u >= 1.0 already handled above)
         {{/kerr_full_core}}
     }
 

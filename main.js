@@ -183,9 +183,7 @@ function Shader(mustacheTemplate) {
 
     this.compile = function() {
         that.parameters.kerr_fast_mode = (that.parameters.kerr_mode === 'fast');
-        that.parameters.kerr_full_core = (that.parameters.kerr_mode === 'realtime_full_kerr_core' ||
-            that.parameters.kerr_mode === 'offline_accurate');
-        that.parameters.kerr_offline = (that.parameters.kerr_mode === 'offline_accurate');
+        that.parameters.kerr_full_core = (that.parameters.kerr_mode === 'realtime_full_kerr_core');
 
         var accMode = that.parameters.accretion_mode;
         var diskOn = that.parameters.accretion_disk;
@@ -477,12 +475,6 @@ function setupGUI() {
             p.n_steps = Math.max(p.n_steps, 520);
             p.sample_count = Math.max(p.sample_count, 4);
             p.cinematic_tonemap = true;
-        } else if (mode === 'offline_accurate') {
-            p.rk4_integration = true;
-            p.max_revolutions = 4.0;
-            p.n_steps = 960;
-            p.sample_count = 8;
-            p.cinematic_tonemap = true;
         }
 
         hint.text('Solver mode: ' + mode.replace(/_/g, ' '));
@@ -529,8 +521,7 @@ function setupGUI() {
 
     var kerrModeLabels = {
         'Fast (approximate lensing)': 'fast',
-        'Realtime Kerr core': 'realtime_full_kerr_core',
-        'Offline accurate (slow)': 'offline_accurate'
+        'Realtime Kerr core': 'realtime_full_kerr_core'
     };
 
     var renderFolder = gui.addFolder('Rendering');
@@ -538,13 +529,13 @@ function setupGUI() {
         options: qualityLabels,
         name: 'quality preset',
         onChange: applyQualityPreset,
-        help: 'Global render preset. High and Offline use more ray-marching steps and samples.'
+        help: 'Global render preset. High preset uses more ray-marching steps and samples.'
     });
     addControl(renderFolder, p, 'kerr_mode', {
         options: kerrModeLabels,
         name: 'solver mode',
         onChange: applyKerrMode,
-        help: 'Fast = fastest. Realtime Kerr core = best live balance. Offline accurate = highest quality and slowest.'
+        help: 'Fast = fastest approximate. Realtime Kerr core = accurate full GR with good performance.'
     });
 
     addControl(renderFolder, p, 'n_steps', {
