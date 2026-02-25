@@ -129,10 +129,14 @@ function Shader(mustacheTemplate) {
         },
         jet: {
             enabled: false,
-            half_angle: 15.0,
+            mode: 'simple',
+            half_angle: 5.0,
             lorentz_factor: 3.0,
-            brightness: 0.8,
-            length: 20.0
+            brightness: 1.2,
+            length: 30.0,
+            magnetization: 10.0,
+            knot_spacing: 6.0,
+            corona_brightness: 1.5
         },
         black_hole: {
             spin_enabled: true,
@@ -192,6 +196,8 @@ function Shader(mustacheTemplate) {
         that.parameters.accretion_thick_torus = diskOn && (accMode === 'thick_torus');
         that.parameters.accretion_slim_disk = diskOn && (accMode === 'slim_disk');
         that.parameters.jet_enabled = that.parameters.jet.enabled;
+        that.parameters.jet_simple = that.parameters.jet.enabled && (that.parameters.jet.mode === 'simple');
+        that.parameters.jet_physical = that.parameters.jet.enabled && (that.parameters.jet.mode === 'physical');
 
         return Mustache.render(mustacheTemplate, that.parameters);
     };
@@ -275,10 +281,13 @@ function init(textures) {
         torus_r0: { type: "f", value: 4.0 },
         torus_h_ratio: { type: "f", value: 0.45 },
 
-        jet_half_angle: { type: "f", value: 15.0 },
+        jet_half_angle: { type: "f", value: 5.0 },
         jet_lorentz: { type: "f", value: 3.0 },
-        jet_brightness: { type: "f", value: 0.8 },
-        jet_length: { type: "f", value: 20.0 },
+        jet_brightness: { type: "f", value: 1.2 },
+        jet_length: { type: "f", value: 30.0 },
+        jet_magnetization: { type: "f", value: 10.0 },
+        jet_knot_spacing: { type: "f", value: 6.0 },
+        jet_corona_brightness: { type: "f", value: 1.5 },
 
         star_texture: { type: "t", value: textures.stars },
         galaxy_texture: { type: "t", value: textures.galaxy },
@@ -336,6 +345,9 @@ function init(textures) {
         uniforms.jet_lorentz.value = shader.parameters.jet.lorentz_factor;
         uniforms.jet_brightness.value = shader.parameters.jet.brightness;
         uniforms.jet_length.value = shader.parameters.jet.length;
+        uniforms.jet_magnetization.value = shader.parameters.jet.magnetization;
+        uniforms.jet_knot_spacing.value = shader.parameters.jet.knot_spacing;
+        uniforms.jet_corona_brightness.value = shader.parameters.jet.corona_brightness;
 
         uniforms.resolution.value.x = renderer.domElement.width;
         uniforms.resolution.value.y = renderer.domElement.height;
@@ -666,13 +678,22 @@ function setupGUI() {
         onChange: updateShader,
         help: 'Bipolar relativistic jets along the spin axis (Blandford-Znajek mechanism).'
     });
+    var jetModeCtrl = addControl(jetFolder, p.jet, 'mode', {
+        name: 'jet model',
+        options: ['simple', 'physical'],
+        onChange: function(mode) {
+            updateJetModeVisibility(mode, p.jet.enabled);
+            updateShader();
+        },
+        help: 'Simple: smooth parabolic jet. Physical: GRMHD-calibrated model with spine/sheath, reconfinement knots, corona base, disk occultation.'
+    });
     var jetAngleCtrl = addControl(jetFolder, p.jet, 'half_angle', {
-        min: 2.0,
-        max: 45.0,
+        min: 1.0,
+        max: 25.0,
         step: 0.5,
         name: 'half-angle (°)',
         onChange: updateUniformsLive,
-        help: 'Opening half-angle of the jet cone. Typical AGN jets: 5-15°.'
+        help: 'Opening half-angle of the jet. Typical AGN jets: 2-7°. Parabolic collimation narrows the beam with distance.'
     });
     var jetLorentzCtrl = addControl(jetFolder, p.jet, 'lorentz_factor', {
         min: 1.1,
@@ -698,18 +719,47 @@ function setupGUI() {
         onChange: updateUniformsLive,
         help: 'Visible jet length in Schwarzschild radii.'
     });
+    var jetMagCtrl = addControl(jetFolder, p.jet, 'magnetization', {
+        min: 1.0,
+        max: 50.0,
+        step: 0.5,
+        name: 'σ (magnetization)',
+        onChange: updateUniformsLive,
+        help: 'Plasma magnetization at jet base (σ = B²/4πρc²). Higher σ = more magnetically dominated, narrower spine. MAD jets: σ ~ 10-30.'
+    });
+    var jetKnotCtrl = addControl(jetFolder, p.jet, 'knot_spacing', {
+        min: 2.0,
+        max: 15.0,
+        step: 0.5,
+        name: 'knot spacing',
+        onChange: updateUniformsLive,
+        help: 'Spacing of reconfinement shock knots (in r_s). Observed in M87 (HST-1), 3C 273. Set high to minimize knots.'
+    });
+    var jetCoronaCtrl = addControl(jetFolder, p.jet, 'corona_brightness', {
+        min: 0.0,
+        max: 5.0,
+        step: 0.1,
+        name: 'corona glow',
+        onChange: updateUniformsLive,
+        help: 'Brightness of the jet-corona connection at the base. Hot plasma where the funnel meets the inner accretion flow.'
+    });
 
-    // Show/hide jet parameter controls based on jet.enabled
-    var jetParamCtrls = [jetAngleCtrl, jetLorentzCtrl, jetBrightCtrl, jetLengthCtrl];
-    function updateJetVisibility(enabled) {
-        jetParamCtrls.forEach(function(ctrl) {
+    // Show/hide jet parameter controls based on jet.enabled and jet.mode
+    var jetCommonCtrls = [jetModeCtrl, jetAngleCtrl, jetLorentzCtrl, jetBrightCtrl, jetLengthCtrl];
+    var jetPhysicalCtrls = [jetMagCtrl, jetKnotCtrl, jetCoronaCtrl];
+    function updateJetModeVisibility(mode, enabled) {
+        jetCommonCtrls.forEach(function(ctrl) {
             $(ctrl.domElement).closest('li').css('display', enabled ? '' : 'none');
         });
+        var showPhysical = enabled && (mode === 'physical');
+        jetPhysicalCtrls.forEach(function(ctrl) {
+            $(ctrl.domElement).closest('li').css('display', showPhysical ? '' : 'none');
+        });
     }
-    updateJetVisibility(p.jet.enabled);
+    updateJetModeVisibility(p.jet.mode, p.jet.enabled);
     // Patch the enabled onChange to also update visibility
     jetFolder.__controllers[0].onChange(function(val) {
-        updateJetVisibility(val);
+        updateJetModeVisibility(p.jet.mode, val);
         updateShader();
     });
 
