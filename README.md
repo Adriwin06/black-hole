@@ -34,6 +34,10 @@ The GUI now includes controls matching the visual effects discussed in the Inter
  * **Black hole > shadow squeeze:** scales the spin deformation strength (use lower values for a film-like reduced effect).
  * **Relativistic effects > doppler shift / beaming:** controls blue-shifted brightening of approaching plasma and red-shifted dimming of receding plasma.
  * **Relativistic effects > physical (D³ Liouville):** toggles between physically accurate D³ beaming (dramatic asymmetry) and softened cinematic beaming.
+ * **kerr solver mode:** selects integration model:
+   - **fast:** original approximation for interactive speed,
+   - **realtime_full_kerr_core:** Boyer-Lindquist Kerr null-geodesic core with Kerr disk kinematics and Liouville transfer,
+   - **offline_accurate:** same physics with much higher sampling/steps for frame capture.
 
 ### System requirements
 

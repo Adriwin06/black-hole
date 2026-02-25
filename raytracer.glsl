@@ -128,6 +128,208 @@ vec3 rotate_about_z(vec3 p, float angle) {
     );
 }
 
+const float KERR_M = 0.5; // r_s = 1 => M = r_s/2
+
+float kerr_spin_a() {
+    return bh_rotation_enabled * bh_spin * KERR_M;
+}
+
+float kerr_delta(float r, float a) {
+    return r*r - r + a*a; // r^2 - 2Mr + a^2, with 2M = 1
+}
+
+float kerr_sigma(float r, float theta, float a) {
+    float c = cos(theta);
+    return r*r + a*a*c*c;
+}
+
+float kerr_horizon_radius(float a) {
+    return KERR_M + sqrt(max(KERR_M*KERR_M - a*a, 0.0));
+}
+
+void cartesian_to_spherical(vec3 p, out float r, out float theta, out float phi) {
+    r = max(length(p), 1e-5);
+    theta = acos(clamp(p.z / r, -1.0, 1.0));
+    phi = atan(p.y, p.x);
+}
+
+vec3 spherical_to_cartesian(float r, float theta, float phi) {
+    float st = sin(theta);
+    return vec3(
+        r * st * cos(phi),
+        r * st * sin(phi),
+        r * cos(theta)
+    );
+}
+
+void spherical_basis(float theta, float phi, out vec3 e_r, out vec3 e_theta, out vec3 e_phi) {
+    float st = sin(theta);
+    float ct = cos(theta);
+    float sp = sin(phi);
+    float cp = cos(phi);
+
+    e_r = vec3(st*cp, st*sp, ct);
+    e_theta = vec3(ct*cp, ct*sp, -st);
+    e_phi = vec3(-sp, cp, 0.0);
+}
+
+float kerr_radial_potential(float r, float a, float Lz, float Q) {
+    float Delta = kerr_delta(r, a);
+    float P = r*r + a*a - a*Lz;
+    float B = (Lz - a)*(Lz - a) + Q;
+    return P*P - Delta*B;
+}
+
+float kerr_polar_potential(float theta, float a, float Lz, float Q) {
+    float st = max(sin(theta), 1e-4);
+    float ct = cos(theta);
+    return Q - ct*ct * (Lz*Lz/(st*st) - a*a);
+}
+
+// Simplified Kerr ray step using coordinate velocity approach
+// Uses effective potential derivative for photon geodesics
+void kerr_accel(vec3 pos, vec3 vel, float a, out vec3 accel) {
+    float r = max(length(pos), 0.5);  // Prevent divide by zero
+    float r2 = r*r;
+    float r3 = r2*r;
+    float r4 = r2*r2;
+    float a2 = a*a;
+    float M = 0.5;  // M = rs/2 where rs = 1
+    float rs = 1.0; // Schwarzschild radius
+    
+    vec3 r_hat = pos / r;
+    vec3 z_hat = vec3(0.0, 0.0, 1.0);
+    
+    // Angular momentum magnitude squared
+    vec3 L_vec = cross(pos, vel);
+    float h2 = dot(L_vec, L_vec);  // specific angular momentum squared
+    
+    // From geodesic equation, radial acceleration for photons:
+    // a_r = -M/r² + h²/r³ - 3Mh²/r⁴
+    // The last term is the key GR correction causing photon sphere at r=3M=1.5rs
+    float radial_accel = -M/r2 + h2/r3 - 3.0*M*h2/r4;
+    
+    accel = r_hat * radial_accel;
+    
+    // Transverse acceleration to maintain geodesic (angular momentum evolution)
+    // For non-radial motion, there's also theta/phi acceleration
+    vec3 v_radial = r_hat * dot(vel, r_hat);
+    vec3 v_perp = vel - v_radial;
+    float v_perp_mag = length(v_perp);
+    if (v_perp_mag > 0.001) {
+        vec3 theta_hat = v_perp / v_perp_mag;
+        // Centripetal-like term from spherical coordinates
+        float v_r = dot(vel, r_hat);
+        accel -= theta_hat * v_r * v_perp_mag / r;
+    }
+    
+    // Frame dragging for Kerr
+    float cos_theta = clamp(dot(r_hat, z_hat), -1.0, 1.0);
+    float sin_theta = sqrt(max(1.0 - cos_theta*cos_theta, 0.0001));
+    if (abs(a) > 0.001 && sin_theta > 0.001) {
+        float omega_fd = 2.0*M*a*r / (r4 + a2*r2 + 2.0*M*a2*r);
+        vec3 phi_hat = normalize(cross(z_hat, pos));
+        accel += phi_hat * omega_fd * sin_theta;
+    }
+}
+
+void integrate_kerr_simple_step(inout vec3 pos, inout vec3 vel, float h, float a) {
+    vec3 k1_v, k1_a;
+    vec3 k2_v, k2_a;
+    vec3 k3_v, k3_a;
+    vec3 k4_v, k4_a;
+    
+    kerr_accel(pos, vel, a, k1_a);
+    k1_v = vel;
+    
+    kerr_accel(pos + 0.5*h*k1_v, vel + 0.5*h*k1_a, a, k2_a);
+    k2_v = vel + 0.5*h*k1_a;
+    
+    kerr_accel(pos + 0.5*h*k2_v, vel + 0.5*h*k2_a, a, k3_a);
+    k3_v = vel + 0.5*h*k2_a;
+    
+    kerr_accel(pos + h*k3_v, vel + h*k3_a, a, k4_a);
+    k4_v = vel + h*k3_a;
+    
+    pos += (h/6.0) * (k1_v + 2.0*k2_v + 2.0*k3_v + k4_v);
+    vel += (h/6.0) * (k1_a + 2.0*k2_a + 2.0*k3_a + k4_a);
+    
+    // Re-normalize velocity to maintain null geodesic (light speed = 1)
+    vel = normalize(vel);
+}
+
+void kerr_constants_from_ray(vec3 pos, vec3 ray, float a,
+        out float Lz, out float Q, out float sign_r, out float sign_theta) {
+
+    float r, theta, phi;
+    cartesian_to_spherical(pos, r, theta, phi);
+
+    vec3 e_r, e_theta, e_phi;
+    spherical_basis(theta, phi, e_r, e_theta, e_phi);
+
+    // ray points in the direction we trace (toward scene, backward along photon path)
+    float p_r = dot(ray, e_r);
+    float p_theta = dot(ray, e_theta) * r;
+    float p_phi = dot(ray, e_phi) * r * max(sin(theta), 1e-4);
+
+    Lz = p_phi;
+
+    float st = max(sin(theta), 1e-4);
+    float ct = cos(theta);
+    Q = p_theta*p_theta + ct*ct * (Lz*Lz/(st*st) - a*a);
+    Q = max(Q, 0.0);
+
+    sign_r = (p_r >= 0.0) ? 1.0 : -1.0;
+    sign_theta = (dot(ray, e_theta) >= 0.0) ? 1.0 : -1.0;
+}
+
+void kerr_derivatives(float r, float theta, float a, float Lz, float Q,
+        float sign_r, float sign_theta,
+        out float dr, out float dtheta, out float dphi) {
+
+    float Sigma = max(kerr_sigma(r, theta, a), 1e-5);
+    float Delta = max(kerr_delta(r, a), 1e-5);
+    float st = max(sin(theta), 1e-4);
+
+    float R = max(kerr_radial_potential(r, a, Lz, Q), 0.0);
+    float T = max(kerr_polar_potential(theta, a, Lz, Q), 0.0);
+    float P = r*r + a*a - a*Lz;
+
+    dr = sign_r * sqrt(R) / Sigma;
+    dtheta = sign_theta * sqrt(T) / Sigma;
+    dphi = (Lz/(st*st) - a + a*P/Delta) / Sigma;
+}
+
+void integrate_kerr_bl_step(inout float r, inout float theta, inout float phi,
+        float h, float a, float Lz, float Q,
+        inout float sign_r, inout float sign_theta) {
+
+    float k1_r, k1_t, k1_p;
+    float k2_r, k2_t, k2_p;
+    float k3_r, k3_t, k3_p;
+    float k4_r, k4_t, k4_p;
+
+    kerr_derivatives(r, theta, a, Lz, Q, sign_r, sign_theta, k1_r, k1_t, k1_p);
+    kerr_derivatives(r + 0.5*h*k1_r, theta + 0.5*h*k1_t, a, Lz, Q,
+        sign_r, sign_theta, k2_r, k2_t, k2_p);
+    kerr_derivatives(r + 0.5*h*k2_r, theta + 0.5*h*k2_t, a, Lz, Q,
+        sign_r, sign_theta, k3_r, k3_t, k3_p);
+    kerr_derivatives(r + h*k3_r, theta + h*k3_t, a, Lz, Q,
+        sign_r, sign_theta, k4_r, k4_t, k4_p);
+
+    r += (h/6.0) * (k1_r + 2.0*k2_r + 2.0*k3_r + k4_r);
+    theta += (h/6.0) * (k1_t + 2.0*k2_t + 2.0*k3_t + k4_t);
+    phi += (h/6.0) * (k1_p + 2.0*k2_p + 2.0*k3_p + k4_p);
+
+    theta = clamp(theta, 1e-4, M_PI - 1e-4);
+
+    float R = kerr_radial_potential(r, a, Lz, Q);
+    float T = kerr_polar_potential(theta, a, Lz, Q);
+
+    if (R < 1e-7) sign_r *= -1.0;
+    if (T < 1e-7) sign_theta *= -1.0;
+}
+
 float geodesic_accel(float u, float spin_alignment) {
     // Schwarzschild geodesic equation: d²u/dφ² = -u(1 - 3u²/2) in units where r_s = 1
     float schwarzschild_accel = -u*(1.0 - 1.5*u*u);
@@ -477,6 +679,17 @@ vec4 trace_ray(vec3 ray) {
     float du0 = du;
 
     float phi = 0.0;
+    float kerr_r = length(pos);
+    float kerr_theta = acos(clamp(pos.z/max(kerr_r, 1e-5), -1.0, 1.0));
+    float kerr_phi = atan(pos.y, pos.x);
+    float kerr_a = kerr_spin_a();
+    float kerr_horizon = kerr_horizon_radius(kerr_a);
+    float kerr_Lz = 0.0;
+    float kerr_Q = 0.0;
+    float kerr_sign_r = 1.0;
+    float kerr_sign_theta = 1.0;
+    kerr_constants_from_ray(pos, ray, kerr_a, kerr_Lz, kerr_Q, kerr_sign_r, kerr_sign_theta);
+
     float t = time;
     float dt = 1.0;
     bool shadow_capture = false;
@@ -489,7 +702,7 @@ vec4 trace_ray(vec3 ray) {
     vec3 old_pos = pos;
 
     for (int j=0; j < NSTEPS; j++) {
-
+        {{#kerr_fast_mode}}
         step = MAX_REVOLUTIONS * 2.0*M_PI / float(NSTEPS);
 
         // adaptive step size based on rate of change
@@ -497,10 +710,8 @@ vec4 trace_ray(vec3 ray) {
         if ((du > 0.0 || (du0 < 0.0 && u0/u < 5.0)) && abs(du) > abs(max_rel_u_change*u) / step) {
             step = max_rel_u_change*u/abs(du);
         }
-        
+
         // Additional step refinement near photon sphere (u ≈ 0.667 for r = 1.5)
-        // Light paths here are highly sensitive to initial conditions
-        // The photon sphere is at r = 1.5 r_s, so u_photon = 2/3 ≈ 0.667
         float u_photon_sphere = 0.667;
         float photon_sphere_proximity = exp(-12.0 * (u - u_photon_sphere) * (u - u_photon_sphere));
         step *= 1.0 - 0.7 * photon_sphere_proximity;
@@ -532,6 +743,57 @@ vec4 trace_ray(vec3 ray) {
         frame_drag_phase += frame_drag_step;
 
         pos = rotate_about_z(planar_pos, frame_drag_phase);
+        {{/kerr_fast_mode}}
+
+        {{#kerr_full_core}}
+        // Use the same tested u-phi geodesic integration as fast mode
+        // but with full Kerr disk kinematics
+        step = MAX_REVOLUTIONS * 2.0*M_PI / float(NSTEPS);
+
+        // adaptive step size based on rate of change
+        float max_rel_u_change = (1.0-log(max(u, 0.0001)))*10.0 / float(NSTEPS);
+        if ((du > 0.0 || (du0 < 0.0 && u0/u < 5.0)) && abs(du) > abs(max_rel_u_change*u) / step) {
+            step = max_rel_u_change*u/abs(du);
+        }
+
+        // Additional step refinement near photon sphere (u ≈ 0.667 for r = 1.5)
+        float u_photon_sphere = 0.667;
+        float photon_sphere_proximity = exp(-12.0 * (u - u_photon_sphere) * (u - u_photon_sphere));
+        step *= 1.0 - 0.7 * photon_sphere_proximity;
+
+        old_u = u;
+
+        {{#light_travel_time}}
+        {{#gravitational_time_dilation}}
+        dt = sqrt(du*du + u*u*(1.0-u))/(u*u*(1.0-u))*step;
+        {{/gravitational_time_dilation}}
+        {{/light_travel_time}}
+
+        integrate_geodesic_step(u, du, step, spin_alignment);
+
+        if (u < 0.0) break;
+        if (u >= 1.0) {
+            shadow_capture = true;
+            break;
+        }
+
+        phi += step;
+
+        old_pos = pos;
+        vec3 planar_pos = (cos(phi)*normal_vec + sin(phi)*tangent_vec)/u;
+
+        float drag_u = clamp(u, 0.0, 1.15);
+        float frame_drag_step = bh_rotation_enabled * bh_spin * bh_spin_strength *
+            spin_alignment * step * 0.85 * drag_u*drag_u*drag_u;
+        frame_drag_phase += frame_drag_step;
+
+        pos = rotate_about_z(planar_pos, frame_drag_phase);
+        kerr_r = length(pos);  // update for disk intersection check
+
+        {{#light_travel_time}}
+        dt = length(pos - old_pos);
+        {{/light_travel_time}}
+        {{/kerr_full_core}}
 
         ray = pos-old_pos;
         float solid_isec_t = 2.0;
@@ -590,25 +852,38 @@ vec4 trace_ray(vec3 ray) {
                     float accretion_intensity = ACCRETION_BRIGHTNESS * accretion_flux_profile(r) *
                         turbulence * (1.0 + 0.7*inner_glow);
 
-                    vec3 accretion_v = vec3(-isec.y, isec.x, 0.0) / (r * sqrt(2.0*(r-1.0)));
+                    vec3 accretion_v;
+                    {{#kerr_fast_mode}}
+                    accretion_v = vec3(-isec.y, isec.x, 0.0) / (r * sqrt(2.0*(r-1.0)));
+                    {{/kerr_fast_mode}}
+                    {{#kerr_full_core}}
+                    float rg_r = max(2.0*r, 1.0002); // convert r_s units to M units
+                    float a_M = bh_rotation_enabled * bh_spin;
+                    float omega_M = 1.0 / (pow(rg_r, 1.5) + a_M);
+                    float v_phi = clamp(rg_r * omega_M, -0.995, 0.995);
+                    vec2 xy = vec2(isec.x, isec.y);
+                    float cyl_r = max(length(xy), 1e-4);
+                    vec3 e_phi = vec3(-xy.y/cyl_r, xy.x/cyl_r, 0.0);
+                    accretion_v = e_phi * v_phi;
+                    {{/kerr_full_core}}
+
                     gamma = 1.0/sqrt(max(1.0-dot(accretion_v,accretion_v), 0.0001));
                     float doppler_factor = gamma*(1.0+dot(ray/ray_l,accretion_v));
+                    float transfer_factor = max(ray_doppler_factor*doppler_factor, 0.05);
                     {{#beaming}}
                     {{#physical_beaming}}
-                    // Liouville's theorem: I/ν³ is Lorentz invariant
-                    // For thermal emission, intensity scales as D³ (D = Doppler factor)
-                    // D³ = aberration (D²) + time dilation (D¹)
-                    float safe_doppler = clamp(doppler_factor, 0.1, 10.0);
-                    accretion_intensity /= pow(safe_doppler, 3.0);
+                    // Liouville transfer function: I_obs = g^3 I_em.
+                    // Here transfer_factor is inverse of g in this ray convention.
+                    accretion_intensity /= pow(clamp(transfer_factor, 0.05, 20.0), 3.0);
                     {{/physical_beaming}}
                     {{^physical_beaming}}
                     // Cinematic beaming: softened for artistic rendering
-                    float clamped_doppler = clamp(doppler_factor, 0.62, 1.48);
+                    float clamped_doppler = clamp(transfer_factor, 0.62, 1.48);
                     accretion_intensity /= pow(clamped_doppler, 1.05 + 1.10*doppler_boost);
                     {{/physical_beaming}}
                     {{/beaming}}
                     {{#doppler_shift}}
-                    temperature /= max(ray_doppler_factor*doppler_factor, 0.05);
+                    temperature /= transfer_factor;
                     {{/doppler_shift}}
 
                     vec4 thermal_color = BLACK_BODY_COLOR(temperature);
@@ -626,6 +901,7 @@ vec4 trace_ray(vec3 ray) {
 
         if (solid_isec_t <= 1.0) u = 2.0; // break
 
+        {{#kerr_fast_mode}}
         float capture_u = 1.0 + bh_rotation_enabled * bh_spin * bh_spin_strength *
             spin_alignment * 0.12;
         capture_u = clamp(capture_u, 0.82, 1.18);
@@ -633,6 +909,16 @@ vec4 trace_ray(vec3 ray) {
             shadow_capture = true;
             break;
         }
+        {{/kerr_fast_mode}}
+        {{#kerr_full_core}}
+        float capture_u = 1.0 + bh_rotation_enabled * bh_spin * bh_spin_strength *
+            spin_alignment * 0.12;
+        capture_u = clamp(capture_u, 0.82, 1.18);
+        if (u > capture_u) {
+            shadow_capture = true;
+            break;
+        }
+        {{/kerr_full_core}}
     }
 
     // the event horizon is at u = 1

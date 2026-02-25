@@ -107,6 +107,7 @@ function Shader(mustacheTemplate) {
         rk4_integration: false,
         cinematic_tonemap: false,
         quality: 'high',
+        kerr_mode: 'realtime_full_kerr_core',
         accretion_disk: true,
         disk_temperature: 8500.0,
         black_hole: {
@@ -158,6 +159,10 @@ function Shader(mustacheTemplate) {
     };
 
     this.compile = function() {
+        that.parameters.kerr_fast_mode = (that.parameters.kerr_mode === 'fast');
+        that.parameters.kerr_full_core = (that.parameters.kerr_mode === 'realtime_full_kerr_core' ||
+            that.parameters.kerr_mode === 'offline_accurate');
+        that.parameters.kerr_offline = (that.parameters.kerr_mode === 'offline_accurate');
         return Mustache.render(mustacheTemplate, that.parameters);
     };
 }
@@ -374,6 +379,26 @@ function setupGUI() {
 
     var gui = new dat.GUI();
 
+    function applyKerrMode(mode) {
+        // Preserve selected quality in fast mode, but enforce physically heavier settings
+        // for Kerr geodesic integration modes.
+        if (mode === 'realtime_full_kerr_core') {
+            p.rk4_integration = true;
+            p.max_revolutions = Math.max(p.max_revolutions, 3.0);
+            p.n_steps = Math.max(p.n_steps, 520);
+            p.sample_count = Math.max(p.sample_count, 4);
+            p.cinematic_tonemap = true;
+        } else if (mode === 'offline_accurate') {
+            p.rk4_integration = true;
+            p.max_revolutions = 4.0;
+            p.n_steps = 960;
+            p.sample_count = 8;
+            p.cinematic_tonemap = true;
+        }
+
+        updateShader();
+    }
+
     function applyQualityPreset(value) {
         $('.planet-controls').show();
 
@@ -402,11 +427,17 @@ function setupGUI() {
             break;
         }
 
-        updateShader();
+        applyKerrMode(p.kerr_mode);
     }
 
     gui.add(p, 'quality', ['fast', 'medium', 'high']).onChange(applyQualityPreset);
+    gui.add(p, 'kerr_mode', [
+        'fast',
+        'realtime_full_kerr_core',
+        'offline_accurate'
+    ]).name('kerr solver mode').onChange(applyKerrMode);
     applyQualityPreset(p.quality);
+    applyKerrMode(p.kerr_mode);
     var diskFolder = gui.addFolder('Accretion disk');
     diskFolder.add(p, 'accretion_disk').onChange(updateShader);
     diskFolder.add(p, 'disk_temperature')
