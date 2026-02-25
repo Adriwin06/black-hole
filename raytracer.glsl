@@ -56,14 +56,12 @@ const float ACCRETION_BRIGHTNESS = 0.95;
 
 const float STAR_MIN_TEMPERATURE = 4000.0;
 const float STAR_MAX_TEMPERATURE = 15000.0;
-const float DISK_MIN_TEMPERATURE = 4500.0;
-const float DISK_MAX_TEMPERATURE = 30000.0;
 
 const float STAR_BRIGHTNESS = 0.52;
 const float GALAXY_BRIGHTNESS = 0.14;
 const float GLOBAL_EXPOSURE = 0.60;
-const float GALAXY_DOPPLER_STRENGTH = 0.45;
-const float GALAXY_MAX_BOOST = 1.30;
+const float GALAXY_DOPPLER_STRENGTH = 1.0;
+const float GALAXY_MAX_BOOST = 10.0;
 
 const float PLANET_AMBIENT = 0.1;
 const float PLANET_LIGHTNESS = 1.5;
@@ -471,8 +469,10 @@ float torus_local_emissivity(vec3 p) {
     // Gaussian vertical profile (hydrostatic equilibrium)
     float vert = exp(-0.5 * z_norm * z_norm);
 
-    // Radial emissivity: bremsstrahlung j ~ n^2 T^(1/2) ~ r^(-2)
-    float radial = pow(r0 / max(cyl_r, 1.0), 2.0);
+    // Radial emissivity: bremsstrahlung j ~ n^2 T^(1/2)
+    // Self-similar ADAF (Narayan & Yi 1994): n ~ r^(-3/2), T ~ r^(-1)
+    // j_ff ~ r^(-3) * r^(-1/2) = r^(-3.5)
+    float radial = pow(r0 / max(cyl_r, 1.0), 3.5);
 
     // Smooth cutoff at event horizon
     float inner = smoothstep(0.9, 1.5, cyl_r);
@@ -486,8 +486,9 @@ float torus_local_emissivity(vec3 p) {
 
 float torus_temperature(float r) {
     float r0 = max(torus_r0, 1.5);
-    // ADAF electron temperature: weakly radius-dependent, T ~ r^(-0.3)
-    return disk_temperature * pow(r0 / max(r, 1.0), 0.3);
+    // ADAF electron temperature: T_e ~ r^(-0.5) for two-temperature ADAF
+    // (Narayan & Yi 1995, Esin et al. 1997)
+    return disk_temperature * pow(r0 / max(r, 1.0), 0.5);
 }
 {{/accretion_thick_torus}}
 
@@ -712,20 +713,8 @@ vec4 planet_intersection(vec3 old_pos, vec3 ray, float t, float dt,
         physical_tint = blackbody_rgb / bb_max;
     }
 
-    // Force a clear blue<->orange slider response on the planet illumination.
-    float temp_norm = clamp(
-        (disk_temperature - DISK_MIN_TEMPERATURE) /
-        (DISK_MAX_TEMPERATURE - DISK_MIN_TEMPERATURE),
-        0.0, 1.0);
-    vec3 slider_tint = mix(
-        vec3(1.00, 0.57, 0.28), // warm/orange
-        vec3(0.62, 0.80, 1.00), // hot/blue
-        temp_norm
-    );
-
-    vec3 light_tint = mix(physical_tint, slider_tint, 0.68);
-    float tint_luma = dot(light_tint, vec3(0.2126, 0.7152, 0.0722));
-    light_tint = clamp(mix(vec3(tint_luma), light_tint, 1.20), 0.0, 1.5);
+    // Use physical blackbody tint for planet illumination
+    vec3 light_tint = physical_tint;
 
     ret = texture2D(planet_texture, tex_coord) * lightness;
     ret.rgb *= light_tint;
@@ -795,8 +784,15 @@ vec4 trace_ray(vec3 ray) {
     float gamma = 1.0/sqrt(max(1.0-dot(cam_vel,cam_vel), 0.0001));
     ray_doppler_factor = gamma*(1.0 + dot(ray,-cam_vel));
     {{#beaming}}
+    {{#physical_beaming}}
+    // Observer beaming is already accounted for via transfer_factor
+    // in each emission source. The temperature shift of blackbody sources
+    // captures the full Doppler effect. No additional ray_intensity scaling.
+    {{/physical_beaming}}
+    {{^physical_beaming}}
     float beaming_factor = clamp(ray_doppler_factor, 0.84, 1.16);
     ray_intensity /= pow(beaming_factor, 0.65 + 0.75*doppler_boost);
+    {{/physical_beaming}}
     {{/beaming}}
     {{^doppler_shift}}
     ray_doppler_factor = 1.0;
@@ -887,20 +883,21 @@ vec4 trace_ray(vec3 ray) {
         {{/kerr_fast_mode}}
 
         {{#kerr_full_core}}
-        // Use the same tested u-phi geodesic integration as fast mode
-        // but with full Kerr disk kinematics
+        {{^kerr_offline}}
+        // Realtime Kerr: Binet equation with frame-drag approximation
+        // Same geodesic integration as fast mode, with full Kerr disk kinematics
         step = MAX_REVOLUTIONS * 2.0*M_PI / float(NSTEPS);
 
         // adaptive step size based on rate of change
-        float max_rel_u_change = (1.0-log(max(u, 0.0001)))*10.0 / float(NSTEPS);
-        if ((du > 0.0 || (du0 < 0.0 && u0/u < 5.0)) && abs(du) > abs(max_rel_u_change*u) / step) {
-            step = max_rel_u_change*u/abs(du);
+        float max_rel_u_change_fc = (1.0-log(max(u, 0.0001)))*10.0 / float(NSTEPS);
+        if ((du > 0.0 || (du0 < 0.0 && u0/u < 5.0)) && abs(du) > abs(max_rel_u_change_fc*u) / step) {
+            step = max_rel_u_change_fc*u/abs(du);
         }
 
         // Additional step refinement near photon sphere (u ≈ 0.667 for r = 1.5)
-        float u_photon_sphere = 0.667;
-        float photon_sphere_proximity = exp(-12.0 * (u - u_photon_sphere) * (u - u_photon_sphere));
-        step *= 1.0 - 0.7 * photon_sphere_proximity;
+        float u_photon_sphere_fc = 0.667;
+        float photon_sphere_proximity_fc = exp(-12.0 * (u - u_photon_sphere_fc) * (u - u_photon_sphere_fc));
+        step *= 1.0 - 0.7 * photon_sphere_proximity_fc;
 
         old_u = u;
 
@@ -921,19 +918,65 @@ vec4 trace_ray(vec3 ray) {
         phi += step;
 
         old_pos = pos;
-        vec3 planar_pos = (cos(phi)*normal_vec + sin(phi)*tangent_vec)/u;
+        vec3 planar_pos_fc = (cos(phi)*normal_vec + sin(phi)*tangent_vec)/u;
 
-        float drag_u = clamp(u, 0.0, 1.15);
-        float frame_drag_step = bh_rotation_enabled * bh_spin * bh_spin_strength *
-            spin_alignment * step * 0.85 * drag_u*drag_u*drag_u;
-        frame_drag_phase += frame_drag_step;
+        float drag_u_fc = clamp(u, 0.0, 1.15);
+        float frame_drag_step_fc = bh_rotation_enabled * bh_spin * bh_spin_strength *
+            spin_alignment * step * 0.85 * drag_u_fc*drag_u_fc*drag_u_fc;
+        frame_drag_phase += frame_drag_step_fc;
 
-        pos = rotate_about_z(planar_pos, frame_drag_phase);
-        kerr_r = length(pos);  // update for disk intersection check
+        pos = rotate_about_z(planar_pos_fc, frame_drag_phase);
+        kerr_r = length(pos);
 
         {{#light_travel_time}}
         dt = length(pos - old_pos);
         {{/light_travel_time}}
+        {{/kerr_offline}}
+
+        {{#kerr_offline}}
+        // Offline: Exact Boyer-Lindquist Kerr geodesic integration
+        // Uses conserved quantities Lz, Q from Carter (1968)
+
+        float bl_dr_est, bl_dtheta_est, bl_dphi_est;
+        kerr_derivatives(kerr_r, kerr_theta, kerr_a, kerr_Lz, kerr_Q,
+            kerr_sign_r, kerr_sign_theta, bl_dr_est, bl_dtheta_est, bl_dphi_est);
+
+        // Use angular rate to set step for consistent coverage
+        float phi_rate = max(abs(bl_dphi_est), 0.001);
+        float phi_step_bl = MAX_REVOLUTIONS * 2.0*M_PI / float(NSTEPS);
+        step = phi_step_bl / phi_rate;
+
+        // Conservative limits: never exceed 5% of current radius
+        step = min(step, kerr_r * 0.05);
+        step = max(step, 0.0001);
+
+        // Refine near photon sphere and horizon
+        float ps_dist_bl = kerr_r - 1.5;
+        float ps_prox_bl = exp(-4.0 * ps_dist_bl * ps_dist_bl);
+        step *= max(1.0 - 0.9 * ps_prox_bl, 0.05);
+
+        float horizon_margin = max((kerr_r - kerr_horizon) / kerr_r, 0.0);
+        step *= clamp(horizon_margin * 5.0, 0.01, 1.0);
+
+        old_u = u;
+        old_pos = pos;
+
+        integrate_kerr_bl_step(kerr_r, kerr_theta, kerr_phi,
+            step, kerr_a, kerr_Lz, kerr_Q,
+            kerr_sign_r, kerr_sign_theta);
+
+        if (kerr_r <= kerr_horizon + 0.005) {
+            shadow_capture = true;
+            break;
+        }
+
+        pos = spherical_to_cartesian(kerr_r, kerr_theta, kerr_phi);
+        u = 1.0 / max(kerr_r, 0.01);
+
+        {{#light_travel_time}}
+        dt = length(pos - old_pos);
+        {{/light_travel_time}}
+        {{/kerr_offline}}
         {{/kerr_full_core}}
 
         ray = pos-old_pos;
@@ -1013,9 +1056,12 @@ vec4 trace_ray(vec3 ray) {
                     float transfer_factor = max(ray_doppler_factor*doppler_factor, 0.05);
                     {{#beaming}}
                     {{#physical_beaming}}
-                    // Liouville transfer function: I_obs = g^3 I_em.
-                    // Here transfer_factor is inverse of g in this ray convention.
+                    // For blackbody: B_ν(D·T) = D³·B_{ν/D}(T), so shifting temperature
+                    // already accounts for the full D³ Liouville invariant.
+                    // Only apply D³ if doppler_shift is disabled (no temperature shift).
+                    {{^doppler_shift}}
                     accretion_intensity /= pow(clamp(transfer_factor, 0.05, 20.0), 3.0);
+                    {{/doppler_shift}}
                     {{/physical_beaming}}
                     {{^physical_beaming}}
                     // Cinematic beaming: softened for artistic rendering
@@ -1080,7 +1126,10 @@ vec4 trace_ray(vec3 ray) {
                 float torus_intensity = j_eff * path_len;
                 {{#beaming}}
                 {{#physical_beaming}}
+                // Temperature shift handles D³ for blackbody (no double-counting)
+                {{^doppler_shift}}
                 torus_intensity /= pow(clamp(transfer_factor_t, 0.05, 20.0), 3.0);
+                {{/doppler_shift}}
                 {{/physical_beaming}}
                 {{^physical_beaming}}
                 float cd_t = clamp(transfer_factor_t, 0.62, 1.48);
@@ -1149,7 +1198,10 @@ vec4 trace_ray(vec3 ray) {
                 float slim_intensity = source_contrib;
                 {{#beaming}}
                 {{#physical_beaming}}
+                // Temperature shift handles D³ for blackbody (no double-counting)
+                {{^doppler_shift}}
                 slim_intensity /= pow(clamp(transfer_factor_s, 0.05, 20.0), 3.0);
+                {{/doppler_shift}}
                 {{/physical_beaming}}
                 {{^physical_beaming}}
                 float cd_s = clamp(transfer_factor_s, 0.62, 1.48);
@@ -1192,14 +1244,16 @@ vec4 trace_ray(vec3 ray) {
                     // Synchrotron beaming: I_obs = δ^(2+α) * I_em
                     // α ≈ 0.7 for synchrotron spectral index → exponent ≈ 2.7
                     // Use δ^2 (continuous jet) for balanced side/face-on visibility
-                    float beam_factor = 1.0 / pow(max(doppler_jet, 0.02), 2.0);
+                    // Synchrotron beaming: I_obs = δ^(2+α) * I_em
+                    // α ≈ 0.7 for typical synchrotron spectral index
+                    float beam_factor = 1.0 / pow(max(doppler_jet, 0.02), 2.7);
 
-                    // Synchrotron color: power-law → blue-white for approaching,
-                    // faint reddish for receding
-                    // Use effective temperature mapped from Doppler factor
+                    // Synchrotron emission: approximate color as high-T blackbody
+                    // No Doppler temperature shift (synchrotron is non-thermal;
+                    // the D^2.7 beaming already handles the full relativistic effect)
                     float r_jet = max(length(pos), 1.001);
                     float g_shift_j = gravitational_shift(r_jet);
-                    float jet_T = 25000.0 * g_shift_j / max(doppler_jet, 0.1);
+                    float jet_T = 25000.0 * g_shift_j;
                     vec4 jet_color = BLACK_BODY_COLOR(jet_T);
 
                     // Small absorption (optically thin jet)
@@ -1233,13 +1287,21 @@ vec4 trace_ray(vec3 ray) {
         }
         {{/kerr_fast_mode}}
         {{#kerr_full_core}}
-        float capture_u = 1.0 + bh_rotation_enabled * bh_spin * bh_spin_strength *
-            spin_alignment * 0.12;
-        capture_u = clamp(capture_u, 0.82, 1.18);
-        if (u > capture_u) {
+        {{^kerr_offline}}
+        // Capture when photon reaches Kerr horizon radius
+        float capture_u_fc = 1.0 / max(kerr_horizon, 0.01);
+        if (u > capture_u_fc) {
             shadow_capture = true;
             break;
         }
+        {{/kerr_offline}}
+        {{#kerr_offline}}
+        // BL integrator: capture handled above during integration
+        if (kerr_r <= kerr_horizon + 0.005) {
+            shadow_capture = true;
+            break;
+        }
+        {{/kerr_offline}}
         {{/kerr_full_core}}
     }
 

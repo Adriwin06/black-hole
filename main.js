@@ -50,7 +50,9 @@ Observer.prototype.move = function(dt) {
 
         r = shader.parameters.observer.distance;
         v =  1.0 / Math.sqrt(2.0*(r-1.0));
-        var ang_vel = v / r;
+        // Convert local velocity to coordinate angular velocity
+        // Ω = v·sqrt(1-r_s/r)/r = 1/sqrt(2r³) for circular Schwarzschild orbit
+        var ang_vel = v * Math.sqrt(1.0 - 1.0/r) / r;
         var angle = this.time * ang_vel;
 
         var s = Math.sin(angle), c = Math.cos(angle);
@@ -138,8 +140,8 @@ function Shader(mustacheTemplate) {
         },
         look: {
             exposure: 1.0,
-            disk_gain: 1.3,
-            glow: 0.15,
+            disk_gain: 1.0,
+            glow: 0.0,
             doppler_boost: 1.0,
             aberration_strength: 1.0,
             star_gain: 0.5,
@@ -264,8 +266,8 @@ function init(textures) {
         bh_spin_strength: { type: "f", value: 1.0 },
         bh_rotation_enabled: { type: "f", value: 1.0 },
         look_exposure: { type: "f", value: 1.0 },
-        look_disk_gain: { type: "f", value: 1.3 },
-        look_glow: { type: "f", value: 0.15 },
+        look_disk_gain: { type: "f", value: 1.0 },
+        look_glow: { type: "f", value: 0.0 },
         look_doppler_boost: { type: "f", value: 1.0 },
         look_aberration_strength: { type: "f", value: 1.0 },
         look_star_gain: { type: "f", value: 1.0 },
