@@ -1179,12 +1179,11 @@ vec4 trace_ray(vec3 ray) {
                     float transfer_factor = max(ray_doppler_factor*doppler_factor, 0.05);
                     {{#beaming}}
                     {{#physical_beaming}}
-                    // For blackbody: B_ν(D·T) = D³·B_{ν/D}(T), so shifting temperature
-                    // already accounts for the full D³ Liouville invariant.
-                    // Only apply D³ if doppler_shift is disabled (no temperature shift).
-                    {{^doppler_shift}}
+                    // Liouville invariant: I_obs = D³ · I_emit.
+                    // The spectrum texture stores chromaticity (normalized color),
+                    // so the temperature shift only handles hue — D³ intensity
+                    // boost must always be applied explicitly.
                     accretion_intensity /= pow(clamp(transfer_factor, 0.05, 20.0), 3.0);
-                    {{/doppler_shift}}
                     {{/physical_beaming}}
                     {{^physical_beaming}}
                     // Cinematic beaming: softened for artistic rendering
@@ -1249,10 +1248,9 @@ vec4 trace_ray(vec3 ray) {
                 float torus_intensity = j_eff * path_len;
                 {{#beaming}}
                 {{#physical_beaming}}
-                // Temperature shift handles D³ for blackbody (no double-counting)
-                {{^doppler_shift}}
+                // Liouville D³: chromaticity texture doesn't encode brightness,
+                // so intensity boost must always be applied explicitly.
                 torus_intensity /= pow(clamp(transfer_factor_t, 0.05, 20.0), 3.0);
-                {{/doppler_shift}}
                 {{/physical_beaming}}
                 {{^physical_beaming}}
                 float cd_t = clamp(transfer_factor_t, 0.62, 1.48);
@@ -1321,10 +1319,9 @@ vec4 trace_ray(vec3 ray) {
                 float slim_intensity = source_contrib;
                 {{#beaming}}
                 {{#physical_beaming}}
-                // Temperature shift handles D³ for blackbody (no double-counting)
-                {{^doppler_shift}}
+                // Liouville D³: chromaticity texture doesn't encode brightness,
+                // so intensity boost must always be applied explicitly.
                 slim_intensity /= pow(clamp(transfer_factor_s, 0.05, 20.0), 3.0);
-                {{/doppler_shift}}
                 {{/physical_beaming}}
                 {{^physical_beaming}}
                 float cd_s = clamp(transfer_factor_s, 0.62, 1.48);

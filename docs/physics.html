@@ -756,11 +756,12 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     <em>I</em><sub>obs</sub> = <em>D</em>&sup3; <em>I</em><sub>emit</sub>
 </div>
 <p>
-    where <em>D</em> is the Doppler factor. Since the simulation already applies the temperature shift
-    <em>T</em> &rarr; <em>DT</em>, and the Planck function satisfies
+    where <em>D</em> is the Doppler factor. Although the Planck function satisfies
     <em>B</em><sub>&nu;</sub>(<em>DT</em>) = <em>D</em>&sup3; <em>B</em><sub>&nu;/D</sub>(<em>T</em>),
-    the <em>D</em>&sup3; scaling is automatically captured when the Doppler shift is enabled.
-    This avoids double-counting.
+    the simulation's spectrum texture stores <strong>chromaticity</strong> (normalized color) rather than
+    full Planck intensities. Therefore the temperature shift <em>T</em> &rarr; <em>DT</em> only changes
+    the observed <em>hue</em>, not the brightness. The <em>D</em>&sup3; intensity factor must be &mdash;
+    and is &mdash; applied explicitly to the emitted intensity.
 </p>
 
 <h3>Cinematic beaming</h3>
