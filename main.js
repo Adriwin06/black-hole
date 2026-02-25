@@ -224,6 +224,7 @@ function init(textures) {
         planet_distance: { type: "f" },
         planet_radius: { type: "f" },
         disk_temperature: { type: "f", value: 8500.0 },
+        accretion_inner_r: { type: "f", value: 3.0 },
         bh_spin: { type: "f", value: 0.60 },
         bh_spin_strength: { type: "f", value: 0.55 },
         bh_rotation_enabled: { type: "f", value: 1.0 },
@@ -241,10 +242,38 @@ function init(textures) {
         spectrum_texture: { type: "t", value: textures.spectra }
     };
 
+    // Calculate ISCO radius using Bardeen-Press-Teukolsky formula
+    // chi is dimensionless spin parameter (-1 to 1)
+    // Returns ISCO in units of Schwarzschild radius (r_s = 1)
+    function calculateISCO(chi, isPrograde) {
+        var chi2 = chi * chi;
+        var cbrt_1_minus_chi2 = Math.pow(Math.max(1 - chi2, 0), 1/3);
+        var cbrt_1_plus_chi = Math.pow(1 + Math.abs(chi), 1/3);
+        var cbrt_1_minus_chi = Math.pow(Math.max(1 - Math.abs(chi), 0), 1/3);
+        
+        var Z1 = 1 + cbrt_1_minus_chi2 * (cbrt_1_plus_chi + cbrt_1_minus_chi);
+        var Z2 = Math.sqrt(3 * chi2 + Z1 * Z1);
+        
+        // Prograde orbits (co-rotating with black hole) have smaller ISCO
+        // Retrograde orbits have larger ISCO
+        var sign = isPrograde ? -1 : 1;
+        var isco_rg = 3 + Z2 + sign * Math.sqrt((3 - Z1) * (3 + Z1 + 2 * Z2));
+        
+        // Convert from gravitational radii (r_g = GM/c^2) to Schwarzschild radii (r_s = 2*r_g)
+        // Since our units have r_s = 1, we have r_g = 0.5
+        return isco_rg * 0.5;
+    }
+
     updateUniforms = function() {
         uniforms.planet_distance.value = shader.parameters.planet.distance;
         uniforms.planet_radius.value = shader.parameters.planet.radius;
         uniforms.disk_temperature.value = shader.parameters.disk_temperature;
+        
+        // Calculate ISCO based on spin (prograde disk assumed)
+        var spin = shader.parameters.black_hole.spin;
+        var spinEnabled = shader.parameters.black_hole.spin_enabled;
+        uniforms.accretion_inner_r.value = spinEnabled ? calculateISCO(spin, true) : 3.0;
+        
         uniforms.bh_spin.value = shader.parameters.black_hole.spin;
         uniforms.bh_spin_strength.value = shader.parameters.black_hole.spin_strength;
         uniforms.bh_rotation_enabled.value = shader.parameters.black_hole.spin_enabled ? 1.0 : 0.0;

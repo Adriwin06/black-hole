@@ -8,6 +8,20 @@ The simulation has normalized units such that the Schwarzschild radius of the bl
 
 See **[this page](https://oseiskar.github.io/black-hole/docs/physics.html)** ([PDF version](https://oseiskar.github.io/black-hole/docs/physics.pdf)) for a more detailed description of the physics of the simulation.
 
+### Physics accuracy
+
+The simulation implements several physically accurate relativistic effects:
+
+* **Schwarzschild geodesics:** The core light-bending equation $\ddot{u} = -u(1 - \frac{3}{2}u^2)$ is exact for null geodesics in Schwarzschild spacetime.
+* **Gravitational redshift:** Correctly implemented as $z = \sqrt{(1 - r_s/r_{emit})/(1 - r_s/r_{obs})}$.
+* **Relativistic Doppler effect:** Uses the full formula $f_r = f_s / [\gamma(1 + \vec{v} \cdot \hat{n})]$.
+* **Relativistic beaming:** $D^3$ luminosity enhancement from aberration, time dilation, and frequency shift.
+* **Accretion disk temperature profile:** Follows the Shakura-Sunyaev thin disk model $T \propto r^{-3/4}(1 - \sqrt{r_{in}/r})^{1/4}$.
+* **ISCO (Innermost Stable Circular Orbit):** Now dynamically calculated using the Bardeen-Press-Teukolsky formula based on black hole spin. For Schwarzschild ($a=0$), ISCO = 3 $r_s$; varies from 0.5 $r_s$ (prograde, maximal spin) to 4.5 $r_s$ (retrograde).
+* **Keplerian disk velocity:** $v_\phi = 1/\sqrt{2(r-1)}$ in Schwarzschild units.
+
+The Kerr (spinning black hole) frame-dragging effect is approximated rather than fully derived from the Kerr metric, which would require implementing the Carter constant and Boyer-Lindquist coordinate geodesics.
+
 ### Interstellar-style controls
 
 The GUI now includes controls matching the visual effects discussed in the Interstellar black-hole breakdown:
@@ -30,7 +44,8 @@ Example: runs 30+ fps at resolution 1920 x 1080 in Chrome 48 on a Linux desktop 
  * The spectrum used in modeling the Doppler shift of the Milky Way background image is quite arbitrary (not based on real spectral data) and consequently the Doppler-shifted background colors may be wrong.
  * The lighting model of the planet is based on a point-like light source and a quite unphysical ambient component.
  * In the "medium" quality mode, the planet deforms unphysically when it travels between the camera and the black hole.
- * The light paths bend a bit more than they should due to low ODE solver step counts (see [numeric tests](https://github.com/oseiskar/black-hole/blob/numeric-notebooks/numeric_tests.ipynb)), but this seems to happen in a systematic way so that the image looks very similar in comparison to a more accurate simulation.
+ * Adaptive step sizing reduces light path bending errors near the photon sphere (r = 1.5 $r_s$), but some inaccuracy remains at lower quality settings.
+ * The Kerr frame-dragging is an approximation; true Kerr geodesics would require the Carter constant formalism.
  * Lorentz contraction causes jagged looks in the planet when simultaneously enabled with "light travel time" and the planet is close to the black hole.
  * Texture sampling issues cause unintended star blinking.
 

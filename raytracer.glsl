@@ -33,6 +33,7 @@ uniform vec3 cam_vel;
 uniform float planet_distance, planet_radius;
 uniform float disk_temperature;
 uniform float bh_spin, bh_spin_strength, bh_rotation_enabled;
+uniform float accretion_inner_r;
 uniform float look_exposure, look_disk_gain, look_glow, look_doppler_boost;
 uniform float look_aberration_strength;
 uniform float look_star_gain, look_galaxy_gain;
@@ -45,8 +46,10 @@ const int NSTEPS = {{n_steps}};
 const int SAMPLE_COUNT = {{sample_count}};
 const float MAX_REVOLUTIONS = float({{max_revolutions}});
 
-const float ACCRETION_MIN_R = 1.5;
+// ACCRETION_MIN_R is now a uniform (accretion_inner_r) that varies with black hole spin
+// Using ISCO from Bardeen-Press-Teukolsky formula: r_ISCO = 3 r_s for Schwarzschild
 const float ACCRETION_WIDTH = 5.0;
+#define ACCRETION_MIN_R accretion_inner_r
 const float ACCRETION_BRIGHTNESS = 0.95;
 
 const float STAR_MIN_TEMPERATURE = 4000.0;
@@ -126,9 +129,19 @@ vec3 rotate_about_z(vec3 p, float angle) {
 }
 
 float geodesic_accel(float u, float spin_alignment) {
+    // Schwarzschild geodesic equation: d²u/dφ² = -u(1 - 3u²/2) in units where r_s = 1
     float schwarzschild_accel = -u*(1.0 - 1.5*u*u);
+    
+    // Improved Kerr frame-dragging approximation
+    // In true Kerr, frame dragging affects photon trajectories via the metric term g_tφ
+    // The effect scales as a/r³ where a is the spin parameter
+    // This approximation captures the qualitative behavior: 
+    // - Prograde light bends less (aligned with rotation)
+    // - Retrograde light bends more (against rotation)
+    // Using u³ term (1/r³ dependence) which is more physical than u⁴
     float frame_drag_term = bh_rotation_enabled * bh_spin * bh_spin_strength *
-        spin_alignment * 0.55 * u*u*u*u;
+        spin_alignment * 0.8 * u*u*u;
+    
     return schwarzschild_accel + frame_drag_term;
 }
 
@@ -479,11 +492,18 @@ vec4 trace_ray(vec3 ray) {
 
         step = MAX_REVOLUTIONS * 2.0*M_PI / float(NSTEPS);
 
-        // adaptive step size
+        // adaptive step size based on rate of change
         float max_rel_u_change = (1.0-log(max(u, 0.0001)))*10.0 / float(NSTEPS);
         if ((du > 0.0 || (du0 < 0.0 && u0/u < 5.0)) && abs(du) > abs(max_rel_u_change*u) / step) {
             step = max_rel_u_change*u/abs(du);
         }
+        
+        // Additional step refinement near photon sphere (u ≈ 0.667 for r = 1.5)
+        // Light paths here are highly sensitive to initial conditions
+        // The photon sphere is at r = 1.5 r_s, so u_photon = 2/3 ≈ 0.667
+        float u_photon_sphere = 0.667;
+        float photon_sphere_proximity = exp(-12.0 * (u - u_photon_sphere) * (u - u_photon_sphere));
+        step *= 1.0 - 0.7 * photon_sphere_proximity;
 
         old_u = u;
 
