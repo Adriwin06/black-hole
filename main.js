@@ -78,6 +78,7 @@ Observer.prototype.move = function(dt) {
 var container, stats;
 var camera, scene, renderer, cameraControls, shader = null;
 var observer = new Observer();
+var distanceController = null;
 var effectLabels = {
     spin: null,
     temperature: null
@@ -352,12 +353,28 @@ function init(textures) {
 
     cameraControls = new THREE.OrbitControls( camera, renderer.domElement );
     cameraControls.target.set( 0, 0, 0 );
+    cameraControls.enableZoom = false; // We handle zoom manually for distance sync
     cameraControls.addEventListener( 'change', updateCamera );
     updateCamera();
 
     onWindowResize();
 
     window.addEventListener( 'resize', onWindowResize, false );
+
+    // Custom scroll handler to control observer distance
+    renderer.domElement.addEventListener( 'wheel', function(e) {
+        e.preventDefault();
+        var delta = e.deltaY > 0 ? 1.15 : 0.87; // zoom out / zoom in
+        var newDist = shader.parameters.observer.distance * delta;
+        newDist = Math.max(1.5, Math.min(30, newDist));
+        shader.parameters.observer.distance = newDist;
+        updateCamera();
+        shader.needsUpdate = true;
+        // Update dat.GUI slider
+        if (distanceController) {
+            distanceController.updateDisplay();
+        }
+    }, { passive: false } );
 
     setupGUI();
 }
@@ -377,7 +394,33 @@ function setupGUI() {
         shader.needsUpdate = true;
     }
 
-    var gui = new dat.GUI();
+    var gui = new dat.GUI({ width: 360 });
+
+    function setGuiRowClass(guiEl, klass) {
+        $(guiEl.domElement).parent().parent().addClass(klass);
+    }
+
+    function addHelpText(controller, text) {
+        if (!text) return;
+        // Use the parent .cr row for the tooltip
+        var row = $(controller.domElement).closest('.cr')[0];
+        if (row) row.title = text;
+    }
+
+    function addControl(folder, obj, key, cfg) {
+        cfg = cfg || {};
+        var c;
+        if (cfg.options) c = folder.add(obj, key, cfg.options);
+        else c = folder.add(obj, key);
+        if (cfg.min !== undefined) c.min(cfg.min);
+        if (cfg.max !== undefined) c.max(cfg.max);
+        if (cfg.step !== undefined) c.step(cfg.step);
+        if (cfg.name) c.name(cfg.name);
+        if (cfg.onChange) c.onChange(cfg.onChange);
+        if (cfg.help) addHelpText(c, cfg.help);
+        if (cfg.className) setGuiRowClass(c, cfg.className);
+        return c;
+    }
 
     function applyKerrMode(mode) {
         // Preserve selected quality in fast mode, but enforce physically heavier settings
@@ -396,6 +439,8 @@ function setupGUI() {
             p.cinematic_tonemap = true;
         }
 
+        hint.text('Solver mode: ' + mode.replace(/_/g, ' '));
+        hint.stop(true, true).fadeIn(120).delay(900).fadeOut(350);
         updateShader();
     }
 
@@ -430,89 +475,170 @@ function setupGUI() {
         applyKerrMode(p.kerr_mode);
     }
 
-    gui.add(p, 'quality', ['fast', 'medium', 'high']).onChange(applyQualityPreset);
-    gui.add(p, 'kerr_mode', [
-        'fast',
-        'realtime_full_kerr_core',
-        'offline_accurate'
-    ]).name('kerr solver mode').onChange(applyKerrMode);
+    var qualityLabels = {
+        'Fast (preview)': 'fast',
+        'Medium': 'medium',
+        'High': 'high'
+    };
+
+    var kerrModeLabels = {
+        'Fast (approximate lensing)': 'fast',
+        'Realtime Kerr core': 'realtime_full_kerr_core',
+        'Offline accurate (slow)': 'offline_accurate'
+    };
+
+    var renderFolder = gui.addFolder('Rendering');
+    addControl(renderFolder, p, 'quality', {
+        options: qualityLabels,
+        name: 'quality preset',
+        onChange: applyQualityPreset,
+        help: 'Global render preset. High and Offline use more ray-marching steps and samples.'
+    });
+    addControl(renderFolder, p, 'kerr_mode', {
+        options: kerrModeLabels,
+        name: 'solver mode',
+        onChange: applyKerrMode,
+        help: 'Fast = fastest. Realtime Kerr core = best live balance. Offline accurate = highest quality and slowest.'
+    });
+
+    addControl(renderFolder, p, 'n_steps', {
+        min: 20,
+        max: 1400,
+        step: 1,
+        name: 'ray steps',
+        onChange: updateShader,
+        help: 'More steps improve thin features and strong lensing, but reduce FPS.'
+    });
+    addControl(renderFolder, p, 'sample_count', {
+        min: 1,
+        max: 12,
+        step: 1,
+        name: 'samples / pixel',
+        onChange: updateShader,
+        help: 'Supersampling for anti-aliasing and smoother edges. Higher values are slower.'
+    });
+    addControl(renderFolder, p, 'max_revolutions', {
+        min: 1.0,
+        max: 8.0,
+        step: 0.1,
+        name: 'max orbit turns',
+        onChange: updateShader,
+        help: 'How many wrapped photon turns are traced before escape/capture cutoff.'
+    });
+    addControl(renderFolder, p, 'rk4_integration', {
+        name: 'RK4 integration',
+        onChange: updateShader,
+        help: 'Higher-order integration for better stability in curved trajectories.'
+    });
+    renderFolder.open();
+
     applyQualityPreset(p.quality);
     applyKerrMode(p.kerr_mode);
+
     var diskFolder = gui.addFolder('Accretion disk');
-    diskFolder.add(p, 'accretion_disk').onChange(updateShader);
-    diskFolder.add(p, 'disk_temperature')
-        .min(DISK_TEMPERATURE_MIN)
-        .max(DISK_TEMPERATURE_MAX)
-        .step(1)
-        .name('temperature (K)')
-        .onChange(updateUniformsLive);
+    addControl(diskFolder, p, 'accretion_disk', {
+        name: 'enabled',
+        onChange: updateShader,
+        help: 'Toggles thermal emission from the accretion disk.'
+    });
+    addControl(diskFolder, p, 'disk_temperature', {
+        min: DISK_TEMPERATURE_MIN,
+        max: DISK_TEMPERATURE_MAX,
+        step: 1,
+        name: 'temperature (K)',
+        onChange: updateUniformsLive,
+        help: 'Rest-frame disk color temperature before relativistic shifts.'
+    });
     diskFolder.open();
 
     var spinFolder = gui.addFolder('Black hole');
-    spinFolder.add(p.black_hole, 'spin_enabled')
-        .name('rotating shadow')
-        .onChange(updateUniformsLive);
-    spinFolder.add(p.black_hole, 'spin')
-        .min(-0.99)
-        .max(0.99)
-        .step(0.01)
-        .name('a/M')
-        .onChange(updateUniformsLive);
-    spinFolder.add(p.black_hole, 'spin_strength')
-        .min(0.0)
-        .max(1.4)
-        .step(0.01)
-        .name('shadow squeeze')
-        .onChange(updateUniformsLive);
+    addControl(spinFolder, p.black_hole, 'spin_enabled', {
+        name: 'rotation enabled',
+        onChange: updateUniformsLive,
+        help: 'Enables Kerr-like rotation effects. Disable for a Schwarzschild-style shadow.'
+    });
+    addControl(spinFolder, p.black_hole, 'spin', {
+        min: -0.99,
+        max: 0.99,
+        step: 0.01,
+        name: 'a/M',
+        onChange: updateUniformsLive,
+        help: 'Dimensionless spin. Positive = prograde disk, negative = retrograde.'
+    });
+    addControl(spinFolder, p.black_hole, 'spin_strength', {
+        min: 0.0,
+        max: 1.4,
+        step: 0.01,
+        name: 'shadow squeeze',
+        onChange: updateUniformsLive,
+        help: 'Visual strength multiplier for rotation-induced asymmetry in the shadow.'
+    });
     spinFolder.open();
 
     var lookFolder = gui.addFolder('Look');
-    lookFolder.add(p.look, 'exposure')
-        .min(0.6)
-        .max(2.5)
-        .step(0.01)
-        .name('exposure')
-        .onChange(updateUniformsLive);
-    lookFolder.add(p.look, 'disk_gain')
-        .min(0.4)
-        .max(4.0)
-        .step(0.01)
-        .name('disk intensity')
-        .onChange(updateUniformsLive);
-    lookFolder.add(p.look, 'glow')
-        .min(0.0)
-        .max(2.0)
-        .step(0.01)
-        .name('inner glow')
-        .onChange(updateUniformsLive);
-    lookFolder.add(p.look, 'doppler_boost')
-        .min(0.0)
-        .max(2.5)
-        .step(0.01)
-        .name('doppler boost')
-        .onChange(updateUniformsLive);
-    lookFolder.add(p.look, 'aberration_strength')
-        .min(0.0)
-        .max(3.0)
-        .step(0.01)
-        .name('aberration strength')
-        .onChange(updateUniformsLive);
-    lookFolder.add(p.look, 'star_gain')
-        .min(0.0)
-        .max(2.5)
-        .step(0.01)
-        .name('star gain')
-        .onChange(updateUniformsLive);
-    lookFolder.add(p.look, 'galaxy_gain')
-        .min(0.0)
-        .max(2.5)
-        .step(0.01)
-        .name('galaxy gain')
-        .onChange(updateUniformsLive);
+    addControl(lookFolder, p.look, 'exposure', {
+        min: 0.6,
+        max: 2.5,
+        step: 0.01,
+        name: 'exposure',
+        onChange: updateUniformsLive,
+        help: 'Overall tone-mapped brightness.'
+    });
+    addControl(lookFolder, p.look, 'disk_gain', {
+        min: 0.4,
+        max: 4.0,
+        step: 0.01,
+        name: 'disk intensity',
+        onChange: updateUniformsLive,
+        help: 'Brightness multiplier applied to the accretion disk emission.'
+    });
+    addControl(lookFolder, p.look, 'glow', {
+        min: 0.0,
+        max: 2.0,
+        step: 0.01,
+        name: 'inner glow',
+        onChange: updateUniformsLive,
+        help: 'Extra bloom-like emphasis near the hotter inner disk region.'
+    });
+    addControl(lookFolder, p.look, 'doppler_boost', {
+        min: 0.0,
+        max: 2.5,
+        step: 0.01,
+        name: 'doppler boost',
+        onChange: updateUniformsLive,
+        help: 'Controls visual strength of relativistic beaming contrast.'
+    });
+    addControl(lookFolder, p.look, 'aberration_strength', {
+        min: 0.0,
+        max: 3.0,
+        step: 0.01,
+        name: 'aberration strength',
+        onChange: updateUniformsLive,
+        help: 'Scales apparent directional warping from observer motion.'
+    });
+    addControl(lookFolder, p.look, 'star_gain', {
+        min: 0.0,
+        max: 2.5,
+        step: 0.01,
+        name: 'star gain',
+        onChange: updateUniformsLive,
+        help: 'Brightness multiplier for background stars.'
+    });
+    addControl(lookFolder, p.look, 'galaxy_gain', {
+        min: 0.0,
+        max: 2.5,
+        step: 0.01,
+        name: 'galaxy gain',
+        onChange: updateUniformsLive,
+        help: 'Brightness multiplier for the background galaxy map.'
+    });
     lookFolder.open();
 
     var folder = gui.addFolder('Observer');
-    folder.add(p.observer, 'motion').onChange(function(motion) {
+    addControl(folder, p.observer, 'motion', {
+        name: 'orbital motion',
+        help: 'When enabled, the observer follows a circular orbit around the black hole.',
+        onChange: function(motion) {
         updateCamera();
         updateShader();
         if (motion) {
@@ -521,43 +647,98 @@ function setupGUI() {
             hint.text('Stationary observer; drag to orbit around');
         }
         hint.fadeIn();
+        }
     });
-    folder.add(p.observer, 'distance').min(1.5).max(30).onChange(updateCamera);
+    distanceController = addControl(folder, p.observer, 'distance', {
+        min: 1.5,
+        max: 30,
+        step: 0.1,
+        name: 'distance',
+        onChange: function() {
+            updateCamera();
+            shader.needsUpdate = true;
+        },
+        help: 'Observer distance from the black hole center in Schwarzschild-radius units.'
+    });
     folder.open();
 
     folder = gui.addFolder('Planet');
-    folder.add(p.planet, 'enabled').onChange(function(enabled) {
+    addControl(folder, p.planet, 'enabled', {
+        name: 'enabled',
+        help: 'Adds an orbiting planet used as a reference object.',
+        onChange: function(enabled) {
         updateShader();
         var controls = $('.indirect-planet-controls').show();
         if (enabled) controls.show();
         else controls.hide();
+        }
     });
-    folder.add(p.planet, 'distance').min(1.5).onChange(updateUniforms);
-    folder.add(p.planet, 'radius').min(0.01).max(2.0).onChange(updateUniforms);
+    addControl(folder, p.planet, 'distance', {
+        min: 1.5,
+        step: 0.1,
+        name: 'distance',
+        onChange: updateUniforms,
+        help: 'Orbital radius of the planet.'
+    });
+    addControl(folder, p.planet, 'radius', {
+        min: 0.01,
+        max: 2.0,
+        step: 0.01,
+        name: 'radius',
+        onChange: updateUniforms,
+        help: 'Planet size in simulation units.'
+    });
     $(folder.domElement).addClass('planet-controls');
     //folder.open();
 
-    function setGuiRowClass(guiEl, klass) {
-        $(guiEl.domElement).parent().parent().addClass(klass);
-    }
-
     folder = gui.addFolder('Relativistic effects');
-    folder.add(p, 'aberration').name('aberration (ray dir)').onChange(updateShader);
-    folder.add(p, 'beaming').name('beaming (intensity)').onChange(updateShader);
-    folder.add(p, 'physical_beaming').name('physical (D³ Liouville)').onChange(updateShader);
-    folder.add(p, 'doppler_shift').name('doppler shift (color)').onChange(updateShader);
-    setGuiRowClass(
-        folder.add(p, 'gravitational_time_dilation').onChange(updateShader),
-        'planet-controls indirect-planet-controls');
-    setGuiRowClass(
-        folder.add(p, 'lorentz_contraction').onChange(updateShader),
-        'planet-controls indirect-planet-controls');
+    addControl(folder, p, 'aberration', {
+        name: 'aberration (ray dir)',
+        onChange: updateShader,
+        help: 'Changes apparent incoming ray direction due to observer velocity.'
+    });
+    addControl(folder, p, 'beaming', {
+        name: 'beaming (intensity)',
+        onChange: updateShader,
+        help: 'Applies relativistic intensity boosting/dimming.'
+    });
+    addControl(folder, p, 'physical_beaming', {
+        name: 'physical (D³ Liouville)',
+        onChange: updateShader,
+        help: 'Uses physically motivated Liouville transfer scaling instead of cinematic curve.'
+    });
+    addControl(folder, p, 'doppler_shift', {
+        name: 'doppler shift (color)',
+        onChange: updateShader,
+        help: 'Shifts observed spectrum by red/blue shift factors.'
+    });
+    addControl(folder, p, 'gravitational_time_dilation', {
+        name: 'time dilation',
+        onChange: updateShader,
+        className: 'planet-controls indirect-planet-controls',
+        help: 'Accounts for rate differences between local and distant observer clocks.'
+    });
+    addControl(folder, p, 'lorentz_contraction', {
+        name: 'lorentz contraction',
+        onChange: updateShader,
+        className: 'planet-controls indirect-planet-controls',
+        help: 'Applies length contraction effects to moving scene elements.'
+    });
 
     folder.open();
 
     folder = gui.addFolder('Time');
-    folder.add(p, 'light_travel_time').onChange(updateShader);
-    folder.add(p, 'time_scale').min(0);
+    addControl(folder, p, 'light_travel_time', {
+        onChange: updateShader,
+        help: 'Enables retarded-time rendering, where events are seen after light delay.'
+    });
+    addControl(folder, p, 'time_scale', {
+        min: 0,
+        max: 6,
+        step: 0.01,
+        name: 'time scale',
+        help: 'Simulation clock multiplier.'
+    });
     //folder.open();
 
 }
