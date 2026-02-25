@@ -132,6 +132,7 @@ function Shader(mustacheTemplate) {
         gravitational_time_dilation: true,
         aberration: true,
         beaming: true,
+        physical_beaming: true,
         doppler_shift: true,
         light_travel_time: true,
         time_scale: 1.0,
@@ -512,6 +513,7 @@ function setupGUI() {
     folder = gui.addFolder('Relativistic effects');
     folder.add(p, 'aberration').name('aberration (ray dir)').onChange(updateShader);
     folder.add(p, 'beaming').name('beaming (intensity)').onChange(updateShader);
+    folder.add(p, 'physical_beaming').name('physical (D³ Liouville)').onChange(updateShader);
     folder.add(p, 'doppler_shift').name('doppler shift (color)').onChange(updateShader);
     setGuiRowClass(
         folder.add(p, 'gravitational_time_dilation').onChange(updateShader),

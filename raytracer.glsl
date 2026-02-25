@@ -590,12 +590,22 @@ vec4 trace_ray(vec3 ray) {
                     float accretion_intensity = ACCRETION_BRIGHTNESS * accretion_flux_profile(r) *
                         turbulence * (1.0 + 0.7*inner_glow);
 
-                    vec3 accretion_v = vec3(-isec.y, isec.x, 0.0) / sqrt(2.0*(r-1.0)) / (r*r);
+                    vec3 accretion_v = vec3(-isec.y, isec.x, 0.0) / (r * sqrt(2.0*(r-1.0)));
                     gamma = 1.0/sqrt(max(1.0-dot(accretion_v,accretion_v), 0.0001));
                     float doppler_factor = gamma*(1.0+dot(ray/ray_l,accretion_v));
                     {{#beaming}}
+                    {{#physical_beaming}}
+                    // Liouville's theorem: I/ν³ is Lorentz invariant
+                    // For thermal emission, intensity scales as D³ (D = Doppler factor)
+                    // D³ = aberration (D²) + time dilation (D¹)
+                    float safe_doppler = clamp(doppler_factor, 0.1, 10.0);
+                    accretion_intensity /= pow(safe_doppler, 3.0);
+                    {{/physical_beaming}}
+                    {{^physical_beaming}}
+                    // Cinematic beaming: softened for artistic rendering
                     float clamped_doppler = clamp(doppler_factor, 0.62, 1.48);
                     accretion_intensity /= pow(clamped_doppler, 1.05 + 1.10*doppler_boost);
+                    {{/physical_beaming}}
                     {{/beaming}}
                     {{#doppler_shift}}
                     temperature /= max(ray_doppler_factor*doppler_factor, 0.05);

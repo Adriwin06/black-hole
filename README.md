@@ -15,7 +15,9 @@ The simulation implements several physically accurate relativistic effects:
 * **Schwarzschild geodesics:** The core light-bending equation $\ddot{u} = -u(1 - \frac{3}{2}u^2)$ is exact for null geodesics in Schwarzschild spacetime.
 * **Gravitational redshift:** Correctly implemented as $z = \sqrt{(1 - r_s/r_{emit})/(1 - r_s/r_{obs})}$.
 * **Relativistic Doppler effect:** Uses the full formula $f_r = f_s / [\gamma(1 + \vec{v} \cdot \hat{n})]$.
-* **Relativistic beaming:** $D^3$ luminosity enhancement from aberration, time dilation, and frequency shift.
+* **Relativistic beaming:** Two modes available:
+  - *Physical (D³ Liouville):* Implements proper $D^3$ intensity scaling per Liouville's theorem ($I/\nu^3$ is Lorentz invariant). Creates dramatic left-right brightness asymmetry matching theoretical predictions.
+  - *Cinematic:* Softened beaming (~$D^{2.15}$ with clamped Doppler factor) for artistic rendering similar to movie visualizations.
 * **Accretion disk temperature profile:** Follows the Shakura-Sunyaev thin disk model $T \propto r^{-3/4}(1 - \sqrt{r_{in}/r})^{1/4}$.
 * **ISCO (Innermost Stable Circular Orbit):** Now dynamically calculated using the Bardeen-Press-Teukolsky formula based on black hole spin. For Schwarzschild ($a=0$), ISCO = 3 $r_s$; varies from 0.5 $r_s$ (prograde, maximal spin) to 4.5 $r_s$ (retrograde).
 * **Keplerian disk velocity:** $v_\phi = 1/\sqrt{2(r-1)}$ in Schwarzschild units.
@@ -31,6 +33,7 @@ The GUI now includes controls matching the visual effects discussed in the Inter
  * **Black hole > a/M:** sets the dimensionless spin parameter.
  * **Black hole > shadow squeeze:** scales the spin deformation strength (use lower values for a film-like reduced effect).
  * **Relativistic effects > doppler shift / beaming:** controls blue-shifted brightening of approaching plasma and red-shifted dimming of receding plasma.
+ * **Relativistic effects > physical (D³ Liouville):** toggles between physically accurate D³ beaming (dramatic asymmetry) and softened cinematic beaming.
 
 ### System requirements
 
