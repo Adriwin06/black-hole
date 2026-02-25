@@ -89,6 +89,7 @@ var container, stats;
 var camera, scene, renderer, cameraControls, shader = null;
 var observer = new Observer();
 var distanceController = null;
+var refreshAllControllersGlobal = null; // Will be set in setupGUI
 var effectLabels = {
     spin: null,
     temperature: null
@@ -116,7 +117,7 @@ function Shader(mustacheTemplate) {
         sample_count: 1,
         max_revolutions: 2.0,
         rk4_integration: false,
-        cinematic_tonemap: false,
+        cinematic_tonemap: true,
         quality: 'high',
         kerr_mode: 'realtime_full_kerr_core',
         accretion_disk: true,
@@ -405,21 +406,6 @@ function init(textures) {
 
     window.addEventListener( 'resize', onWindowResize, false );
 
-    // Custom scroll handler to control observer distance
-    renderer.domElement.addEventListener( 'wheel', function(e) {
-        e.preventDefault();
-        var delta = e.deltaY > 0 ? 1.15 : 0.87; // zoom out / zoom in
-        var newDist = shader.parameters.observer.distance * delta;
-        newDist = Math.max(1.5, Math.min(30, newDist));
-        shader.parameters.observer.distance = newDist;
-        updateCamera();
-        shader.needsUpdate = true;
-        // Update dat.GUI slider
-        if (distanceController) {
-            distanceController.updateDisplay();
-        }
-    }, { passive: false } );
-
     setupGUI();
 }
 
@@ -439,6 +425,22 @@ function setupGUI() {
     }
 
     var gui = new dat.GUI({ width: 360 });
+
+    // Recursively update all dat.GUI controllers to reflect programmatic changes.
+    // dat.GUI does NOT auto-sync the displayed value when the bound property
+    // is changed from code — you must call updateDisplay() on each controller.
+    function refreshAllControllers() {
+        function recurse(folder) {
+            for (var i = 0; i < folder.__controllers.length; i++) {
+                folder.__controllers[i].updateDisplay();
+            }
+            for (var key in folder.__folders) {
+                recurse(folder.__folders[key]);
+            }
+        }
+        recurse(gui);
+    }
+    refreshAllControllersGlobal = refreshAllControllers;
 
     function setGuiRowClass(guiEl, klass) {
         $(guiEl.domElement).parent().parent().addClass(klass);
@@ -467,50 +469,69 @@ function setupGUI() {
     }
 
     function applyKerrMode(mode) {
-        // Preserve selected quality in fast mode, but enforce physically heavier settings
-        // for Kerr geodesic integration modes.
-        if (mode === 'realtime_full_kerr_core') {
-            p.rk4_integration = true;
-            p.max_revolutions = Math.max(p.max_revolutions, 3.0);
-            p.n_steps = Math.max(p.n_steps, 520);
-            p.sample_count = Math.max(p.sample_count, 4);
-            p.cinematic_tonemap = true;
-        }
-
+        // Re-apply quality preset with new mode (preset values depend on kerr_mode)
+        applyQualityPresetInternal(p.quality);
         hint.text('Solver mode: ' + mode.replace(/_/g, ' '));
         hint.stop(true, true).fadeIn(120).delay(900).fadeOut(350);
-        updateShader();
     }
 
-    function applyQualityPreset(value) {
+    function applyQualityPresetInternal(value) {
+        var isKerr = (p.kerr_mode === 'realtime_full_kerr_core');
         $('.planet-controls').show();
 
         switch(value) {
         case 'fast':
-            p.n_steps = 40;
-            p.sample_count = 1;
-            p.max_revolutions = 1.5;
-            p.rk4_integration = false;
+            if (isKerr) {
+                // Kerr mode needs more steps for accuracy, but still faster preset
+                p.n_steps = 200;
+                p.sample_count = 2;
+                p.max_revolutions = 2.5;
+                p.rk4_integration = true;
+            } else {
+                p.n_steps = 40;
+                p.sample_count = 1;
+                p.max_revolutions = 1.5;
+                p.rk4_integration = false;
+            }
             p.cinematic_tonemap = true;
             $('.planet-controls').hide();
             break;
         case 'medium':
-            p.n_steps = 100;
-            p.sample_count = 1;
-            p.max_revolutions = 2.0;
-            p.rk4_integration = false;
+            if (isKerr) {
+                p.n_steps = 400;
+                p.sample_count = 3;
+                p.max_revolutions = 3.0;
+                p.rk4_integration = true;
+            } else {
+                p.n_steps = 100;
+                p.sample_count = 1;
+                p.max_revolutions = 2.0;
+                p.rk4_integration = false;
+            }
             p.cinematic_tonemap = true;
             break;
         case 'high':
-            p.n_steps = 320;
-            p.sample_count = 4;
-            p.max_revolutions = 3.2;
-            p.rk4_integration = true;
+            if (isKerr) {
+                p.n_steps = 520;
+                p.sample_count = 4;
+                p.max_revolutions = 3.5;
+                p.rk4_integration = true;
+            } else {
+                p.n_steps = 320;
+                p.sample_count = 4;
+                p.max_revolutions = 3.2;
+                p.rk4_integration = true;
+            }
             p.cinematic_tonemap = true;
             break;
         }
 
-        applyKerrMode(p.kerr_mode);
+        updateShader();
+        refreshAllControllers();
+    }
+
+    function applyQualityPreset(value) {
+        applyQualityPresetInternal(value);
     }
 
     var qualityLabels = {
@@ -570,7 +591,19 @@ function setupGUI() {
     renderFolder.open();
 
     applyQualityPreset(p.quality);
-    applyKerrMode(p.kerr_mode);
+
+    // Custom scroll handler to control observer distance
+    // Placed here so we have access to refreshAllControllers and distanceController
+    renderer.domElement.addEventListener( 'wheel', function(e) {
+        e.preventDefault();
+        var delta = e.deltaY > 0 ? 1.15 : 0.87; // zoom out / zoom in
+        var newDist = p.observer.distance * delta;
+        newDist = Math.max(1.5, Math.min(30, newDist));
+        p.observer.distance = newDist;
+        updateCamera();
+        shader.needsUpdate = true;
+        refreshAllControllers();
+    }, { passive: false } );
 
     var diskFolder = gui.addFolder('Accretion disk');
     addControl(diskFolder, p, 'accretion_disk', {
