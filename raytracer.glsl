@@ -266,9 +266,13 @@ float accretion_flux_profile(float radius) {
 }
 
 float accretion_temperature(float radius) {
+    // Normalize Shakura-Sunyaev profile so disk_temperature corresponds
+    // to the peak effective temperature (at x = 49/36).
+    const float SS_PEAK_NORMALIZATION = 2.04910267;
     float x = max(radius / ACCRETION_MIN_R, 1.0001);
     float inner_edge = max(1.0 - sqrt(1.0 / x), 0.02);
-    return disk_temperature * pow(1.0 / x, 0.75) * pow(inner_edge, 0.25);
+    return disk_temperature * SS_PEAK_NORMALIZATION *
+        pow(1.0 / x, 0.75) * pow(inner_edge, 0.25);
 }
 
 float gravitational_shift(float emission_radius) {

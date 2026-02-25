@@ -122,7 +122,7 @@ function Shader(mustacheTemplate) {
         kerr_mode: 'realtime_full_kerr_core',
         accretion_disk: true,
         accretion_mode: 'thin_disk',
-        disk_temperature: 10000.0,
+        disk_temperature: 5000.0,
         torus: {
             r0: 4.0,
             h_ratio: 0.45
