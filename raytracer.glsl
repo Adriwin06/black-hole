@@ -37,6 +37,8 @@ uniform float accretion_inner_r;
 uniform float look_exposure, look_disk_gain, look_glow, look_doppler_boost;
 uniform float look_aberration_strength;
 uniform float look_star_gain, look_galaxy_gain;
+uniform float torus_r0, torus_h_ratio;
+uniform float jet_half_angle, jet_lorentz, jet_brightness, jet_length;
 
 uniform sampler2D galaxy_texture, star_texture,
     planet_texture, spectrum_texture;
@@ -409,11 +411,7 @@ float fbm(vec2 p) {
     return sum;
 }
 
-float accretion_emissivity(float radius, float angle, float t) {
-    float r_norm = (radius - ACCRETION_MIN_R) / ACCRETION_WIDTH;
-    float edge_fade = smoothstep(0.02, 0.18, r_norm) *
-        (1.0 - smoothstep(0.78, 1.0, r_norm));
-
+float accretion_turbulence(float radius, float angle, float t) {
     float orbit_phase = angle - 0.45*t / pow(max(radius, 1.001), 1.5);
     vec2 orbit_unit = vec2(cos(orbit_phase), sin(orbit_phase));
     float swirl = sin(18.0*orbit_phase + 10.0*log(max(radius, 1.001)));
@@ -430,7 +428,14 @@ float accretion_emissivity(float radius, float angle, float t) {
     float filaments = 0.6 + 0.4*swirl;
     float plasma = mix(large_scale, small_scale, 0.6);
 
-    return max((0.45 + 1.1*plasma) * (0.8 + 0.2*filaments) * edge_fade, 0.02);
+    return max((0.45 + 1.1*plasma) * (0.8 + 0.2*filaments), 0.02);
+}
+
+float accretion_emissivity(float radius, float angle, float t) {
+    float r_norm = (radius - ACCRETION_MIN_R) / ACCRETION_WIDTH;
+    float edge_fade = smoothstep(0.02, 0.18, r_norm) *
+        (1.0 - smoothstep(0.78, 1.0, r_norm));
+    return accretion_turbulence(radius, angle, t) * edge_fade;
 }
 
 float accretion_flux_profile(float radius) {
@@ -451,6 +456,139 @@ float gravitational_shift(float emission_radius) {
     float emission_term = max(1.0 - 1.0 / max(emission_radius, 1.0001), 0.0001);
     return sqrt(emission_term / observer_term);
 }
+
+{{#accretion_thick_torus}}
+// ADAF/RIAF thick torus: geometrically thick, optically thin accretion flow
+// Models low-luminosity AGN like M87* and Sgr A* (EHT targets)
+float torus_local_emissivity(vec3 p) {
+    float cyl_r = length(p.xy);
+    float r0 = max(torus_r0, 1.5);
+    float h = max(cyl_r * torus_h_ratio, 0.01);
+    float z_norm = abs(p.z) / h;
+
+    if (z_norm > 3.0 || cyl_r < 0.9) return 0.0;
+
+    // Gaussian vertical profile (hydrostatic equilibrium)
+    float vert = exp(-0.5 * z_norm * z_norm);
+
+    // Radial emissivity: bremsstrahlung j ~ n^2 T^(1/2) ~ r^(-2)
+    float radial = pow(r0 / max(cyl_r, 1.0), 2.0);
+
+    // Smooth cutoff at event horizon
+    float inner = smoothstep(0.9, 1.5, cyl_r);
+
+    // Outer edge falloff
+    float outer_r = max(r0 * 3.5, ACCRETION_MIN_R + ACCRETION_WIDTH);
+    float outer = 1.0 - smoothstep(outer_r * 0.75, outer_r, cyl_r);
+
+    return vert * radial * inner * outer;
+}
+
+float torus_temperature(float r) {
+    float r0 = max(torus_r0, 1.5);
+    // ADAF electron temperature: weakly radius-dependent, T ~ r^(-0.3)
+    return disk_temperature * pow(r0 / max(r, 1.0), 0.3);
+}
+{{/accretion_thick_torus}}
+
+{{#accretion_slim_disk}}
+// Slim disk: super-Eddington accretion, extends inside ISCO
+// Radiation-pressure supported, geometrically thicker than thin disk
+float slim_disk_height(float cyl_r) {
+    float base_h_ratio = 0.12;
+    // Puffs up near and inside ISCO due to radiation pressure
+    float isco_proximity = exp(-1.5 * max(cyl_r - ACCRETION_MIN_R, 0.0));
+    return max(cyl_r * base_h_ratio * (1.0 + 2.5 * isco_proximity), 0.01);
+}
+
+float slim_disk_local_emissivity(vec3 p) {
+    float cyl_r = length(p.xy);
+    float h = slim_disk_height(cyl_r);
+    float z_norm = abs(p.z) / h;
+
+    if (z_norm > 3.0 || cyl_r < 0.9) return 0.0;
+
+    float vert = exp(-0.5 * z_norm * z_norm);
+
+    // Extends inside ISCO with plunging-region emission
+    float radial;
+    if (cyl_r >= ACCRETION_MIN_R) {
+        radial = accretion_flux_profile(cyl_r);
+    } else {
+        // Plunging region: conserved specific energy, decreasing efficiency
+        float f = cyl_r / max(ACCRETION_MIN_R, 1.0);
+        radial = accretion_flux_profile(ACCRETION_MIN_R) * pow(f, 2.5);
+    }
+
+    float inner = smoothstep(0.9, 1.3, cyl_r);
+    float outer_r = ACCRETION_MIN_R + ACCRETION_WIDTH;
+    float outer = 1.0 - smoothstep(outer_r * 0.8, outer_r, cyl_r);
+
+    return vert * radial * inner * outer;
+}
+
+float slim_disk_temperature(float cyl_r) {
+    if (cyl_r >= ACCRETION_MIN_R) {
+        return accretion_temperature(cyl_r);
+    } else {
+        // Inside ISCO: advection-dominated, T rises as r^(-0.5)
+        float t_isco = accretion_temperature(ACCRETION_MIN_R);
+        return t_isco * pow(ACCRETION_MIN_R / max(cyl_r, 1.0), 0.5);
+    }
+}
+{{/accretion_slim_disk}}
+
+{{#jet_enabled}}
+// Relativistic jet: Blandford-Znajek powered bipolar outflow
+// Conical geometry along spin axis (±z), synchrotron emission,
+// relativistic beaming with bulk Lorentz factor Γ
+// Returns: emissivity at point p for a given jet cone
+float jet_emissivity(vec3 p, float sign_z) {
+    float z = p.z * sign_z; // flip for counter-jet
+    if (z < 0.5) return 0.0; // jet starts above ~0.5 r_s from BH
+
+    float cyl_r = length(p.xy);
+    float r3d = length(p);
+
+    // Cone half-angle in radians
+    float theta_jet = jet_half_angle * DEG_TO_RAD;
+    float tan_half = tan(theta_jet);
+
+    // Cone boundary: cyl_r < z * tan(theta)
+    float cone_r = z * tan_half;
+    if (cyl_r > cone_r * 1.5) return 0.0;
+
+    // Transverse Gaussian profile across cone
+    float r_norm = cyl_r / max(cone_r, 0.01);
+    float transverse = exp(-2.0 * r_norm * r_norm);
+
+    // Longitudinal: synchrotron emissivity ~ z^(-2) (adiabatic expansion)
+    // with smooth onset above the launching region
+    float z_onset = smoothstep(0.5, 1.5, z);
+    float z_decay = 1.0 / (1.0 + z * z * 0.01);
+
+    // Length cutoff
+    float z_cutoff = 1.0 - smoothstep(jet_length * 0.8, jet_length, z);
+
+    // Limb-brightening: enhanced emission at cone boundary
+    // (magnetic field compression at sheath, typical in VLBI observations)
+    float limb = 1.0 + 1.5 * exp(-8.0 * (r_norm - 0.85) * (r_norm - 0.85));
+
+    return transverse * z_onset * z_decay * z_cutoff * limb;
+}
+
+// Jet bulk velocity vector (along ±z axis with slight helical twist)
+vec3 jet_velocity(vec3 p, float sign_z) {
+    float beta = sqrt(1.0 - 1.0 / (jet_lorentz * jet_lorentz));
+    // Predominantly along spin axis with small toroidal component
+    // (helical magnetic field → helical velocity)
+    float cyl_r = length(p.xy);
+    float phi_twist = 0.05 * beta; // small helical fraction
+    vec3 v_z = vec3(0.0, 0.0, sign_z) * beta;
+    vec3 v_phi = vec3(-p.y, p.x, 0.0) / max(cyl_r, 0.01) * phi_twist;
+    return v_z + v_phi;
+}
+{{/jet_enabled}}
 
 vec2 sample_offset(int i, vec2 pixel) {
     if (SAMPLE_COUNT <= 1) return vec2(0.0, 0.0);
@@ -666,6 +804,7 @@ vec4 trace_ray(vec3 ray) {
 
     float step = 0.01;
     vec4 color = vec4(0.0,0.0,0.0,1.0);
+    float vol_transmittance = 1.0; // volumetric ray transmittance (Beer-Lambert)
 
     // initial conditions
     float u = 1.0 / length(pos), old_u;
@@ -836,7 +975,7 @@ vec4 trace_ray(vec3 ray) {
         }
         {{/planetEnabled}}
 
-        {{#accretion_disk}}
+        {{#accretion_thin_disk}}
         if (old_pos.z * pos.z < 0.0) {
             // crossed plane z=0
 
@@ -895,7 +1034,188 @@ vec4 trace_ray(vec3 ray) {
                 }
             }
         }
-        {{/accretion_disk}}
+        {{/accretion_thin_disk}}
+
+        {{#accretion_thick_torus}}
+        {
+            // ADAF/RIAF volumetric emission: optically thin radiative transfer
+            // dI/ds = j - alpha*I  (emission minus absorption)
+            float torus_j = torus_local_emissivity(pos);
+            if (torus_j > 0.001 && vol_transmittance > 0.005) {
+                float path_len = length(pos - old_pos);
+                float r3d = max(length(pos), 1.001);
+                float cyl_r_t = max(length(pos.xy), 1e-4);
+                float angle_t = atan(pos.x, pos.y);
+
+                float temperature_t = torus_temperature(r3d) * gravitational_shift(r3d);
+                float turbulence_t = accretion_turbulence(cyl_r_t, angle_t, t);
+
+                // Emission coefficient: optically thin ADAF has low emissivity
+                float j_eff = ACCRETION_BRIGHTNESS * 0.05 * torus_j * turbulence_t;
+                // Absorption: very small for optically thin bremsstrahlung plasma
+                float alpha_abs = 0.012 * torus_j;
+                float tau_step = alpha_abs * path_len;
+                float step_T = exp(-tau_step);
+
+                // Sub-Keplerian gas velocity (ADAF: ~50% of Keplerian)
+                vec3 accretion_v_t;
+                {{#kerr_fast_mode}}
+                float v_kep_t = 1.0 / sqrt(2.0 * max(cyl_r_t - 1.0, 0.01));
+                float v_sub_t = clamp(0.5 * v_kep_t, 0.0, 0.95);
+                accretion_v_t = vec3(-pos.y, pos.x, 0.0) / cyl_r_t * v_sub_t;
+                {{/kerr_fast_mode}}
+                {{#kerr_full_core}}
+                float rg_cyl_t = max(2.0 * cyl_r_t, 1.0002);
+                float a_M_t = bh_rotation_enabled * bh_spin;
+                float omega_sub_t = 0.5 / (pow(rg_cyl_t, 1.5) + a_M_t);
+                float v_phi_t = clamp(rg_cyl_t * omega_sub_t, -0.95, 0.95);
+                vec3 e_phi_t = vec3(-pos.y, pos.x, 0.0) / cyl_r_t;
+                accretion_v_t = e_phi_t * v_phi_t;
+                {{/kerr_full_core}}
+
+                gamma = 1.0/sqrt(max(1.0-dot(accretion_v_t,accretion_v_t), 0.0001));
+                float doppler_factor_t = gamma*(1.0+dot(ray/ray_l,accretion_v_t));
+                float transfer_factor_t = max(ray_doppler_factor*doppler_factor_t, 0.05);
+
+                float torus_intensity = j_eff * path_len;
+                {{#beaming}}
+                {{#physical_beaming}}
+                torus_intensity /= pow(clamp(transfer_factor_t, 0.05, 20.0), 3.0);
+                {{/physical_beaming}}
+                {{^physical_beaming}}
+                float cd_t = clamp(transfer_factor_t, 0.62, 1.48);
+                torus_intensity /= pow(cd_t, 1.05 + 1.10*doppler_boost);
+                {{/physical_beaming}}
+                {{/beaming}}
+                {{#doppler_shift}}
+                temperature_t /= transfer_factor_t;
+                {{/doppler_shift}}
+
+                vec4 thermal_color_t = BLACK_BODY_COLOR(temperature_t);
+                torus_intensity *= look_disk_gain;
+
+                // Front-to-back compositing with Beer-Lambert absorption
+                color.rgb += vol_transmittance * thermal_color_t.rgb * torus_intensity;
+                vol_transmittance *= step_T;
+            }
+        }
+        {{/accretion_thick_torus}}
+
+        {{#accretion_slim_disk}}
+        {
+            // Slim disk volumetric emission: optically thick radiative transfer
+            // Super-Eddington flow: high absorption → surface-like rendering
+            float slim_j = slim_disk_local_emissivity(pos);
+            if (slim_j > 0.001 && vol_transmittance > 0.005) {
+                float path_len_s = length(pos - old_pos);
+                float cyl_r_s = max(length(pos.xy), 1e-4);
+                float r3d_s = max(length(pos), 1.001);
+                float angle_s = atan(pos.x, pos.y);
+
+                float temperature_s = slim_disk_temperature(cyl_r_s) * gravitational_shift(r3d_s);
+                float turbulence_s = accretion_turbulence(cyl_r_s, angle_s, t);
+
+                // Emission coefficient: slim disk is bright (super-Eddington luminosity)
+                float j_eff_s = ACCRETION_BRIGHTNESS * 0.9 * slim_j * turbulence_s;
+                // Moderate absorption: optically thick → surface-like but not completely opaque
+                float alpha_abs_s = 0.8 * slim_j;
+                float tau_step_s = alpha_abs_s * path_len_s;
+                float step_T_s = exp(-tau_step_s);
+                // Source function: emission that survives self-absorption in this step
+                // S = j/alpha; contribution = (1 - exp(-tau)) * S = (1-step_T) * j/alpha
+                float source_contrib = (tau_step_s > 0.001)
+                    ? (1.0 - step_T_s) * (j_eff_s / alpha_abs_s)
+                    : j_eff_s * path_len_s;
+
+                // Keplerian velocity outside ISCO, capped inside
+                vec3 accretion_v_s;
+                {{#kerr_fast_mode}}
+                float v_kep_s = 1.0 / sqrt(2.0 * max(cyl_r_s - 1.0, 0.01));
+                accretion_v_s = vec3(-pos.y, pos.x, 0.0) / cyl_r_s * clamp(v_kep_s, 0.0, 0.95);
+                {{/kerr_fast_mode}}
+                {{#kerr_full_core}}
+                float rg_cyl_s = max(2.0 * cyl_r_s, 1.0002);
+                float a_M_s = bh_rotation_enabled * bh_spin;
+                float omega_s = 1.0 / (pow(rg_cyl_s, 1.5) + a_M_s);
+                float v_phi_s = clamp(rg_cyl_s * omega_s, -0.95, 0.95);
+                vec3 e_phi_s = vec3(-pos.y, pos.x, 0.0) / cyl_r_s;
+                accretion_v_s = e_phi_s * v_phi_s;
+                {{/kerr_full_core}}
+
+                gamma = 1.0/sqrt(max(1.0-dot(accretion_v_s,accretion_v_s), 0.0001));
+                float doppler_factor_s = gamma*(1.0+dot(ray/ray_l,accretion_v_s));
+                float transfer_factor_s = max(ray_doppler_factor*doppler_factor_s, 0.05);
+
+                float slim_intensity = source_contrib;
+                {{#beaming}}
+                {{#physical_beaming}}
+                slim_intensity /= pow(clamp(transfer_factor_s, 0.05, 20.0), 3.0);
+                {{/physical_beaming}}
+                {{^physical_beaming}}
+                float cd_s = clamp(transfer_factor_s, 0.62, 1.48);
+                slim_intensity /= pow(cd_s, 1.05 + 1.10*doppler_boost);
+                {{/physical_beaming}}
+                {{/beaming}}
+                {{#doppler_shift}}
+                temperature_s /= transfer_factor_s;
+                {{/doppler_shift}}
+
+                vec4 thermal_color_s = BLACK_BODY_COLOR(temperature_s);
+                slim_intensity *= look_disk_gain;
+
+                // Front-to-back compositing with Beer-Lambert absorption
+                color.rgb += vol_transmittance * thermal_color_s.rgb * slim_intensity;
+                vol_transmittance *= step_T_s;
+            }
+        }
+        {{/accretion_slim_disk}}
+
+        {{#jet_enabled}}
+        {
+            // Relativistic bipolar jet: volumetric synchrotron emission
+            // Process both jet (+z) and counter-jet (-z)
+            float path_len_j = length(pos - old_pos);
+            for (int jet_side = 0; jet_side < 2; jet_side++) {
+                float sign_z = (jet_side == 0) ? 1.0 : -1.0;
+                float j_jet = jet_emissivity(pos, sign_z);
+                if (j_jet > 0.001 && vol_transmittance > 0.005) {
+                    // Jet bulk velocity
+                    vec3 v_jet = jet_velocity(pos, sign_z);
+                    float v2_jet = dot(v_jet, v_jet);
+                    float gamma_jet = 1.0 / sqrt(max(1.0 - v2_jet, 0.0001));
+
+                    // Doppler factor: δ = 1 / (Γ(1 - β·n̂))
+                    // where n̂ is the direction FROM emitter TO observer (= -ray_dir)
+                    vec3 ray_dir = ray / max(ray_l, 1e-6);
+                    float doppler_jet = gamma_jet * (1.0 + dot(ray_dir, v_jet));
+
+                    // Synchrotron beaming: I_obs = δ^(2+α) * I_em
+                    // α ≈ 0.7 for synchrotron spectral index → exponent ≈ 2.7
+                    // Use δ^2 (continuous jet) for balanced side/face-on visibility
+                    float beam_factor = 1.0 / pow(max(doppler_jet, 0.02), 2.0);
+
+                    // Synchrotron color: power-law → blue-white for approaching,
+                    // faint reddish for receding
+                    // Use effective temperature mapped from Doppler factor
+                    float r_jet = max(length(pos), 1.001);
+                    float g_shift_j = gravitational_shift(r_jet);
+                    float jet_T = 25000.0 * g_shift_j / max(doppler_jet, 0.1);
+                    vec4 jet_color = BLACK_BODY_COLOR(jet_T);
+
+                    // Small absorption (optically thin jet)
+                    float alpha_jet = 0.008 * j_jet;
+                    float tau_jet = alpha_jet * path_len_j;
+                    float step_T_jet = exp(-tau_jet);
+
+                    float jet_emit = jet_brightness * 0.25 * j_jet * beam_factor * path_len_j;
+                    jet_emit *= look_disk_gain;
+
+                    color.rgb += vol_transmittance * jet_color.rgb * jet_emit;
+                    vol_transmittance *= step_T_jet;
+                }
+            }
+        }
+        {{/jet_enabled}}
 
         {{#light_travel_time}}
         t -= dt;
@@ -935,10 +1255,10 @@ vec4 trace_ray(vec3 ray) {
                 (STAR_MAX_TEMPERATURE-STAR_MIN_TEMPERATURE) * star_color.g)
                  / ray_doppler_factor;
 
-            color += BLACK_BODY_COLOR(t_coord) * star_color.r * STAR_BRIGHTNESS * look_star_gain;
+            color += BLACK_BODY_COLOR(t_coord) * star_color.r * STAR_BRIGHTNESS * look_star_gain * vol_transmittance;
         }
 
-        color += galaxy_color(tex_coord, ray_doppler_factor) * GALAXY_BRIGHTNESS * look_galaxy_gain;
+        color += galaxy_color(tex_coord, ray_doppler_factor) * GALAXY_BRIGHTNESS * look_galaxy_gain * vol_transmittance;
     }
 
     return color*ray_intensity;

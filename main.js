@@ -118,7 +118,19 @@ function Shader(mustacheTemplate) {
         quality: 'high',
         kerr_mode: 'realtime_full_kerr_core',
         accretion_disk: true,
+        accretion_mode: 'thin_disk',
         disk_temperature: 10000.0,
+        torus: {
+            r0: 4.0,
+            h_ratio: 0.45
+        },
+        jet: {
+            enabled: false,
+            half_angle: 15.0,
+            lorentz_factor: 3.0,
+            brightness: 0.8,
+            length: 20.0
+        },
         black_hole: {
             spin_enabled: true,
             spin: 0.90,
@@ -130,8 +142,8 @@ function Shader(mustacheTemplate) {
             glow: 0.15,
             doppler_boost: 1.0,
             aberration_strength: 1.0,
-            star_gain: 1.0,
-            galaxy_gain: 1.0
+            star_gain: 0.5,
+            galaxy_gain: 0.5
         },
         planet: {
             enabled: true,
@@ -172,6 +184,14 @@ function Shader(mustacheTemplate) {
         that.parameters.kerr_full_core = (that.parameters.kerr_mode === 'realtime_full_kerr_core' ||
             that.parameters.kerr_mode === 'offline_accurate');
         that.parameters.kerr_offline = (that.parameters.kerr_mode === 'offline_accurate');
+
+        var accMode = that.parameters.accretion_mode;
+        var diskOn = that.parameters.accretion_disk;
+        that.parameters.accretion_thin_disk = diskOn && (accMode === 'thin_disk');
+        that.parameters.accretion_thick_torus = diskOn && (accMode === 'thick_torus');
+        that.parameters.accretion_slim_disk = diskOn && (accMode === 'slim_disk');
+        that.parameters.jet_enabled = that.parameters.jet.enabled;
+
         return Mustache.render(mustacheTemplate, that.parameters);
     };
 }
@@ -251,6 +271,14 @@ function init(textures) {
         look_star_gain: { type: "f", value: 1.0 },
         look_galaxy_gain: { type: "f", value: 1.0 },
 
+        torus_r0: { type: "f", value: 4.0 },
+        torus_h_ratio: { type: "f", value: 0.45 },
+
+        jet_half_angle: { type: "f", value: 15.0 },
+        jet_lorentz: { type: "f", value: 3.0 },
+        jet_brightness: { type: "f", value: 0.8 },
+        jet_length: { type: "f", value: 20.0 },
+
         star_texture: { type: "t", value: textures.stars },
         galaxy_texture: { type: "t", value: textures.galaxy },
         planet_texture: { type: "t", value: textures.moon },
@@ -299,6 +327,14 @@ function init(textures) {
         uniforms.look_aberration_strength.value = shader.parameters.look.aberration_strength;
         uniforms.look_star_gain.value = shader.parameters.look.star_gain;
         uniforms.look_galaxy_gain.value = shader.parameters.look.galaxy_gain;
+
+        uniforms.torus_r0.value = shader.parameters.torus.r0;
+        uniforms.torus_h_ratio.value = shader.parameters.torus.h_ratio;
+
+        uniforms.jet_half_angle.value = shader.parameters.jet.half_angle;
+        uniforms.jet_lorentz.value = shader.parameters.jet.lorentz_factor;
+        uniforms.jet_brightness.value = shader.parameters.jet.brightness;
+        uniforms.jet_length.value = shader.parameters.jet.length;
 
         uniforms.resolution.value.x = renderer.domElement.width;
         uniforms.resolution.value.y = renderer.domElement.height;
@@ -549,6 +585,15 @@ function setupGUI() {
         onChange: updateShader,
         help: 'Toggles thermal emission from the accretion disk.'
     });
+    addControl(diskFolder, p, 'accretion_mode', {
+        name: 'accretion type',
+        options: ['thin_disk', 'thick_torus', 'slim_disk'],
+        onChange: function(mode) {
+            updateAccretionModeVisibility(mode);
+            updateShader();
+        },
+        help: 'Thin disk: Novikov-Thorne (quasars/XRBs). Thick torus: ADAF/RIAF (M87*/Sgr A*). Slim disk: super-Eddington.'
+    });
     addControl(diskFolder, p, 'disk_temperature', {
         min: DISK_TEMPERATURE_MIN,
         max: DISK_TEMPERATURE_MAX,
@@ -557,7 +602,90 @@ function setupGUI() {
         onChange: updateUniformsLive,
         help: 'Rest-frame disk color temperature before relativistic shifts.'
     });
+    var torusCenterCtrl = addControl(diskFolder, p.torus, 'r0', {
+        min: 1.5,
+        max: 10.0,
+        step: 0.1,
+        name: 'torus center r',
+        onChange: updateUniformsLive,
+        help: 'Center radius of the torus in r_s units (thick torus mode only).'
+    });
+    var torusHRCtrl = addControl(diskFolder, p.torus, 'h_ratio', {
+        min: 0.1,
+        max: 1.0,
+        step: 0.01,
+        name: 'torus H/R',
+        onChange: updateUniformsLive,
+        help: 'Height-to-radius ratio of the torus cross-section (thick torus mode only).'
+    });
+
+    // Store GUI row elements for conditional visibility
+    var torusRows = [torusCenterCtrl, torusHRCtrl];
+
+    function updateAccretionModeVisibility(mode) {
+        var showTorus = (mode === 'thick_torus');
+        torusRows.forEach(function(ctrl) {
+            $(ctrl.domElement).closest('li').css('display', showTorus ? '' : 'none');
+        });
+    }
+    // Initialize visibility
+    updateAccretionModeVisibility(p.accretion_mode);
+
     diskFolder.open();
+
+    // ─── Relativistic Jets ───────────────────────────────
+    var jetFolder = gui.addFolder('Relativistic jets');
+    addControl(jetFolder, p.jet, 'enabled', {
+        name: 'enabled',
+        onChange: updateShader,
+        help: 'Bipolar relativistic jets along the spin axis (Blandford-Znajek mechanism).'
+    });
+    var jetAngleCtrl = addControl(jetFolder, p.jet, 'half_angle', {
+        min: 2.0,
+        max: 45.0,
+        step: 0.5,
+        name: 'half-angle (°)',
+        onChange: updateUniformsLive,
+        help: 'Opening half-angle of the jet cone. Typical AGN jets: 5-15°.'
+    });
+    var jetLorentzCtrl = addControl(jetFolder, p.jet, 'lorentz_factor', {
+        min: 1.1,
+        max: 20.0,
+        step: 0.1,
+        name: 'Lorentz Γ',
+        onChange: updateUniformsLive,
+        help: 'Bulk Lorentz factor. Γ~2-5 for AGN jets, Γ~100+ for GRBs. Controls relativistic beaming.'
+    });
+    var jetBrightCtrl = addControl(jetFolder, p.jet, 'brightness', {
+        min: 0.05,
+        max: 3.0,
+        step: 0.01,
+        name: 'brightness',
+        onChange: updateUniformsLive,
+        help: 'Overall jet synchrotron emission strength.'
+    });
+    var jetLengthCtrl = addControl(jetFolder, p.jet, 'length', {
+        min: 5.0,
+        max: 60.0,
+        step: 1.0,
+        name: 'length (r_s)',
+        onChange: updateUniformsLive,
+        help: 'Visible jet length in Schwarzschild radii.'
+    });
+
+    // Show/hide jet parameter controls based on jet.enabled
+    var jetParamCtrls = [jetAngleCtrl, jetLorentzCtrl, jetBrightCtrl, jetLengthCtrl];
+    function updateJetVisibility(enabled) {
+        jetParamCtrls.forEach(function(ctrl) {
+            $(ctrl.domElement).closest('li').css('display', enabled ? '' : 'none');
+        });
+    }
+    updateJetVisibility(p.jet.enabled);
+    // Patch the enabled onChange to also update visibility
+    jetFolder.__controllers[0].onChange(function(val) {
+        updateJetVisibility(val);
+        updateShader();
+    });
 
     var spinFolder = gui.addFolder('Black hole');
     addControl(spinFolder, p.black_hole, 'spin_enabled', {
