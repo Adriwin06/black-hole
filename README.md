@@ -1,59 +1,85 @@
----
----
+# Black Hole Simulation
 
-# Ray-traced simulation of a black hole
+A real-time, GPU-accelerated ray-tracing simulation of a black hole with an accretion disk, relativistic jets, and a full suite of general-relativistic optical effects. Runs entirely in the browser using WebGL and [three.js](http://threejs.org).
 
-In this simulation, the light ray paths are computed by integrating an ODE describing the Schwarzschild geodesics using GLSL on the GPU, leveraging WebGL and [three.js](http://threejs.org). This should result to a fairly physically accurate gravitational lensing effect. Various other relativistic effects have also been added and their contributions can be toggled from the GUI.
-The simulation has normalized units such that the Schwarzschild radius of the black hole is one and the speed of light is one length unit per second (unless changed using the "time scale" parameter).
+## Features
 
-See **[this page](https://oseiskar.github.io/black-hole/docs/physics.html)** ([PDF version](https://oseiskar.github.io/black-hole/docs/physics.pdf)) for a more detailed description of the physics of the simulation.
+- **Schwarzschild & Kerr black holes** — exact null geodesic integration (Binet equation) with perturbative Kerr frame-dragging
+- **Three accretion disk models** — thin disk (Shakura–Sunyaev), thick torus (ADAF/RIAF), and slim disk (super-Eddington)
+- **Relativistic effects** — gravitational redshift, Doppler shift, relativistic beaming (physical D³ or cinematic), aberration, time dilation
+- **Relativistic jets** — simple parabolic or GRMHD-calibrated physical model with spine/sheath structure, reconfinement knots, and Blandford–Znajek power scaling
+- **Black-body spectrum** — temperature-dependent disk coloring with precomputed Planck lookup
+- **Interactive controls** — spin, temperature, observer orbit, quality presets, and many more via dat.GUI
+- **Multiple tone mapping modes** — ACES Filmic, AgX, and Scientific (logarithmic inferno colormap)
 
-### Physics accuracy
+## Physics Documentation
 
-The simulation implements several physically accurate relativistic effects:
+See **[docs/physics.html](docs/physics.html)** for a comprehensive description of every physics model, equation, and approximation used in the simulation, with full academic references and comparison to real observations (EHT, *Interstellar*, Luminet 1979).
 
-* **Schwarzschild geodesics:** The core light-bending equation $\ddot{u} = -u(1 - \frac{3}{2}u^2)$ is exact for null geodesics in Schwarzschild spacetime.
-* **Gravitational redshift:** Correctly implemented as $z = \sqrt{(1 - r_s/r_{emit})/(1 - r_s/r_{obs})}$.
-* **Relativistic Doppler effect:** Uses the full formula $f_r = f_s / [\gamma(1 + \vec{v} \cdot \hat{n})]$.
-* **Relativistic beaming:** Two modes available:
-  - *Physical (D³ Liouville):* Implements proper $D^3$ intensity scaling per Liouville's theorem ($I/\nu^3$ is Lorentz invariant). Creates dramatic left-right brightness asymmetry matching theoretical predictions.
-  - *Cinematic:* Softened beaming (~$D^{2.15}$ with clamped Doppler factor) for artistic rendering similar to movie visualizations.
-* **Accretion disk temperature profile:** Follows the Shakura-Sunyaev thin disk model $T \propto r^{-3/4}(1 - \sqrt{r_{in}/r})^{1/4}$.
-* **ISCO (Innermost Stable Circular Orbit):** Now dynamically calculated using the Bardeen-Press-Teukolsky formula based on black hole spin. For Schwarzschild ($a=0$), ISCO = 3 $r_s$; varies from 0.5 $r_s$ (prograde, maximal spin) to 4.5 $r_s$ (retrograde).
-* **Keplerian disk velocity:** $v_\phi = 1/\sqrt{2(r-1)}$ in Schwarzschild units.
+## Quick Start
 
-The Kerr (spinning black hole) frame-dragging effect is approximated rather than fully derived from the Kerr metric, which would require implementing the Carter constant and Boyer-Lindquist coordinate geodesics.
+Clone or download this repository, then launch a local HTTP server:
 
-### Interstellar-style controls
+```bash
+python -m http.server 8000
+```
 
-The GUI now includes controls matching the visual effects discussed in the Interstellar black-hole breakdown:
+Open `http://localhost:8000` in a modern browser (Chrome or Firefox recommended). A decent GPU is required for smooth rendering.
 
-* **Accretion disk > temperature (K):** directly adjusts disk black-body color over the 4,500 K to 30,000 K range (orange to blue-white).
- * **Black hole > rotating shadow:** enables/disables spin-induced asymmetry of the black-hole shadow.
- * **Black hole > a/M:** sets the dimensionless spin parameter.
- * **Black hole > shadow squeeze:** scales the spin deformation strength (use lower values for a film-like reduced effect).
- * **Relativistic effects > doppler shift / beaming:** controls blue-shifted brightening of approaching plasma and red-shifted dimming of receding plasma.
- * **Relativistic effects > physical (D³ Liouville):** toggles between physically accurate D³ beaming (dramatic asymmetry) and softened cinematic beaming.
- * **kerr solver mode:** selects integration model:
-   - **fast:** original approximation for interactive speed,
-   - **realtime_full_kerr_core:** Boyer-Lindquist Kerr null-geodesic core with Kerr disk kinematics and Liouville transfer,
-   - **offline_accurate:** same physics with much higher sampling/steps for frame capture.
+### Performance tips
 
-### System requirements
+| Action | Effect |
+|--------|--------|
+| Lower quality preset (GUI → Quality) | Reduces integration steps and supersampling |
+| Shrink the browser window | Fewer pixels to trace |
+| Disable the planet | Removes intersection tests per ray |
+| Disable RK4 | Falls back to faster Euler integration (less accurate near photon sphere) |
 
-The simulation needs a decent GPU and a recent variant of Chrome or Firefox to run smoothly. In addition to changing simulation quality from the GUI, frame rate can be increased by shrinking the browser window and/or reducing screen resolution. Disabling the planet from the GUI also increases frame rate.
+## Controls
 
-Example: runs 30+ fps at resolution 1920 x 1080 in Chrome 48 on a Linux desktop with GeForce GTX 750 Ti and "high" simulation quality
+- **Drag** to rotate the camera (orbit controls)
+- **Scroll** to zoom in/out
+- **GUI panel** (right side) to adjust all simulation parameters
 
-### Known artefacts
+### Key GUI parameters
 
- * The accretion disk is stylized and procedurally textured for visual turbulence; it is not a full GRMHD/volumetric simulation.
- * The spectrum used in modeling the Doppler shift of the Milky Way background image is quite arbitrary (not based on real spectral data) and consequently the Doppler-shifted background colors may be wrong.
- * The lighting model of the planet is based on a point-like light source and a quite unphysical ambient component.
- * In the "medium" quality mode, the planet deforms unphysically when it travels between the camera and the black hole.
- * Adaptive step sizing reduces light path bending errors near the photon sphere (r = 1.5 $r_s$), but some inaccuracy remains at lower quality settings.
- * The Kerr frame-dragging is an approximation; true Kerr geodesics would require the Carter constant formalism.
- * Lorentz contraction causes jagged looks in the planet when simultaneously enabled with "light travel time" and the planet is close to the black hole.
- * Texture sampling issues cause unintended star blinking.
+| Parameter | Description |
+|-----------|-------------|
+| **a/M** | Dimensionless black hole spin (0 = Schwarzschild, 1 = extremal Kerr) |
+| **temperature** | Accretion disk peak temperature in Kelvin (4,500 – 30,000 K) |
+| **disk model** | Thin disk, thick torus (ADAF), or slim disk |
+| **doppler shift** | Toggle relativistic color/brightness shifting |
+| **beaming mode** | Physical (D³ Liouville) or cinematic (softened) |
+| **jet model** | Off, simple, or physical (GRMHD-calibrated) |
+| **observer speed** | Orbital velocity around the black hole |
+| **quality** | Fast / Medium / High presets |
 
-_see **[COPYRIGHT.md](https://github.com/oseiskar/black-hole/blob/master/COPYRIGHT.md)** for license and copyright info_
+## Project Structure
+
+```
+index.html                Web page and shader loading
+main.js                   Application logic, GUI, observer physics
+raytracer.glsl            GPU ray-tracer (all physics equations)
+style.css                 Styling
+three-js-monkey-patch.js  Three.js compatibility patch
+docs/physics.html         Comprehensive physics documentation
+js-libs/                  Third-party libraries (three.js, dat.GUI, etc.)
+```
+
+## How It Works
+
+1. Each screen pixel casts a ray from the camera into the scene.
+2. The ray direction is transformed for **relativistic aberration** if the observer is moving.
+3. The ray is traced by integrating the **Binet equation** (Schwarzschild geodesic ODE) using RK4 or Euler, with an optional Kerr frame-dragging correction.
+4. At each integration step, intersections with the accretion disk, jets, and planet are tested.
+5. **Doppler shift, gravitational redshift, and beaming** are applied to the emission.
+6. The background sky (Milky Way panorama + stars) is rendered with optional Doppler color shifting.
+7. The final HDR color is tone-mapped for display.
+
+## License
+
+See [COPYRIGHT.md](COPYRIGHT.md) for license and copyright information.
+
+Originally based on [oseiskar/black-hole](https://github.com/oseiskar/black-hole).
+
+**AI Disclaimer**: AI helped a lot in the code, like for translating the complex general relativity equations into functional WebGL shaders, as well as structuring the academic references. Fortunately, the original code was well-written and was a really good, human-made base. Physics research papers are all open access and properly cited in the documentation, so you can verify every equation and model against the primary sources.
