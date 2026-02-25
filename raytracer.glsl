@@ -67,8 +67,9 @@ const float GLOBAL_EXPOSURE = 0.60;
 const float GALAXY_DOPPLER_STRENGTH = 1.0;
 const float GALAXY_MAX_BOOST = 10.0;
 
-const float PLANET_AMBIENT = 0.1;
+const float PLANET_AMBIENT = 0.0;
 const float PLANET_LIGHTNESS = 1.5;
+const float PLANET_LIGHT_REF_DISTANCE = 14.0;
 
 // background texture coordinate system
 mat3 BG_COORDS = ROT_Y(45.0 * DEG_TO_RAD);
@@ -274,6 +275,36 @@ float gravitational_shift(float emission_radius) {
     float observer_term = max(1.0 - 1.0 / max(length(cam_pos), 1.0001), 0.0001);
     float emission_term = max(1.0 - 1.0 / max(emission_radius, 1.0001), 0.0001);
     return sqrt(emission_term / observer_term);
+}
+
+float planet_irradiation_temperature() {
+    {{#accretion_thin_disk}}
+    float r1 = ACCRETION_MIN_R * 1.8;
+    float r2 = ACCRETION_MIN_R * 2.8;
+    float r3 = ACCRETION_MIN_R * 4.2;
+
+    float w1 = accretion_flux_profile(r1);
+    float w2 = accretion_flux_profile(r2);
+    float w3 = accretion_flux_profile(r3);
+    float wsum = max(w1 + w2 + w3, 1e-4);
+
+    float t1 = accretion_temperature(r1);
+    float t2 = accretion_temperature(r2);
+    float t3 = accretion_temperature(r3);
+    return (w1*t1 + w2*t2 + w3*t3) / wsum;
+    {{/accretion_thin_disk}}
+
+    {{#accretion_thick_torus}}
+    float r_t = max(torus_r0 * 1.25, ACCRETION_MIN_R + 0.5);
+    return torus_temperature(r_t);
+    {{/accretion_thick_torus}}
+
+    {{#accretion_slim_disk}}
+    float r_s = ACCRETION_MIN_R * 1.6;
+    return slim_disk_temperature(r_s);
+    {{/accretion_slim_disk}}
+
+    return disk_temperature;
 }
 
 {{#accretion_thick_torus}}
@@ -836,10 +867,15 @@ vec4 planet_intersection(vec3 old_pos, vec3 ray, float t, float dt,
     tex_coord.x = mod(tex_coord.x + rot_phase, 1.0);
 
     float diffuse = max(0.0, dot(surface_normal, -light_dir));
-    float lightness = ((1.0-PLANET_AMBIENT)*diffuse + PLANET_AMBIENT) *
-        PLANET_LIGHTNESS;
+    float distance_attenuation = SQ(
+        PLANET_LIGHT_REF_DISTANCE / max(PLANET_DISTANCE, PLANET_RADIUS + 1.0)
+    );
+    distance_attenuation = clamp(distance_attenuation, 0.05, 4.0);
 
-    float light_temperature = disk_temperature;
+    float lightness = ((1.0-PLANET_AMBIENT)*diffuse + PLANET_AMBIENT) *
+        PLANET_LIGHTNESS * distance_attenuation;
+
+    float light_temperature = planet_irradiation_temperature();
     {{#doppler_shift}}
     float doppler_factor = SQ(PLANET_GAMMA) *
         (1.0 + dot(planet_vel, light_dir)) *
