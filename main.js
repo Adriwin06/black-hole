@@ -144,6 +144,7 @@ function Shader(mustacheTemplate) {
             spin_strength: 1.0
         },
         look: {
+            tonemap_mode: 1,
             exposure: 1.0,
             disk_gain: 1.0,
             glow: 0.0,
@@ -277,6 +278,7 @@ function init(textures) {
         look_aberration_strength: { type: "f", value: 1.0 },
         look_star_gain: { type: "f", value: 1.0 },
         look_galaxy_gain: { type: "f", value: 1.0 },
+        look_tonemap_mode: { type: "f", value: 0.0 },
 
         torus_r0: { type: "f", value: 4.0 },
         torus_h_ratio: { type: "f", value: 0.45 },
@@ -337,6 +339,7 @@ function init(textures) {
         uniforms.look_aberration_strength.value = shader.parameters.look.aberration_strength;
         uniforms.look_star_gain.value = shader.parameters.look.star_gain;
         uniforms.look_galaxy_gain.value = shader.parameters.look.galaxy_gain;
+        uniforms.look_tonemap_mode.value = parseFloat(shader.parameters.look.tonemap_mode);
 
         uniforms.torus_r0.value = shader.parameters.torus.r0;
         uniforms.torus_h_ratio.value = shader.parameters.torus.h_ratio;
@@ -788,6 +791,12 @@ function setupGUI() {
     spinFolder.open();
 
     var lookFolder = gui.addFolder('Look');
+    addControl(lookFolder, p.look, 'tonemap_mode', {
+        options: { 'ACES Filmic': 0, 'AGX (Black Hole)': 1, 'Scientific (Log)': 2 },
+        name: 'tonemapper',
+        onChange: updateUniformsLive,
+        help: 'ACES: classic cinematic. AGX: better saturation handling for extreme HDR. Scientific: logarithmic false-color like EHT papers.'
+    });
     addControl(lookFolder, p.look, 'exposure', {
         min: 0.6,
         max: 2.5,
