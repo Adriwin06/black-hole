@@ -48,7 +48,7 @@ const float MAX_REVOLUTIONS = float({{max_revolutions}});
 
 // ACCRETION_MIN_R is now a uniform (accretion_inner_r) that varies with black hole spin
 // Using ISCO from Bardeen-Press-Teukolsky formula: r_ISCO = 3 r_s for Schwarzschild
-const float ACCRETION_WIDTH = 5.0;
+const float ACCRETION_WIDTH = 12.0;
 #define ACCRETION_MIN_R accretion_inner_r
 const float ACCRETION_BRIGHTNESS = 0.95;
 
@@ -331,8 +331,10 @@ void integrate_kerr_bl_step(inout float r, inout float theta, inout float phi,
 }
 
 float geodesic_accel(float u, float spin_alignment) {
-    // Schwarzschild geodesic equation: d²u/dφ² = -u(1 - 3u²/2) in units where r_s = 1
-    float schwarzschild_accel = -u*(1.0 - 1.5*u*u);
+    // Schwarzschild photon geodesic (Binet equation): d²u/dφ² = -u + (3/2)u² in units where r_s = 1
+    // Photon sphere at u = 2/3 (r = 1.5 r_s), see e.g. MTW "Gravitation" or
+    // https://en.wikipedia.org/wiki/Schwarzschild_geodesics#Bending_of_light_by_gravity
+    float schwarzschild_accel = -u + 1.5*u*u;
     
     // Improved Kerr frame-dragging approximation
     // In true Kerr, frame dragging affects photon trajectories via the metric term g_tφ

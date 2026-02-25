@@ -69,7 +69,15 @@ Observer.prototype.move = function(dt) {
     }
 
     if (shader.parameters.gravitational_time_dilation) {
-        dt = Math.sqrt((dt*dt * (1.0 - v*v)) / (1-1.0/r));
+        if (v > 0) {
+            // Circular orbit: combined gravitational + kinematic time dilation
+            // dτ/dt = sqrt(1 - 3M/r) = sqrt(1 - 3/(2r)) for r_s = 1, M = 0.5
+            dt = dt / Math.sqrt(Math.max(1.0 - 1.5/r, 0.001));
+        } else {
+            // Stationary observer: gravitational time dilation only
+            // dτ/dt = sqrt(1 - r_s/r) = sqrt(1 - 1/r)
+            dt = dt / Math.sqrt(Math.max(1.0 - 1.0/r, 0.001));
+        }
     }
 
     this.time += dt;
@@ -110,24 +118,24 @@ function Shader(mustacheTemplate) {
         quality: 'high',
         kerr_mode: 'realtime_full_kerr_core',
         accretion_disk: true,
-        disk_temperature: 8500.0,
+        disk_temperature: 10000.0,
         black_hole: {
             spin_enabled: true,
-            spin: 0.60,
-            spin_strength: 0.55
+            spin: 0.90,
+            spin_strength: 1.0
         },
         look: {
-            exposure: 0.96,
-            disk_gain: 1.75,
-            glow: 0.42,
+            exposure: 1.0,
+            disk_gain: 1.3,
+            glow: 0.15,
             doppler_boost: 1.0,
-            aberration_strength: 1.4,
-            star_gain: 0.55,
-            galaxy_gain: 0.55
+            aberration_strength: 1.0,
+            star_gain: 1.0,
+            galaxy_gain: 1.0
         },
         planet: {
             enabled: true,
-            distance: 7.0,
+            distance: 14.0,
             radius: 0.4
         },
         lorentz_contraction: true,
@@ -230,18 +238,18 @@ function init(textures) {
 
         planet_distance: { type: "f" },
         planet_radius: { type: "f" },
-        disk_temperature: { type: "f", value: 8500.0 },
+        disk_temperature: { type: "f", value: 10000.0 },
         accretion_inner_r: { type: "f", value: 3.0 },
-        bh_spin: { type: "f", value: 0.60 },
-        bh_spin_strength: { type: "f", value: 0.55 },
+        bh_spin: { type: "f", value: 0.90 },
+        bh_spin_strength: { type: "f", value: 1.0 },
         bh_rotation_enabled: { type: "f", value: 1.0 },
-        look_exposure: { type: "f", value: 0.96 },
-        look_disk_gain: { type: "f", value: 1.75 },
-        look_glow: { type: "f", value: 0.42 },
+        look_exposure: { type: "f", value: 1.0 },
+        look_disk_gain: { type: "f", value: 1.3 },
+        look_glow: { type: "f", value: 0.15 },
         look_doppler_boost: { type: "f", value: 1.0 },
-        look_aberration_strength: { type: "f", value: 1.4 },
-        look_star_gain: { type: "f", value: 0.55 },
-        look_galaxy_gain: { type: "f", value: 0.55 },
+        look_aberration_strength: { type: "f", value: 1.0 },
+        look_star_gain: { type: "f", value: 1.0 },
+        look_galaxy_gain: { type: "f", value: 1.0 },
 
         star_texture: { type: "t", value: textures.stars },
         galaxy_texture: { type: "t", value: textures.galaxy },
