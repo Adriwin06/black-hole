@@ -674,8 +674,8 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     Schwarzschild spacetime is <sup><a href="#ref-mtw">[1]</a></sup>:
 </p>
 <div class="eq">
-    1 + <em>z</em> = &radic;[(1 &minus; <em>r<sub>s</sub></em>/<em>r<sub>e</sub></em>) /
-    (1 &minus; <em>r<sub>s</sub></em>/<em>r<sub>o</sub></em>)]
+    1 + <em>z</em> = &radic;[(1 &minus; <em>r<sub>s</sub></em>/<em>r<sub>o</sub></em>) /
+    (1 &minus; <em>r<sub>s</sub></em>/<em>r<sub>e</sub></em>)]
 </div>
 <p>
     In the simulation's units (<em>r<sub>s</sub></em> = 1):
@@ -717,7 +717,7 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     In the simulation, the combined gravitational + kinematic transfer factor is:
 </p>
 <div class="eq">
-    <em>f</em><sub>transfer</sub> = <em>D</em><sub>observer</sub> &middot; <em>D</em><sub>emitter</sub>
+    <em>f</em><sub>transfer</sub> = 1/<em>D</em><sub>observer</sub> &middot; 1/<em>D</em><sub>emitter</sub>
     = &gamma;<sub>obs</sub>(1 + <b>v</b><sub>obs</sub> &middot; <b>n̂</b>)
     &middot; &gamma;<sub>emit</sub>(1 + <b>v</b><sub>emit</sub> &middot; <b>n̂</b>)
 </div>
@@ -763,6 +763,11 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     the observed <em>hue</em>, not the brightness. The <em>D</em>&sup3; intensity factor must be &mdash;
     and is &mdash; applied explicitly to the emitted intensity.
 </p>
+<p>
+    In the current implementation, this explicit intensity factor is applied consistently to
+    all thermal emitters that use the black-body lookup (thin disk, thick torus, slim disk,
+    and planet illumination) in physical mode.
+</p>
 
 <h3>Cinematic beaming</h3>
 <p>
@@ -782,6 +787,11 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 
 <!-- ============================================================ -->
 <!-- 12. RELATIVISTIC ABERRATION -->
+<p>
+    For light-travel-time rendering, the full-core Kerr path uses the Schwarzschild null-geodesic
+    coordinate-time increment near the black hole (with a smooth far-field blend to path length),
+    and only falls back to Euclidean step length when gravitational time dilation is disabled.
+</p>
 <!-- ============================================================ -->
 
 <h2 id="sec-aberration">12. Relativistic Aberration</h2>
@@ -792,7 +802,7 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     <strong>Lorentz velocity transformation of light directions</strong>:
 </p>
 <div class="eq">
-    <b>n'</b> = [<b>n</b><sub>&parallel;</sub> + <em>v</em>) + <b>n</b><sub>&perp;</sub>/&gamma;] /
+    <b>n'</b> = [(<b>n</b><sub>&parallel;</sub> + <em>v</em>) + <b>n</b><sub>&perp;</sub>/&gamma;] /
     (1 + <b>v</b> &middot; <b>n</b>)
 </div>
 <p>
@@ -874,7 +884,8 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
         following the <strong>Asada &amp; Nakamura (2012)</strong> <sup><a href="#ref-asada">[21]</a></sup>
         parabolic collimation profile observed in M87.</li>
     <li><strong>Velocity:</strong> Accelerating to bulk Lorentz factor &Gamma;, with a helical twist component.</li>
-    <li><strong>Emission:</strong> Single-temperature black-body approximation for synchrotron.</li>
+    <li><strong>Emission:</strong> Single-temperature black-body approximation for synchrotron, including
+        gravitational and relativistic Doppler temperature shift.</li>
 </ul>
 
 <h3>Physical (GRMHD-calibrated) jet</h3>
@@ -1035,6 +1046,29 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
         (time when the light was actually emitted), not the current coordinate time.</li>
     <li><strong>Doppler-shifted illumination:</strong> The disk's thermal radiation illuminating the planet
         is shifted by the relative motion of disk and planet.</li>
+</ul>
+
+<h3>Orbital kinematics</h3>
+<p>
+    The planet uses the same circular-orbit local speed as the observer model,
+    <em>v</em> = 1 / &radic;(2(<em>r</em> &minus; 1)), converted to coordinate angular velocity by
+</p>
+<div class="eq">
+    &Omega;<sub>planet</sub> = &minus;<em>v</em> &middot; &radic;(1 &minus; 1/<em>r</em>) / <em>r</em>
+</div>
+<p>
+    so the orbital phase evolution is consistent with Schwarzschild coordinate time.
+</p>
+
+<h3>Planet irradiation and beaming</h3>
+<p>
+    The illumination temperature used for the planet is derived from accretion-flow temperature
+    profiles and includes gravitational redshift at the emission radii. Planet brightness is also
+    transformed with the same transfer-factor beaming model used for the disk:
+</p>
+<ul>
+    <li><strong>Physical mode:</strong> <em>I</em><sub>obs</sub> = <em>D</em>&sup3; <em>I</em><sub>emit</sub></li>
+    <li><strong>Cinematic mode:</strong> softened power-law with Doppler clamping</li>
 </ul>
 
 <!-- ============================================================ -->
@@ -1449,7 +1483,7 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     Document generated for the
     <a href="https://github.com/Adriwin06/black-hole">black-hole simulation</a> project.
     <br>
-    Last updated: February 2025.
+    Last updated: February 2026.
 </p>
 
 </div>

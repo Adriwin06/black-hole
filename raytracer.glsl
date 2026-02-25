@@ -295,17 +295,20 @@ float planet_irradiation_temperature() {
     float t1 = accretion_temperature(r1);
     float t2 = accretion_temperature(r2);
     float t3 = accretion_temperature(r3);
+    t1 *= gravitational_shift(r1);
+    t2 *= gravitational_shift(r2);
+    t3 *= gravitational_shift(r3);
     return (w1*t1 + w2*t2 + w3*t3) / wsum;
     {{/accretion_thin_disk}}
 
     {{#accretion_thick_torus}}
     float r_t = max(torus_r0 * 1.25, ACCRETION_MIN_R + 0.5);
-    return torus_temperature(r_t);
+    return torus_temperature(r_t) * gravitational_shift(r_t);
     {{/accretion_thick_torus}}
 
     {{#accretion_slim_disk}}
     float r_s = ACCRETION_MIN_R * 1.6;
-    return slim_disk_temperature(r_s);
+    return slim_disk_temperature(r_s) * gravitational_shift(r_s);
     {{/accretion_slim_disk}}
 
     return disk_temperature;
@@ -880,12 +883,23 @@ vec4 planet_intersection(vec3 old_pos, vec3 ray, float t, float dt,
         PLANET_LIGHTNESS * distance_attenuation;
 
     float light_temperature = planet_irradiation_temperature();
+    float transfer_factor = max(ray_doppler_factor, 0.05);
     {{#doppler_shift}}
     float doppler_factor = SQ(PLANET_GAMMA) *
         (1.0 + dot(planet_vel, light_dir)) *
         (1.0 - dot(planet_vel, normalize(ray)));
-    light_temperature /= max(doppler_factor * ray_doppler_factor, 0.05);
+    transfer_factor = max(doppler_factor * ray_doppler_factor, 0.05);
+    light_temperature /= transfer_factor;
     {{/doppler_shift}}
+    {{#beaming}}
+    {{#physical_beaming}}
+    lightness /= pow(clamp(transfer_factor, 0.05, 20.0), 3.0);
+    {{/physical_beaming}}
+    {{^physical_beaming}}
+    float clamped_planet_doppler = clamp(transfer_factor, 0.62, 1.48);
+    lightness /= pow(clamped_planet_doppler, 1.05 + 1.10*doppler_boost);
+    {{/physical_beaming}}
+    {{/beaming}}
 
     vec3 blackbody_rgb = BLACK_BODY_COLOR(light_temperature).rgb;
     float bb_max = max(max(blackbody_rgb.r, blackbody_rgb.g), blackbody_rgb.b);
@@ -1098,7 +1112,9 @@ vec4 trace_ray(vec3 ray) {
         pos = rotate_about_z(planar_pos_fc, frame_drag_phase);
 
         {{#light_travel_time}}
+        {{^gravitational_time_dilation}}
         dt = length(pos - old_pos);
+        {{/gravitational_time_dilation}}
         {{/light_travel_time}}
         {{/kerr_full_core}}
 
@@ -1391,6 +1407,9 @@ vec4 trace_ray(vec3 ray) {
                     float r_jet = max(length(pos), 1.001);
                     float g_shift_j = gravitational_shift(r_jet);
                     float jet_T = 18000.0 * g_shift_j;
+                    {{#doppler_shift}}
+                    jet_T /= max(doppler_jet, 0.05);
+                    {{/doppler_shift}}
                     vec4 jet_color = BLACK_BODY_COLOR(jet_T);
 
                     float alpha_jet = 0.005 * j_jet;
@@ -1496,7 +1515,9 @@ void main() {
     // "constants" derived from uniforms
     PLANET_RADIUS = planet_radius;
     PLANET_DISTANCE = max(planet_distance,planet_radius+1.5);
-    PLANET_ORBITAL_ANG_VEL = -1.0 / sqrt(2.0*(PLANET_DISTANCE-1.0)) / PLANET_DISTANCE;
+    float planet_orbital_v = 1.0 / sqrt(2.0*(PLANET_DISTANCE-1.0));
+    PLANET_ORBITAL_ANG_VEL = -planet_orbital_v *
+        sqrt(max(1.0 - 1.0/PLANET_DISTANCE, 0.0)) / PLANET_DISTANCE;
     float MAX_PLANET_ROT = max((1.0 + PLANET_ORBITAL_ANG_VEL*PLANET_DISTANCE) / PLANET_RADIUS,0.0);
     PLANET_ROTATION_ANG_VEL = -PLANET_ORBITAL_ANG_VEL + MAX_PLANET_ROT * 0.5;
     PLANET_GAMMA = 1.0/sqrt(1.0-SQ(PLANET_ORBITAL_ANG_VEL*PLANET_DISTANCE));
