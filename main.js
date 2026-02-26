@@ -90,6 +90,7 @@ var camera, scene, renderer, cameraControls, shader = null;
 var observer = new Observer();
 var distanceController = null;
 var refreshAllControllersGlobal = null; // Will be set in setupGUI
+var bloomPass = null;
 var effectLabels = {
     spin: null,
     temperature: null
@@ -152,6 +153,12 @@ function Shader(mustacheTemplate) {
             aberration_strength: 1.0,
             star_gain: 0.4,
             galaxy_gain: 0.4
+        },
+        bloom: {
+            enabled: true,
+            strength: 0.35,
+            threshold: 0.65,
+            radius: 0.85
         },
         planet: {
             enabled: true,
@@ -396,6 +403,245 @@ function init(textures) {
     });
     renderer.setPixelRatio( window.devicePixelRatio );
     container.appendChild( renderer.domElement );
+
+    // ============== BLOOM POST-PROCESSING ==============
+    // Physically-based multi-pass bloom: threshold → 5-level mip chain
+    // with separable 9-tap Gaussian blur → weighted composite.
+    // Simulates optical diffraction / lens glow from bright emission.
+    (function setupBloom() {
+        var ppVertexShader = [
+            'varying vec2 vUv;',
+            'void main() {',
+            '    vUv = uv;',
+            '    gl_Position = vec4(position, 1.0);',
+            '}'
+        ].join('\n');
+
+        var thresholdFS = [
+            'uniform sampler2D tDiffuse;',
+            'uniform float threshold;',
+            'uniform float softKnee;',
+            'varying vec2 vUv;',
+            'void main() {',
+            '    vec4 c = texture2D(tDiffuse, vUv);',
+            '    float br = max(c.r, max(c.g, c.b));',
+            '    float knee = threshold * softKnee;',
+            '    float soft = br - threshold + knee;',
+            '    soft = clamp(soft, 0.0, 2.0 * knee);',
+            '    soft = soft * soft / (4.0 * knee + 0.00001);',
+            '    float contrib = max(soft, br - threshold) / max(br, 0.00001);',
+            '    gl_FragColor = vec4(c.rgb * contrib, 1.0);',
+            '}'
+        ].join('\n');
+
+        // 9-tap separable Gaussian blur (sigma ~ 1.77)
+        // Weights: Pascal row 8 / 256 — sum = 1.0
+        var blurFS = [
+            'uniform sampler2D tDiffuse;',
+            'uniform vec2 direction;',
+            'varying vec2 vUv;',
+            'void main() {',
+            '    vec4 sum = vec4(0.0);',
+            '    sum += texture2D(tDiffuse, vUv - 4.0 * direction) * 0.01621622;',
+            '    sum += texture2D(tDiffuse, vUv - 3.0 * direction) * 0.05405405;',
+            '    sum += texture2D(tDiffuse, vUv - 2.0 * direction) * 0.12162162;',
+            '    sum += texture2D(tDiffuse, vUv - 1.0 * direction) * 0.19459459;',
+            '    sum += texture2D(tDiffuse, vUv) * 0.22702703;',
+            '    sum += texture2D(tDiffuse, vUv + 1.0 * direction) * 0.19459459;',
+            '    sum += texture2D(tDiffuse, vUv + 2.0 * direction) * 0.12162162;',
+            '    sum += texture2D(tDiffuse, vUv + 3.0 * direction) * 0.05405405;',
+            '    sum += texture2D(tDiffuse, vUv + 4.0 * direction) * 0.01621622;',
+            '    gl_FragColor = sum;',
+            '}'
+        ].join('\n');
+
+        var copyFS = [
+            'uniform sampler2D tDiffuse;',
+            'varying vec2 vUv;',
+            'void main() {',
+            '    gl_FragColor = texture2D(tDiffuse, vUv);',
+            '}'
+        ].join('\n');
+
+        // Composite: weighted sum of 5 bloom mip levels added to original
+        // Wider mip levels are attenuated by bloomRadius^level for natural PSF falloff
+        var compositeFS = [
+            'uniform sampler2D tDiffuse;',
+            'uniform sampler2D tBloom0;',
+            'uniform sampler2D tBloom1;',
+            'uniform sampler2D tBloom2;',
+            'uniform sampler2D tBloom3;',
+            'uniform sampler2D tBloom4;',
+            'uniform float bloomStrength;',
+            'uniform float bloomRadius;',
+            'varying vec2 vUv;',
+            'void main() {',
+            '    vec4 orig = texture2D(tDiffuse, vUv);',
+            '    float r = bloomRadius;',
+            '    float w0 = 1.0, w1 = r, w2 = r*r, w3 = r*r*r, w4 = r*r*r*r;',
+            '    float wsum = w0 + w1 + w2 + w3 + w4;',
+            '    vec4 bloom = (texture2D(tBloom0, vUv) * w0',
+            '        + texture2D(tBloom1, vUv) * w1',
+            '        + texture2D(tBloom2, vUv) * w2',
+            '        + texture2D(tBloom3, vUv) * w3',
+            '        + texture2D(tBloom4, vUv) * w4) / wsum;',
+            '    gl_FragColor = vec4(orig.rgb + bloom.rgb * bloomStrength, 1.0);',
+            '}'
+        ].join('\n');
+
+        var BLOOM_LEVELS = 5;
+        var rtParams = {
+            minFilter: THREE.LinearFilter,
+            magFilter: THREE.LinearFilter,
+            format: THREE.RGBAFormat
+        };
+
+        var ppScene = new THREE.Scene();
+        var ppCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+        var ppGeom = new THREE.PlaneBufferGeometry(2, 2);
+        var ppMesh = new THREE.Mesh(ppGeom);
+        ppScene.add(ppMesh);
+
+        var thresholdMat = new THREE.ShaderMaterial({
+            uniforms: {
+                tDiffuse: { type: 't', value: null },
+                threshold: { type: 'f', value: 0.65 },
+                softKnee: { type: 'f', value: 0.5 }
+            },
+            vertexShader: ppVertexShader,
+            fragmentShader: thresholdFS,
+            depthWrite: false,
+            depthTest: false
+        });
+
+        var blurMat = new THREE.ShaderMaterial({
+            uniforms: {
+                tDiffuse: { type: 't', value: null },
+                direction: { type: 'v2', value: new THREE.Vector2() }
+            },
+            vertexShader: ppVertexShader,
+            fragmentShader: blurFS,
+            depthWrite: false,
+            depthTest: false
+        });
+
+        var copyMat = new THREE.ShaderMaterial({
+            uniforms: {
+                tDiffuse: { type: 't', value: null }
+            },
+            vertexShader: ppVertexShader,
+            fragmentShader: copyFS,
+            depthWrite: false,
+            depthTest: false
+        });
+
+        var compositeMat = new THREE.ShaderMaterial({
+            uniforms: {
+                tDiffuse: { type: 't', value: null },
+                tBloom0: { type: 't', value: null },
+                tBloom1: { type: 't', value: null },
+                tBloom2: { type: 't', value: null },
+                tBloom3: { type: 't', value: null },
+                tBloom4: { type: 't', value: null },
+                bloomStrength: { type: 'f', value: 0.35 },
+                bloomRadius: { type: 'f', value: 0.85 }
+            },
+            vertexShader: ppVertexShader,
+            fragmentShader: compositeFS,
+            depthWrite: false,
+            depthTest: false
+        });
+
+        function createTargets(w, h) {
+            var mainRT = new THREE.WebGLRenderTarget(w, h, rtParams);
+            var mips = [], temps = [];
+            for (var i = 0; i < BLOOM_LEVELS; i++) {
+                var mw = Math.max(1, Math.floor(w / Math.pow(2, i + 1)));
+                var mh = Math.max(1, Math.floor(h / Math.pow(2, i + 1)));
+                mips.push(new THREE.WebGLRenderTarget(mw, mh, rtParams));
+                temps.push(new THREE.WebGLRenderTarget(mw, mh, rtParams));
+            }
+            return { mainRT: mainRT, mips: mips, temps: temps };
+        }
+
+        var targets = createTargets(1, 1);
+
+        bloomPass = {
+            BLOOM_LEVELS: BLOOM_LEVELS,
+            ppScene: ppScene,
+            ppCamera: ppCamera,
+            ppMesh: ppMesh,
+            thresholdMat: thresholdMat,
+            blurMat: blurMat,
+            copyMat: copyMat,
+            compositeMat: compositeMat,
+            mainRT: targets.mainRT,
+            bloomMips: targets.mips,
+            bloomTemp: targets.temps,
+
+            resize: function(w, h) {
+                this.mainRT.dispose();
+                for (var i = 0; i < BLOOM_LEVELS; i++) {
+                    this.bloomMips[i].dispose();
+                    this.bloomTemp[i].dispose();
+                }
+                var t = createTargets(w, h);
+                this.mainRT = t.mainRT;
+                this.bloomMips = t.mips;
+                this.bloomTemp = t.temps;
+            },
+
+            render: function(rdr, mainScene, mainCamera, params) {
+                var bp = this;
+
+                // 1. Render main scene → full-res render target
+                rdr.render(mainScene, mainCamera, bp.mainRT, true);
+
+                // 2. Brightness threshold → first mip (half res)
+                bp.thresholdMat.uniforms.tDiffuse.value = bp.mainRT;
+                bp.thresholdMat.uniforms.threshold.value = params.threshold;
+                bp.ppMesh.material = bp.thresholdMat;
+                rdr.render(bp.ppScene, bp.ppCamera, bp.bloomMips[0], true);
+
+                // 3. Progressive downsample + blur for each mip level
+                for (var i = 0; i < bp.BLOOM_LEVELS; i++) {
+                    var mip = bp.bloomMips[i];
+                    var tmp = bp.bloomTemp[i];
+                    var mw = mip.width;
+                    var mh = mip.height;
+
+                    // Downsample from previous blurred level (bilinear)
+                    if (i > 0) {
+                        bp.copyMat.uniforms.tDiffuse.value = bp.bloomMips[i - 1];
+                        bp.ppMesh.material = bp.copyMat;
+                        rdr.render(bp.ppScene, bp.ppCamera, mip, true);
+                    }
+
+                    // Horizontal blur: mip → temp
+                    bp.blurMat.uniforms.tDiffuse.value = mip;
+                    bp.blurMat.uniforms.direction.value.set(1.0 / mw, 0);
+                    bp.ppMesh.material = bp.blurMat;
+                    rdr.render(bp.ppScene, bp.ppCamera, tmp, true);
+
+                    // Vertical blur: temp → mip
+                    bp.blurMat.uniforms.tDiffuse.value = tmp;
+                    bp.blurMat.uniforms.direction.value.set(0, 1.0 / mh);
+                    rdr.render(bp.ppScene, bp.ppCamera, mip, true);
+                }
+
+                // 4. Composite: original + weighted bloom levels → screen
+                bp.compositeMat.uniforms.tDiffuse.value = bp.mainRT;
+                for (var j = 0; j < bp.BLOOM_LEVELS; j++) {
+                    bp.compositeMat.uniforms['tBloom' + j].value = bp.bloomMips[j];
+                }
+                bp.compositeMat.uniforms.bloomStrength.value = params.strength;
+                bp.compositeMat.uniforms.bloomRadius.value = params.radius;
+                bp.ppMesh.material = bp.compositeMat;
+                rdr.render(bp.ppScene, bp.ppCamera);
+            }
+        };
+    })();
+    // ============== END BLOOM ==============
 
     stats = new Stats();
     stats.domElement.style.position = 'absolute';
@@ -797,7 +1043,8 @@ function setupGUI() {
             doppler_shift: true,
             disk_gain: 1.0,
             glow: 0.0,
-            tonemap_mode: 1
+            tonemap_mode: 1,
+            bloom: { enabled: true, strength: 0.35, threshold: 0.65, radius: 0.85 }
         },
         'M87*': {
             // Supermassive BH in M87 (Virgo A), M = 6.5×10⁹ M☉, first EHT image (2019).
@@ -818,7 +1065,8 @@ function setupGUI() {
             doppler_shift: true,
             disk_gain: 1.0,
             glow: 0.0,
-            tonemap_mode: 1
+            tonemap_mode: 1,
+            bloom: { enabled: true, strength: 0.40, threshold: 0.55, radius: 0.90 }
         },
         'Sgr A*': {
             // Milky Way centre SMBH, M = 4.297 ± 0.012 × 10⁶ M☉, EHT image (2022).
@@ -839,7 +1087,8 @@ function setupGUI() {
             doppler_shift: true,
             disk_gain: 1.0,
             glow: 0.0,
-            tonemap_mode: 1
+            tonemap_mode: 1,
+            bloom: { enabled: true, strength: 0.35, threshold: 0.60, radius: 0.85 }
         },
         'Cygnus X-1': {
             // Stellar-mass BH X-ray binary with HDE 226868 (blue supergiant).
@@ -861,7 +1110,8 @@ function setupGUI() {
             doppler_shift: true,
             disk_gain: 1.0,
             glow: 0.0,
-            tonemap_mode: 1
+            tonemap_mode: 1,
+            bloom: { enabled: true, strength: 0.30, threshold: 0.60, radius: 0.80 }
         },
         'GRS 1915+105': {
             // Stellar-mass BH microquasar, M = 12.4 ± 2 M☉.
@@ -882,7 +1132,8 @@ function setupGUI() {
             doppler_shift: true,
             disk_gain: 1.0,
             glow: 0.0,
-            tonemap_mode: 1
+            tonemap_mode: 1,
+            bloom: { enabled: true, strength: 0.35, threshold: 0.55, radius: 0.85 }
         },
         'Gargantua (Interstellar visuals)': {
             spin_enabled: true, spin: 0.7, spin_strength: 1.0,
@@ -898,7 +1149,8 @@ function setupGUI() {
             doppler_shift: false,
             disk_gain: 2.0,
             glow: 1.0,
-            tonemap_mode: 0
+            tonemap_mode: 0,
+            bloom: { enabled: true, strength: 0.65, threshold: 0.45, radius: 0.92 }
         },
         'Schwarzschild': {
             // Idealised non-rotating black hole (a/M = 0).
@@ -916,7 +1168,8 @@ function setupGUI() {
             doppler_shift: true,
             disk_gain: 1.0,
             glow: 0.0,
-            tonemap_mode: 1
+            tonemap_mode: 1,
+            bloom: { enabled: true, strength: 0.30, threshold: 0.65, radius: 0.80 }
         }
     };
 
@@ -949,6 +1202,13 @@ function setupGUI() {
         p.look.disk_gain             = preset.disk_gain;
         p.look.glow                  = preset.glow;
         p.look.tonemap_mode          = preset.tonemap_mode;
+
+        if (preset.bloom) {
+            p.bloom.enabled   = preset.bloom.enabled;
+            p.bloom.strength  = preset.bloom.strength;
+            p.bloom.threshold = preset.bloom.threshold;
+            p.bloom.radius    = preset.bloom.radius;
+        }
 
         updateAccretionModeVisibility(p.accretion_mode);
         updateJetModeVisibility(p.jet.mode, p.jet.enabled);
@@ -1046,6 +1306,39 @@ function setupGUI() {
         help: 'Brightness multiplier for the background galaxy map.'
     });
     lookFolder.open();
+
+    // ─── Post-processing (bloom) ────────────────────────────────────────────
+    var ppFolder = gui.addFolder('Post-processing');
+    addControl(ppFolder, p.bloom, 'enabled', {
+        name: 'bloom',
+        onChange: function() { shader.needsUpdate = true; },
+        help: 'Physically-based bloom simulating optical diffraction and lens glow. Bright regions of the accretion disk bleed light into surrounding pixels.'
+    });
+    addControl(ppFolder, p.bloom, 'strength', {
+        min: 0.0,
+        max: 2.0,
+        step: 0.01,
+        name: 'bloom strength',
+        onChange: function() { shader.needsUpdate = true; },
+        help: 'Overall intensity of the bloom glow added to the image.'
+    });
+    addControl(ppFolder, p.bloom, 'threshold', {
+        min: 0.0,
+        max: 1.0,
+        step: 0.01,
+        name: 'bloom threshold',
+        onChange: function() { shader.needsUpdate = true; },
+        help: 'Minimum pixel brightness that contributes to bloom. Lower values bloom more of the disk.'
+    });
+    addControl(ppFolder, p.bloom, 'radius', {
+        min: 0.0,
+        max: 1.0,
+        step: 0.01,
+        name: 'bloom radius',
+        onChange: function() { shader.needsUpdate = true; },
+        help: 'Controls the width of the bloom halo. Higher values give wider, more diffuse glow matching real optical PSFs.'
+    });
+    ppFolder.open();
 
     var folder = gui.addFolder('Observer');
     addControl(folder, p.observer, 'motion', {
@@ -1158,6 +1451,9 @@ function setupGUI() {
 
 function onWindowResize( event ) {
     renderer.setSize( window.innerWidth, window.innerHeight );
+    if (bloomPass) {
+        bloomPass.resize(renderer.domElement.width, renderer.domElement.height);
+    }
     updateUniforms();
 }
 
@@ -1255,5 +1551,10 @@ function render() {
     observer.move(getFrameDuration());
     if (shader.parameters.observer.motion) updateCamera();
     updateUniforms();
-    renderer.render( scene, camera );
+
+    if (shader.parameters.bloom.enabled && bloomPass) {
+        bloomPass.render(renderer, scene, camera, shader.parameters.bloom);
+    } else {
+        renderer.render( scene, camera );
+    }
 }
