@@ -589,15 +589,43 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 
 <h4>Emissivity</h4>
 <p>
-    The radial emissivity follows the self-similar ADAF solution of <strong>Narayan &amp; Yi (1994)</strong>
-    <sup><a href="#ref-narayan94">[13]</a></sup>:
+    The radial emissivity uses a hybrid model combining a <strong>configurable power-law decay</strong>
+    with a <strong>Gaussian torus profile</strong> centered at <em>r</em><sub>0</sub>.
+    The self-similar ADAF solution of <strong>Narayan &amp; Yi (1994)</strong>
+    <sup><a href="#ref-narayan94">[13]</a></sup> predicts:
 </p>
 <ul>
     <li>Density: <em>n</em> &propto; <em>r</em><sup>&minus;3/2</sup></li>
     <li>Temperature: <em>T</em> &propto; <em>r</em><sup>&minus;1</sup></li>
     <li>Bremsstrahlung emissivity: <em>j<sub>ff</sub></em> &propto; <em>n</em>&sup2; <em>T</em><sup>1/2</sup>
-        &propto; <em>r</em><sup>&minus;3.5</sup></li>
+        &propto; <em>r</em><sup>&minus;&beta;</sup></li>
 </ul>
+<p>
+    The power-law index &beta; ("radial falloff") is <strong>user-configurable</strong>
+    (default 2.5, range 0.5&ndash;5.0). The pure Narayan &amp; Yi value is &beta; = 3.5,
+    but GRMHD simulations show values typically in the range 2&ndash;4 depending on
+    magnetic field topology and heating prescriptions.
+    The emissivity is blended 50/50 with a Gaussian profile
+    exp(&minus;1.2 ((<em>r</em>&minus;<em>r</em><sub>0</sub>)/(0.6<em>r</em><sub>0</sub>))&sup2;)
+    to produce a visually defined torus ring rather than a centrally-concentrated blob.
+    Inside <em>r</em><sub>0</sub>, the falloff exponent is reduced to 0.6&beta; to prevent
+    excessive brightening toward the center.
+</p>
+
+<h4>Opacity</h4>
+<p>
+    The absorption coefficient is <strong>user-configurable</strong> (default 0.015, range 0.001&ndash;0.15).
+    ADAFs are optically thin to bremsstrahlung radiation, so the default is low. Higher values
+    produce a more opaque, surface-like torus; lower values let more emission accumulate along
+    the line of sight through the volume.
+</p>
+
+<h4>Outer extent</h4>
+<p>
+    The torus outer edge is set by a <strong>configurable multiplier</strong> (default 3.5&times;)
+    relative to <em>r</em><sub>0</sub>, with a smooth falloff. This controls how far
+    the accretion flow extends radially.
+</p>
 
 <h4>Electron temperature</h4>
 <p>
@@ -634,6 +662,28 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     This mode is appropriate for <strong>ultraluminous X-ray sources (ULXs)</strong> and
     <strong>narrow-line Seyfert 1 galaxies</strong>.
 </p>
+
+<h4>Configurable parameters</h4>
+<p>
+    Three user-adjustable parameters control the slim disk appearance:
+</p>
+<ul>
+    <li><strong>H/R ratio</strong> (default 0.15, range 0.05&ndash;0.5): The base height-to-radius ratio
+        of the disk. Higher values produce a geometrically thicker flow. The canonical slim-disk
+        H/R is 0.1&ndash;0.3 depending on the accretion rate.</li>
+    <li><strong>Opacity</strong> (default 0.6, range 0.1&ndash;2.0): The absorption coefficient controlling
+        how opaque/surface-like the disk appears. Higher values produce a sharper photosphere;
+        lower values give a more volumetric, translucent appearance.</li>
+    <li><strong>ISCO puff factor</strong> (default 2.5, range 0&ndash;6): Controls how much the disk
+        thickens near and inside the ISCO due to radiation pressure. The disk height at
+        radius <em>r</em> is:
+        <div class="eq">
+            <em>H</em>(<em>r</em>) = <em>r</em> &middot; (H/R) &middot; (1 + <em>f</em><sub>puff</sub> &middot; exp(&minus;1.5 max(<em>r</em> &minus; <em>r</em><sub>ISCO</sub>, 0)))
+        </div>
+        where <em>f</em><sub>puff</sub> is the puff factor. Setting it to 0 gives a constant H/R;
+        higher values produce the characteristic radiation-pressure "puffing" expected in
+        super-Eddington flows.</li>
+</ul>
 
 <!-- ============================================================ -->
 <!-- 8. BLACK-BODY RADIATION -->
@@ -929,9 +979,21 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 <p>
     At the jet base, the magnetically-dominated funnel meets the hot corona above the accretion disk.
     The simulation includes bright emission from this region, with emissivity scaling as
-    <em>r</em><sup>&minus;4</sup> (magnetic energy density)
+    <em>r</em><sup>&minus;3</sup> (magnetic energy density, softened from <em>r</em><sup>&minus;4</sup>
+    to avoid excessive central concentration)
     <sup><a href="#ref-moscibrodzka">[22]</a></sup>.
+    Two configurable parameters control this region:
 </p>
+<ul>
+    <li><strong>Base width</strong> (0&ndash;1): Controls the jet funnel collimation exponent at the base.
+        The collimation transitions from a base exponent <em>k</em><sub>base</sub> = 0.62&ndash;0.85
+        (controlled by this parameter) to the asymptotic Asada &amp; Nakamura value <em>k</em> = 0.58
+        at large distances. Lower values produce a narrower, more collimated base; higher values
+        produce a wider funnel reminiscent of a split-monopole field geometry.</li>
+    <li><strong>Corona extent</strong> (0&ndash;1): Controls the radial concentration of the corona emission.
+        Higher values produce a tighter, more axis-concentrated corona glow; lower values spread
+        the corona emission over a wider area.</li>
+</ul>
 
 <h4>Synchrotron beaming</h4>
 <p>
@@ -1188,18 +1250,28 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     </tr>
     <tr>
         <td>ADAF/RIAF model</td>
-        <td>Analytic power-law profiles</td>
+        <td>Hybrid power-law + Gaussian profile with configurable falloff (default &beta;=2.5), opacity, and outer extent</td>
         <td>Full GRMHD simulations<sup><a href="#ref-eht">[14]</a></sup></td>
-        <td>Qualitatively captures the correct morphology (geometrically thick, optically thin)
-            but lacks the detailed spiral structures, magnetic field topology, and time-dependent
-            behavior seen in state-of-the-art GRMHD simulations.</td>
+        <td>Qualitatively captures the correct morphology (geometrically thick, optically thin torus).
+            The configurable radial falloff and opacity allow tuning to match different GRMHD heating
+            prescriptions. Lacks the detailed spiral structures, magnetic field topology, and
+            time-dependent behavior seen in state-of-the-art GRMHD simulations.</td>
+    </tr>
+    <tr>
+        <td>Slim disk model</td>
+        <td>Configurable H/R, opacity, and ISCO puff factor with plunging-region emission</td>
+        <td>Full radiation-MHD simulations</td>
+        <td>Correctly models the key qualitative features: geometrically thicker than thin disk,
+            emission inside ISCO, radiation-pressure puffing near ISCO. The configurable parameters
+            allow matching different super-Eddington accretion rates.</td>
     </tr>
     <tr>
         <td>Jet model</td>
-        <td>Parameterized analytic profiles</td>
+        <td>Parameterized analytic profiles with configurable base width and corona concentration</td>
         <td>GRMHD + radiative transfer<sup><a href="#ref-moscibrodzka">[22]</a></sup></td>
         <td>The physical jet mode captures the qualitative spine/sheath structure,
-            parabolic collimation, and knot features, but the emission profiles are
+            parabolic collimation, and knot features. Corona emission uses <em>r</em><sup>&minus;3</sup>
+            scaling with configurable extent. The emission profiles are
             analytic fits rather than self-consistent solutions.</td>
     </tr>
     <tr>

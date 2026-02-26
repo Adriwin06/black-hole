@@ -41,10 +41,12 @@ uniform float look_exposure, look_disk_gain, look_glow, look_doppler_boost;
 uniform float look_aberration_strength;
 uniform float look_star_gain, look_galaxy_gain;
 uniform float look_tonemap_mode;
-uniform float torus_r0, torus_h_ratio;
+uniform float torus_r0, torus_h_ratio, torus_radial_falloff, torus_opacity, torus_outer_radius;
+uniform float slim_h_ratio, slim_opacity, slim_puff_factor;
 uniform float jet_half_angle, jet_lorentz, jet_brightness, jet_length;
 {{#jet_physical}}
 uniform float jet_magnetization, jet_knot_spacing, jet_corona_brightness;
+uniform float jet_base_width, jet_corona_extent;
 {{/jet_physical}}
 
 uniform sampler2D galaxy_texture, star_texture,

@@ -20,7 +20,15 @@ function Shader(mustacheTemplate) {
         disk_temperature: 5000.0,
         torus: {
             r0: 4.0,
-            h_ratio: 0.45
+            h_ratio: 0.45,
+            radial_falloff: 2.5,
+            opacity: 0.015,
+            outer_radius: 3.5
+        },
+        slim: {
+            h_ratio: 0.15,
+            opacity: 0.6,
+            puff_factor: 2.5
         },
         jet: {
             enabled: false,
@@ -31,7 +39,9 @@ function Shader(mustacheTemplate) {
             length: 30.0,
             magnetization: 10.0,
             knot_spacing: 6.0,
-            corona_brightness: 1.5
+            corona_brightness: 1.5,
+            base_width: 0.4,
+            corona_extent: 0.5
         },
         black_hole: {
             spin_enabled: true,

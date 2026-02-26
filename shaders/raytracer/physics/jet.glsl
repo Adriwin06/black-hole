@@ -77,10 +77,11 @@ vec3 jet_velocity(vec3 p, float sign_z) {
 float jet_boundary_radius(float z) {
     float theta_jet = jet_half_angle * DEG_TO_RAD;
     float k_col = 0.58; // Asada & Nakamura parabolic index
-    // Smooth transition from wide base to collimated jet
-    // At z < 3: wider funnel (split-monopole-like, k~1)
-    // At z > 5: parabolic collimation (k=0.58)
-    float k_eff = mix(0.9, k_col, smoothstep(2.0, 6.0, z));
+    // Smooth transition from funnel base to collimated jet
+    // jet_base_width controls how wide the base is (lower = more collimated early)
+    // Default base k ~ 0.72, transitioning to k_col = 0.58 at large z
+    float k_base = mix(0.62, 0.85, clamp(jet_base_width, 0.0, 1.0));
+    float k_eff = mix(k_base, k_col, smoothstep(3.0, 8.0, z));
     float r_at_length = jet_length * tan(theta_jet);
     float r0_param = r_at_length / pow(jet_length, k_col);
     return r0_param * pow(max(z, 0.01), k_eff);
@@ -131,13 +132,16 @@ float reconfinement_knots(float z, float jet_r) {
 // emission region (the "jet launching zone" seen in EHT images).
 float corona_base_emission(vec3 p, float z, float cyl_r) {
     float r3d = length(p);
-    // Corona extends from ~1.5 to ~4 r_s, broad and bright
+    // Corona extends from ~1.5 to ~4 r_s, concentrated near axis
     float base_z = smoothstep(1.0, 1.8, z) * (1.0 - smoothstep(2.5, 5.0, z));
-    // Wider than the jet itself at the base
-    float base_r = exp(-0.6 * cyl_r * cyl_r);
-    // Emissivity scales with magnetic energy density ~ r^(-4)
-    float mag_energy = 1.0 / (r3d * r3d * r3d * r3d + 0.01);
-    return jet_corona_brightness * base_z * base_r * mag_energy * 8.0;
+    // Tighter radial profile controlled by jet_corona_extent
+    // Default: fairly tight, avoids the overly-wide blob
+    float corona_width = mix(2.0, 0.8, clamp(jet_corona_extent, 0.0, 1.0));
+    float base_r = exp(-corona_width * cyl_r * cyl_r);
+    // Emissivity scales with magnetic energy density ~ r^(-3)
+    // (reduced from r^(-4) to avoid extreme concentration at center)
+    float mag_energy = 1.0 / (r3d * r3d * r3d + 0.1);
+    return jet_corona_brightness * base_z * base_r * mag_energy * 3.0;
 }
 
 // --- Magnetization parameter σ(z) ---

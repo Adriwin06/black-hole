@@ -252,14 +252,69 @@ function setupGUI() {
         onChange: updateUniformsLive,
         help: 'Height-to-radius ratio of the torus cross-section (thick torus mode only).'
     });
+    var torusFalloffCtrl = addControl(diskFolder, p.torus, 'radial_falloff', {
+        min: 0.5,
+        max: 5.0,
+        step: 0.1,
+        name: 'radial falloff',
+        onChange: updateUniformsLive,
+        help: 'Power-law index for radial emissivity decay. Physical ADAF: 2-4. Lower = flatter profile, higher = more concentrated.'
+    });
+    var torusOpacityCtrl = addControl(diskFolder, p.torus, 'opacity', {
+        min: 0.001,
+        max: 0.15,
+        step: 0.001,
+        name: 'opacity',
+        onChange: updateUniformsLive,
+        help: 'Absorption coefficient. Low = optically thin (ADAF). Higher = more self-shielding and defined torus surface.'
+    });
+    var torusOuterCtrl = addControl(diskFolder, p.torus, 'outer_radius', {
+        min: 1.5,
+        max: 8.0,
+        step: 0.1,
+        name: 'outer extent',
+        onChange: updateUniformsLive,
+        help: 'Outer edge multiplier relative to torus center r0. Controls how far the torus extends.'
+    });
+
+    // ─── Slim disk controls ───────────────────────────────
+    var slimHRCtrl = addControl(diskFolder, p.slim, 'h_ratio', {
+        min: 0.05,
+        max: 0.5,
+        step: 0.01,
+        name: 'slim H/R',
+        onChange: updateUniformsLive,
+        help: 'Base height-to-radius ratio of the slim disk. Higher = geometrically thicker.'
+    });
+    var slimOpacityCtrl = addControl(diskFolder, p.slim, 'opacity', {
+        min: 0.1,
+        max: 2.0,
+        step: 0.01,
+        name: 'slim opacity',
+        onChange: updateUniformsLive,
+        help: 'Absorption coefficient. Higher = more opaque, surface-like. Lower = more translucent, volumetric.'
+    });
+    var slimPuffCtrl = addControl(diskFolder, p.slim, 'puff_factor', {
+        min: 0.0,
+        max: 6.0,
+        step: 0.1,
+        name: 'ISCO puff',
+        onChange: updateUniformsLive,
+        help: 'How much the disk puffs up near the ISCO due to radiation pressure. Higher = more pronounced thickening.'
+    });
 
     // Store GUI row elements for conditional visibility
-    var torusRows = [torusCenterCtrl, torusHRCtrl];
+    var torusRows = [torusCenterCtrl, torusHRCtrl, torusFalloffCtrl, torusOpacityCtrl, torusOuterCtrl];
+    var slimRows = [slimHRCtrl, slimOpacityCtrl, slimPuffCtrl];
 
     function updateAccretionModeVisibility(mode) {
         var showTorus = (mode === 'thick_torus');
         torusRows.forEach(function(ctrl) {
             $(ctrl.domElement).closest('li').css('display', showTorus ? '' : 'none');
+        });
+        var showSlim = (mode === 'slim_disk');
+        slimRows.forEach(function(ctrl) {
+            $(ctrl.domElement).closest('li').css('display', showSlim ? '' : 'none');
         });
     }
     // Initialize visibility
@@ -339,10 +394,26 @@ function setupGUI() {
         onChange: updateUniformsLive,
         help: 'Brightness of the jet-corona connection at the base. Hot plasma where the funnel meets the inner accretion flow.'
     });
+    var jetBaseWidthCtrl = addControl(jetFolder, p.jet, 'base_width', {
+        min: 0.0,
+        max: 1.0,
+        step: 0.01,
+        name: 'base width',
+        onChange: updateUniformsLive,
+        help: 'Controls how wide the jet funnel is at the base. 0 = narrow collimated base, 1 = wide split-monopole funnel.'
+    });
+    var jetCoronaExtentCtrl = addControl(jetFolder, p.jet, 'corona_extent', {
+        min: 0.0,
+        max: 1.0,
+        step: 0.01,
+        name: 'corona extent',
+        onChange: updateUniformsLive,
+        help: 'Radial spread of the corona base emission. 0 = wide spread, 1 = tightly concentrated near the jet axis.'
+    });
 
     // Show/hide jet parameter controls based on jet.enabled and jet.mode
     var jetCommonCtrls = [jetModeCtrl, jetAngleCtrl, jetLorentzCtrl, jetBrightCtrl, jetLengthCtrl];
-    var jetPhysicalCtrls = [jetMagCtrl, jetKnotCtrl, jetCoronaCtrl];
+    var jetPhysicalCtrls = [jetMagCtrl, jetKnotCtrl, jetCoronaCtrl, jetBaseWidthCtrl, jetCoronaExtentCtrl];
     function updateJetModeVisibility(mode, enabled) {
         jetCommonCtrls.forEach(function(ctrl) {
             $(ctrl.domElement).closest('li').css('display', enabled ? '' : 'none');
@@ -372,6 +443,12 @@ function setupGUI() {
         p.disk_temperature           = preset.disk_temperature;
         p.torus.r0                   = preset.torus.r0;
         p.torus.h_ratio              = preset.torus.h_ratio;
+        p.torus.radial_falloff       = preset.torus.radial_falloff;
+        p.torus.opacity              = preset.torus.opacity;
+        p.torus.outer_radius         = preset.torus.outer_radius;
+        p.slim.h_ratio               = preset.slim.h_ratio;
+        p.slim.opacity               = preset.slim.opacity;
+        p.slim.puff_factor           = preset.slim.puff_factor;
         p.jet.enabled                = preset.jet.enabled;
         p.jet.mode                   = preset.jet.mode;
         p.jet.half_angle             = preset.jet.half_angle;
@@ -381,6 +458,8 @@ function setupGUI() {
         p.jet.magnetization          = preset.jet.magnetization;
         p.jet.knot_spacing           = preset.jet.knot_spacing;
         p.jet.corona_brightness      = preset.jet.corona_brightness;
+        p.jet.base_width             = preset.jet.base_width;
+        p.jet.corona_extent          = preset.jet.corona_extent;
         p.observer.distance          = preset.observer.distance;
         p.beaming                    = preset.beaming;
         p.physical_beaming           = preset.physical_beaming;

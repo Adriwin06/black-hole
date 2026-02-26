@@ -279,8 +279,8 @@ vec4 trace_ray(vec3 ray) {
 
                 // Emission coefficient: optically thin ADAF has low emissivity
                 float j_eff = ACCRETION_BRIGHTNESS * 0.05 * torus_j * turbulence_t;
-                // Absorption: very small for optically thin bremsstrahlung plasma
-                float alpha_abs = 0.012 * torus_j;
+                // Absorption: user-configurable opacity (default low for optically thin)
+                float alpha_abs = torus_opacity * torus_j;
                 float tau_step = alpha_abs * path_len;
                 float step_T = exp(-tau_step);
 
@@ -346,8 +346,8 @@ vec4 trace_ray(vec3 ray) {
 
                 // Emission coefficient: slim disk is bright (super-Eddington luminosity)
                 float j_eff_s = ACCRETION_BRIGHTNESS * 0.9 * slim_j * turbulence_s;
-                // Moderate absorption: optically thick → surface-like but not completely opaque
-                float alpha_abs_s = 0.8 * slim_j;
+                // User-configurable absorption: higher = more opaque surface-like
+                float alpha_abs_s = slim_opacity * slim_j;
                 float tau_step_s = alpha_abs_s * path_len_s;
                 float step_T_s = exp(-tau_step_s);
                 // Source function: emission that survives self-absorption in this step

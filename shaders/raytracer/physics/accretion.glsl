@@ -67,16 +67,27 @@ float torus_local_emissivity(vec3 p) {
     float vert = exp(-0.5 * z_norm * z_norm);
 
     // Radial emissivity: bremsstrahlung j ~ n^2 T^(1/2)
-    // Self-similar ADAF (Narayan & Yi 1994): n ~ r^(-3/2), T ~ r^(-1)
-    // j_ff ~ r^(-3) * r^(-1/2) = r^(-3.5)
-    float radial = pow(r0 / max(cyl_r, 1.0), 3.5);
+    // User-configurable power law index (default ~2.5, physically 2-4)
+    // Using r0 as the reference radius for the peak emissivity region
+    float falloff = max(torus_radial_falloff, 0.5);
+    float radial;
+    if (cyl_r < r0) {
+        // Inside torus center: emissivity rises but not as steeply
+        radial = pow(r0 / max(cyl_r, 1.0), falloff * 0.6);
+    } else {
+        // Outside torus center: standard power-law decay
+        radial = pow(r0 / cyl_r, falloff);
+    }
+    // Normalize so peak is at r0 with a smooth profile
+    float torus_profile = exp(-1.2 * pow((cyl_r - r0) / max(r0 * 0.6, 1.0), 2.0));
+    radial = mix(radial, radial * torus_profile, 0.5);
 
     // Smooth cutoff at event horizon
     float inner = smoothstep(0.9, 1.5, cyl_r);
 
-    // Outer edge falloff
-    float outer_r = max(r0 * 3.5, ACCRETION_MIN_R + ACCRETION_WIDTH);
-    float outer = 1.0 - smoothstep(outer_r * 0.75, outer_r, cyl_r);
+    // Outer edge falloff using configurable outer radius
+    float outer_r = max(r0 * torus_outer_radius, ACCRETION_MIN_R + ACCRETION_WIDTH);
+    float outer = 1.0 - smoothstep(outer_r * 0.7, outer_r, cyl_r);
 
     return vert * radial * inner * outer;
 }
@@ -93,10 +104,12 @@ float torus_temperature(float r) {
 // Slim disk: super-Eddington accretion, extends inside ISCO
 // Radiation-pressure supported, geometrically thicker than thin disk
 float slim_disk_height(float cyl_r) {
-    float base_h_ratio = 0.12;
+    // User-configurable base H/R ratio (default ~0.15, range 0.05-0.5)
+    float base_h = max(slim_h_ratio, 0.05);
     // Puffs up near and inside ISCO due to radiation pressure
+    float puff = max(slim_puff_factor, 0.0);
     float isco_proximity = exp(-1.5 * max(cyl_r - ACCRETION_MIN_R, 0.0));
-    return max(cyl_r * base_h_ratio * (1.0 + 2.5 * isco_proximity), 0.01);
+    return max(cyl_r * base_h * (1.0 + puff * isco_proximity), 0.01);
 }
 
 float slim_disk_local_emissivity(vec3 p) {

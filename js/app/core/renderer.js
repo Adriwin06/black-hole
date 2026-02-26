@@ -78,6 +78,13 @@ function init(glslSource, textures) {
 
         torus_r0: { type: "f", value: 4.0 },
         torus_h_ratio: { type: "f", value: 0.45 },
+        torus_radial_falloff: { type: "f", value: 2.5 },
+        torus_opacity: { type: "f", value: 0.015 },
+        torus_outer_radius: { type: "f", value: 3.5 },
+
+        slim_h_ratio: { type: "f", value: 0.15 },
+        slim_opacity: { type: "f", value: 0.6 },
+        slim_puff_factor: { type: "f", value: 2.5 },
 
         jet_half_angle: { type: "f", value: 5.0 },
         jet_lorentz: { type: "f", value: 3.0 },
@@ -86,6 +93,8 @@ function init(glslSource, textures) {
         jet_magnetization: { type: "f", value: 10.0 },
         jet_knot_spacing: { type: "f", value: 6.0 },
         jet_corona_brightness: { type: "f", value: 1.5 },
+        jet_base_width: { type: "f", value: 0.4 },
+        jet_corona_extent: { type: "f", value: 0.5 },
 
         star_texture: { type: "t", value: textures.stars },
         galaxy_texture: { type: "t", value: textures.galaxy },
@@ -139,6 +148,13 @@ function init(glslSource, textures) {
 
         uniforms.torus_r0.value = shader.parameters.torus.r0;
         uniforms.torus_h_ratio.value = shader.parameters.torus.h_ratio;
+        uniforms.torus_radial_falloff.value = shader.parameters.torus.radial_falloff;
+        uniforms.torus_opacity.value = shader.parameters.torus.opacity;
+        uniforms.torus_outer_radius.value = shader.parameters.torus.outer_radius;
+
+        uniforms.slim_h_ratio.value = shader.parameters.slim.h_ratio;
+        uniforms.slim_opacity.value = shader.parameters.slim.opacity;
+        uniforms.slim_puff_factor.value = shader.parameters.slim.puff_factor;
 
         uniforms.jet_half_angle.value = shader.parameters.jet.half_angle;
         uniforms.jet_lorentz.value = shader.parameters.jet.lorentz_factor;
@@ -147,6 +163,8 @@ function init(glslSource, textures) {
         uniforms.jet_magnetization.value = shader.parameters.jet.magnetization;
         uniforms.jet_knot_spacing.value = shader.parameters.jet.knot_spacing;
         uniforms.jet_corona_brightness.value = shader.parameters.jet.corona_brightness;
+        uniforms.jet_base_width.value = shader.parameters.jet.base_width;
+        uniforms.jet_corona_extent.value = shader.parameters.jet.corona_extent;
 
         uniforms.resolution.value.x = renderer.domElement.width;
         uniforms.resolution.value.y = renderer.domElement.height;
