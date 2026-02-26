@@ -52,15 +52,35 @@ function setupGUI() {
         var c;
         if (cfg.options) c = folder.add(obj, key, cfg.options);
         else c = folder.add(obj, key);
-        if (cfg.min !== undefined) c.min(cfg.min);
-        if (cfg.max !== undefined) c.max(cfg.max);
-        if (cfg.step !== undefined) c.step(cfg.step);
-        if (cfg.name) c.name(cfg.name);
-        if (cfg.onChange) c.onChange(cfg.onChange);
+        // dat.GUI may replace numeric controllers when min/max are set.
+        // Keep the returned controller so later name/onChange/visibility
+        // always target the live row in the DOM.
+        if (cfg.min !== undefined) c = c.min(cfg.min) || c;
+        if (cfg.max !== undefined) c = c.max(cfg.max) || c;
+        if (cfg.step !== undefined) c = c.step(cfg.step) || c;
+        if (cfg.name) c = c.name(cfg.name) || c;
+        if (cfg.onChange) c = c.onChange(cfg.onChange) || c;
         if (cfg.help) addHelpText(c, cfg.help);
         if (cfg.className) setGuiRowClass(c, cfg.className);
         return c;
     }
+
+    function setControlVisible(controller, isVisible) {
+        if (!controller) return;
+        // dat.GUI stores the row <li> on __li; this is the most reliable target.
+        var row = controller && controller.__li ? controller.__li :
+            $(controller.domElement).closest('li')[0];
+        if (!row) return;
+        row.style.display = isVisible ? '' : 'none';
+    }
+
+    function setControlsVisible(controllers, isVisible) {
+        controllers.forEach(function(ctrl) {
+            setControlVisible(ctrl, isVisible);
+        });
+    }
+
+    var updateDependentVisibility = function() {};
 
     function applyKerrMode(mode) {
         // Re-apply quality preset with new mode (preset values depend on kerr_mode)
@@ -216,19 +236,22 @@ function setupGUI() {
     var diskFolder = gui.addFolder('Accretion disk');
     addControl(diskFolder, p, 'accretion_disk', {
         name: 'enabled',
-        onChange: updateShader,
+        onChange: function() {
+            updateDependentVisibility();
+            updateShader();
+        },
         help: 'Toggles thermal emission from the accretion disk.'
     });
-    addControl(diskFolder, p, 'accretion_mode', {
+    var accretionModeCtrl = addControl(diskFolder, p, 'accretion_mode', {
         name: 'accretion type',
         options: ['thin_disk', 'thick_torus', 'slim_disk'],
-        onChange: function(mode) {
-            updateAccretionModeVisibility(mode);
+        onChange: function() {
+            updateDependentVisibility();
             updateShader();
         },
         help: 'Thin disk: Novikov-Thorne (quasars/XRBs). Thick torus: ADAF/RIAF (M87*/Sgr A*). Slim disk: super-Eddington.'
     });
-    addControl(diskFolder, p, 'disk_temperature', {
+    var diskTempCtrl = addControl(diskFolder, p, 'disk_temperature', {
         min: DISK_TEMPERATURE_MIN,
         max: DISK_TEMPERATURE_MAX,
         step: 1,
@@ -307,18 +330,12 @@ function setupGUI() {
     var torusRows = [torusCenterCtrl, torusHRCtrl, torusFalloffCtrl, torusOpacityCtrl, torusOuterCtrl];
     var slimRows = [slimHRCtrl, slimOpacityCtrl, slimPuffCtrl];
 
-    function updateAccretionModeVisibility(mode) {
-        var showTorus = (mode === 'thick_torus');
-        torusRows.forEach(function(ctrl) {
-            $(ctrl.domElement).closest('li').css('display', showTorus ? '' : 'none');
-        });
-        var showSlim = (mode === 'slim_disk');
-        slimRows.forEach(function(ctrl) {
-            $(ctrl.domElement).closest('li').css('display', showSlim ? '' : 'none');
-        });
-    }
-    // Initialize visibility
-    updateAccretionModeVisibility(p.accretion_mode);
+    // Apply initial accretion visibility immediately, even before the global
+    // dependency updater is assigned at the end of setupGUI().
+    setControlVisible(accretionModeCtrl, !!p.accretion_disk);
+    setControlVisible(diskTempCtrl, !!p.accretion_disk);
+    setControlsVisible(torusRows, !!p.accretion_disk && p.accretion_mode === 'thick_torus');
+    setControlsVisible(slimRows, !!p.accretion_disk && p.accretion_mode === 'slim_disk');
 
     diskFolder.open();
 
@@ -326,14 +343,17 @@ function setupGUI() {
     var jetFolder = gui.addFolder('Relativistic jets');
     addControl(jetFolder, p.jet, 'enabled', {
         name: 'enabled',
-        onChange: updateShader,
+        onChange: function() {
+            updateDependentVisibility();
+            updateShader();
+        },
         help: 'Bipolar relativistic jets along the spin axis (Blandford-Znajek mechanism).'
     });
     var jetModeCtrl = addControl(jetFolder, p.jet, 'mode', {
         name: 'jet model',
         options: ['simple', 'physical'],
-        onChange: function(mode) {
-            updateJetModeVisibility(mode, p.jet.enabled);
+        onChange: function() {
+            updateDependentVisibility();
             updateShader();
         },
         help: 'Simple: smooth parabolic jet. Physical: GRMHD-calibrated model with spine/sheath, reconfinement knots, corona base, disk occultation.'
@@ -411,24 +431,9 @@ function setupGUI() {
         help: 'Radial spread of the corona base emission. 0 = wide spread, 1 = tightly concentrated near the jet axis.'
     });
 
-    // Show/hide jet parameter controls based on jet.enabled and jet.mode
+    // Store jet row groups for conditional visibility
     var jetCommonCtrls = [jetModeCtrl, jetAngleCtrl, jetLorentzCtrl, jetBrightCtrl, jetLengthCtrl];
     var jetPhysicalCtrls = [jetMagCtrl, jetKnotCtrl, jetCoronaCtrl, jetBaseWidthCtrl, jetCoronaExtentCtrl];
-    function updateJetModeVisibility(mode, enabled) {
-        jetCommonCtrls.forEach(function(ctrl) {
-            $(ctrl.domElement).closest('li').css('display', enabled ? '' : 'none');
-        });
-        var showPhysical = enabled && (mode === 'physical');
-        jetPhysicalCtrls.forEach(function(ctrl) {
-            $(ctrl.domElement).closest('li').css('display', showPhysical ? '' : 'none');
-        });
-    }
-    updateJetModeVisibility(p.jet.mode, p.jet.enabled);
-    // Patch the enabled onChange to also update visibility
-    jetFolder.__controllers[0].onChange(function(val) {
-        updateJetModeVisibility(p.jet.mode, val);
-        updateShader();
-    });
 
     applyBlackHolePreset = function(name) {
         if (name === 'Custom') return;
@@ -475,8 +480,7 @@ function setupGUI() {
             p.bloom.radius    = preset.bloom.radius;
         }
 
-        updateAccretionModeVisibility(p.accretion_mode);
-        updateJetModeVisibility(p.jet.mode, p.jet.enabled);
+        updateDependentVisibility();
         updateCamera();
         updateShader();
         refreshAllControllers();
@@ -485,10 +489,13 @@ function setupGUI() {
     var spinFolder = gui.addFolder('Black hole');
     addControl(spinFolder, p.black_hole, 'spin_enabled', {
         name: 'rotation enabled',
-        onChange: updateUniformsLive,
+        onChange: function() {
+            updateDependentVisibility();
+            updateUniformsLive();
+        },
         help: 'Enables Kerr-like rotation effects. Disable for a Schwarzschild-style shadow.'
     });
-    addControl(spinFolder, p.black_hole, 'spin', {
+    var spinCtrl = addControl(spinFolder, p.black_hole, 'spin', {
         min: -0.99,
         max: 0.99,
         step: 0.01,
@@ -496,7 +503,7 @@ function setupGUI() {
         onChange: updateUniformsLive,
         help: 'Dimensionless spin. Positive = prograde disk, negative = retrograde.'
     });
-    addControl(spinFolder, p.black_hole, 'spin_strength', {
+    var spinStrengthCtrl = addControl(spinFolder, p.black_hole, 'spin_strength', {
         min: 0.0,
         max: 1.4,
         step: 0.01,
@@ -521,7 +528,7 @@ function setupGUI() {
         onChange: updateUniformsLive,
         help: 'Overall tone-mapped brightness.'
     });
-    addControl(lookFolder, p.look, 'disk_gain', {
+    var lookDiskGainCtrl = addControl(lookFolder, p.look, 'disk_gain', {
         min: 0.4,
         max: 4.0,
         step: 0.01,
@@ -529,7 +536,7 @@ function setupGUI() {
         onChange: updateUniformsLive,
         help: 'Brightness multiplier applied to the accretion disk emission.'
     });
-    addControl(lookFolder, p.look, 'glow', {
+    var lookGlowCtrl = addControl(lookFolder, p.look, 'glow', {
         min: 0.0,
         max: 2.0,
         step: 0.01,
@@ -537,7 +544,7 @@ function setupGUI() {
         onChange: updateUniformsLive,
         help: 'Extra bloom-like emphasis near the hotter inner disk region.'
     });
-    addControl(lookFolder, p.look, 'doppler_boost', {
+    var lookDopplerBoostCtrl = addControl(lookFolder, p.look, 'doppler_boost', {
         min: 0.0,
         max: 2.5,
         step: 0.01,
@@ -545,7 +552,7 @@ function setupGUI() {
         onChange: updateUniformsLive,
         help: 'Controls visual strength of relativistic beaming contrast.'
     });
-    addControl(lookFolder, p.look, 'aberration_strength', {
+    var lookAberrationStrengthCtrl = addControl(lookFolder, p.look, 'aberration_strength', {
         min: 0.0,
         max: 3.0,
         step: 0.01,
@@ -575,10 +582,13 @@ function setupGUI() {
     var ppFolder = gui.addFolder('Post-processing');
     addControl(ppFolder, p.bloom, 'enabled', {
         name: 'bloom',
-        onChange: function() { shader.needsUpdate = true; },
+        onChange: function() {
+            updateDependentVisibility();
+            shader.needsUpdate = true;
+        },
         help: 'Physically-based bloom simulating optical diffraction and lens glow. Bright regions of the accretion disk bleed light into surrounding pixels.'
     });
-    addControl(ppFolder, p.bloom, 'strength', {
+    var bloomStrengthCtrl = addControl(ppFolder, p.bloom, 'strength', {
         min: 0.0,
         max: 2.0,
         step: 0.01,
@@ -586,7 +596,7 @@ function setupGUI() {
         onChange: function() { shader.needsUpdate = true; },
         help: 'Overall intensity of the bloom glow added to the image.'
     });
-    addControl(ppFolder, p.bloom, 'threshold', {
+    var bloomThresholdCtrl = addControl(ppFolder, p.bloom, 'threshold', {
         min: 0.0,
         max: 1.0,
         step: 0.01,
@@ -594,7 +604,7 @@ function setupGUI() {
         onChange: function() { shader.needsUpdate = true; },
         help: 'Minimum pixel brightness that contributes to bloom. Lower values bloom more of the disk.'
     });
-    addControl(ppFolder, p.bloom, 'radius', {
+    var bloomRadiusCtrl = addControl(ppFolder, p.bloom, 'radius', {
         min: 0.0,
         max: 1.0,
         step: 0.01,
@@ -655,21 +665,19 @@ function setupGUI() {
     addControl(folder, p.planet, 'enabled', {
         name: 'enabled',
         help: 'Adds an orbiting planet used as a reference object.',
-        onChange: function(enabled) {
-        updateShader();
-        var controls = $('.indirect-planet-controls').show();
-        if (enabled) controls.show();
-        else controls.hide();
+        onChange: function() {
+            updateDependentVisibility();
+            updateShader();
         }
     });
-    addControl(folder, p.planet, 'distance', {
+    var planetDistanceCtrl = addControl(folder, p.planet, 'distance', {
         min: 1.5,
         step: 0.1,
         name: 'distance',
         onChange: updateUniforms,
         help: 'Orbital radius of the planet.'
     });
-    addControl(folder, p.planet, 'radius', {
+    var planetRadiusCtrl = addControl(folder, p.planet, 'radius', {
         min: 0.01,
         max: 2.0,
         step: 0.01,
@@ -683,17 +691,26 @@ function setupGUI() {
     folder = gui.addFolder('Relativistic effects');
     addControl(folder, p, 'aberration', {
         name: 'aberration (ray dir)',
-        onChange: updateShader,
+        onChange: function() {
+            updateDependentVisibility();
+            updateShader();
+        },
         help: 'Changes apparent incoming ray direction due to observer velocity.'
     });
     addControl(folder, p, 'beaming', {
         name: 'beaming (intensity)',
-        onChange: updateShader,
+        onChange: function() {
+            updateDependentVisibility();
+            updateShader();
+        },
         help: 'Applies relativistic intensity boosting/dimming.'
     });
-    addControl(folder, p, 'physical_beaming', {
+    var physicalBeamingCtrl = addControl(folder, p, 'physical_beaming', {
         name: 'physical (D³ Liouville)',
-        onChange: updateShader,
+        onChange: function() {
+            updateDependentVisibility();
+            updateShader();
+        },
         help: 'Uses physically motivated Liouville transfer scaling instead of cinematic curve.'
     });
     addControl(folder, p, 'doppler_shift', {
@@ -707,7 +724,7 @@ function setupGUI() {
         className: 'planet-controls indirect-planet-controls',
         help: 'Accounts for rate differences between local and distant observer clocks.'
     });
-    addControl(folder, p, 'lorentz_contraction', {
+    var lorentzContractionCtrl = addControl(folder, p, 'lorentz_contraction', {
         name: 'lorentz contraction',
         onChange: updateShader,
         className: 'planet-controls indirect-planet-controls',
@@ -718,7 +735,10 @@ function setupGUI() {
 
     folder = gui.addFolder('Time');
     addControl(folder, p, 'light_travel_time', {
-        onChange: updateShader,
+        onChange: function() {
+            updateDependentVisibility();
+            updateShader();
+        },
         help: 'Enables retarded-time rendering, where events are seen after light delay.'
     });
     addControl(folder, p, 'time_scale', {
@@ -729,5 +749,42 @@ function setupGUI() {
         help: 'Simulation clock multiplier.'
     });
     //folder.open();
+
+    updateDependentVisibility = function() {
+        var diskEnabled = !!p.accretion_disk;
+        var thinDiskEnabled = diskEnabled && p.accretion_mode === 'thin_disk';
+        var thickTorusEnabled = diskEnabled && p.accretion_mode === 'thick_torus';
+        var slimDiskEnabled = diskEnabled && p.accretion_mode === 'slim_disk';
+
+        setControlVisible(accretionModeCtrl, diskEnabled);
+        setControlVisible(diskTempCtrl, diskEnabled);
+        setControlsVisible(torusRows, thickTorusEnabled);
+        setControlsVisible(slimRows, slimDiskEnabled);
+
+        var jetEnabled = !!p.jet.enabled;
+        setControlsVisible(jetCommonCtrls, jetEnabled);
+        setControlsVisible(jetPhysicalCtrls, jetEnabled && p.jet.mode === 'physical');
+
+        var spinEnabled = !!p.black_hole.spin_enabled;
+        setControlVisible(spinCtrl, spinEnabled);
+        setControlVisible(spinStrengthCtrl, spinEnabled);
+
+        var bloomEnabled = !!p.bloom.enabled;
+        setControlsVisible([bloomStrengthCtrl, bloomThresholdCtrl, bloomRadiusCtrl], bloomEnabled);
+
+        var beamingEnabled = !!p.beaming;
+        var physicalBeamingEnabled = beamingEnabled && !!p.physical_beaming;
+        setControlVisible(physicalBeamingCtrl, beamingEnabled);
+        setControlVisible(lookDopplerBoostCtrl, beamingEnabled && !physicalBeamingEnabled);
+
+        setControlVisible(lookAberrationStrengthCtrl, !!p.aberration);
+        setControlVisible(lookGlowCtrl, thinDiskEnabled);
+        setControlVisible(lookDiskGainCtrl, diskEnabled || jetEnabled);
+
+        var planetEnabled = !!p.planet.enabled;
+        setControlsVisible([planetDistanceCtrl, planetRadiusCtrl], planetEnabled);
+        setControlVisible(lorentzContractionCtrl, planetEnabled);
+    };
+    updateDependentVisibility();
 
 }
