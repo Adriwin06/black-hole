@@ -787,4 +787,98 @@ function setupGUI() {
     };
     updateDependentVisibility();
 
+    // ─── Freefall Dive Panel ────────────────────────────────────────────────────
+    // Creates a separate animation panel positioned to the left of the dat.GUI
+    // controls.  The observer plunges radially from rest at infinity along a
+    // Schwarzschild geodesic.  Inside the event horizon the shader switches to
+    // interior coordinate mode: the Binet equation is integrated past u = 1
+    // (r < r_s) so backward-traced photons can exit the horizon and reveal the
+    // external universe as a shrinking, violently lensed window.
+    (function setupDivePanel() {
+        var panel = document.createElement('div');
+        panel.id = 'dive-panel';
+        panel.innerHTML =
+            '<div class="dive-title">FREEFALL DIVE</div>' +
+            '<div class="dive-desc">Radial plunge into the black hole interior. ' +
+            'Rays are traced through the event horizon with the full Schwarzschild ' +
+            'geodesic equation &mdash; no approximations.</div>' +
+            '<button id="dive-start-btn" class="dive-btn dive-btn-start">' +
+                '\u25b6 START DIVE</button>' +
+            '<div class="dive-control-row">' +
+                '<label>Fall speed</label>' +
+                '<input type="range" id="dive-speed" min="0.01" max="5.0" ' +
+                    'step="0.01" value="1.0">' +
+                '<span id="dive-speed-val">1.0\u00d7</span>' +
+            '</div>' +
+            '<div class="dive-control-row dive-cinematic-row">' +
+                '<label for="dive-cinematic">Auto-speed</label>' +
+                '<input type="checkbox" id="dive-cinematic">' +
+                '<span class="dive-cinematic-hint">Slow near photon sphere &amp; horizon</span>' +
+            '</div>' +
+            '<div id="dive-horizon-track" class="dive-horizon-track">' +
+                '<div id="dive-horizon-bar" class="dive-horizon-fill outside">' +
+                '</div>' +
+                '<div class="dive-horizon-label">Event Horizon</div>' +
+            '</div>' +
+            '<div class="dive-readout">' +
+                '<div id="dive-radius" class="dive-metric">' +
+                    'r = ' + p.observer.distance.toFixed(2) +
+                    ' r<sub>s</sub></div>' +
+                '<div id="dive-velocity" class="dive-metric">v = 0.000 c</div>' +
+                '<div id="dive-status" class="dive-status ready">Ready</div>' +
+            '</div>' +
+            '<button id="dive-reset-btn" class="dive-btn dive-btn-reset" ' +
+                'disabled>\u21ba RESET</button>';
+        document.body.appendChild(panel);
+
+        document.getElementById('dive-start-btn').addEventListener('click',
+            function() { startDive(); });
+        document.getElementById('dive-reset-btn').addEventListener('click',
+            function() { resetDive(); });
+        document.getElementById('dive-speed').addEventListener('input',
+            function() {
+                diveState.speed = parseFloat(this.value);
+                var v = diveState.speed;
+                document.getElementById('dive-speed-val').textContent =
+                    (v < 0.1 ? v.toFixed(2) : v.toFixed(1)) + '\u00d7';
+            });
+
+        document.getElementById('dive-cinematic').addEventListener('change',
+            function() { diveState.cinematic = this.checked; });
+
+        // ── Clickable / draggable progress bar ──────────────────────────
+        var track = document.getElementById('dive-horizon-track');
+        var dragging = false;
+        function handleTrackSeek(e) {
+            if (!diveState.active && !diveState.reachedSingularity) return;
+            var rect = track.getBoundingClientRect();
+            var clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            var x = Math.max(0, Math.min(clientX - rect.left, rect.width));
+            var progress = x / rect.width;
+            var startR = Math.max(diveState.prevDistance, 1);
+            var targetR = startR * (1.0 - progress);
+            seekDive(targetR);
+        }
+        track.addEventListener('mousedown', function(e) {
+            dragging = true; handleTrackSeek(e); e.preventDefault();
+        });
+        document.addEventListener('mousemove', function(e) {
+            if (dragging) handleTrackSeek(e);
+        });
+        document.addEventListener('mouseup', function() { dragging = false; });
+        track.addEventListener('touchstart', function(e) {
+            handleTrackSeek(e); e.preventDefault();
+        });
+        track.addEventListener('touchmove', function(e) {
+            handleTrackSeek(e); e.preventDefault();
+        });
+
+        // ── 3-D axes orientation gizmo ──────────────────────────────────
+        var gizmo = document.createElement('div');
+        gizmo.id = 'axes-gizmo-container';
+        gizmo.innerHTML = '<canvas id="axes-gizmo" width="80" height="80"></canvas>';
+        document.body.appendChild(gizmo);
+    })();
+    // ─────────────────────────────────────────────────────────────────────────────
+
 }

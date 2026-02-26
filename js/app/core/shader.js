@@ -83,6 +83,11 @@ function Shader(mustacheTemplate) {
             orbital_inclination: -10
         },
 
+        dive: {
+            speed: 1.0,
+            autoOrient: true
+        },
+
         planetEnabled: function() {
             return this.planet.enabled && this.quality !== 'fast';
         },
@@ -95,7 +100,8 @@ function Shader(mustacheTemplate) {
     this.needsUpdate = false;
 
     this.hasMovingParts = function() {
-        return this.parameters.planet.enabled || this.parameters.observer.motion;
+        return this.parameters.planet.enabled || this.parameters.observer.motion ||
+            (typeof diveState !== 'undefined' && diveState.active && !diveState.paused);
     };
 
     this.compile = function() {

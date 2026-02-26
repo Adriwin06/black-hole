@@ -187,6 +187,21 @@
         <li><a href="#sec-volumetric">Volumetric Radiative Transfer</a></li>
         <li><a href="#sec-tonemap">Tone Mapping &amp; Color Science</a></li>
         <li><a href="#sec-planet">Planet Model</a></li>
+        <li><a href="#sec-interior">Interior Black Hole &amp; Analytical Escape Classification</a>
+            <ol>
+                <li><a href="#sec-binet-energy">Binet Conserved Energy</a></li>
+                <li><a href="#sec-escape-class">Escape vs. Capture Classification</a></li>
+                <li><a href="#sec-analytical-exit">Analytical Exit Direction</a></li>
+            </ol>
+        </li>
+        <li><a href="#sec-freefall">Free-Fall Dive &amp; Observer Frame</a>
+            <ol>
+                <li><a href="#sec-radial-freefall">Radial Free-Fall Trajectory</a></li>
+                <li><a href="#sec-dive-frame">Locally Inertial Dive Frame</a></li>
+                <li><a href="#sec-interior-rendering">Interior Rendering Pipeline</a></li>
+            </ol>
+        </li>
+        <li><a href="#sec-cinematic-speed">Cinematic Auto-Speed Envelope</a></li>
         <li><a href="#sec-comparison">Comparison with Reality</a></li>
         <li><a href="#sec-limitations">Known Limitations &amp; Approximations</a></li>
         <li><a href="#sec-references">References</a></li>
@@ -1136,10 +1151,338 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 </ul>
 
 <!-- ============================================================ -->
-<!-- 18. COMPARISON WITH REALITY -->
+<!-- 18. INTERIOR BLACK HOLE -->
 <!-- ============================================================ -->
 
-<h2 id="sec-comparison">18. Comparison with Reality</h2>
+<h2 id="sec-interior">18. Interior Black Hole &amp; Analytical Escape Classification</h2>
+
+<p>
+    Once the observer crosses the event horizon (<em>r</em> &lt; <em>r<sub>s</sub></em>), the standard
+    exterior ray-tracing logic — march until the ray escapes to infinity or hits the horizon —
+    breaks down. Inside the horizon <em>all</em> timelike and null worldlines must decrease in <em>r</em>
+    (the radial coordinate becomes timelike), yet some photon geodesics launched from an interior
+    observer can still reach the exterior universe before the observer hits the singularity.
+    The simulation uses an <strong>analytical pre-classification</strong> based on the
+    Binet conserved energy to decide each ray's fate <em>before</em> entering the integration loop.
+</p>
+
+<h3 id="sec-binet-energy">18.1. Binet Conserved Energy</h3>
+
+<p>
+    The first-order Binet equation for photons in Schwarzschild spacetime is
+    <sup><a href="#ref-mtw">[1]</a></sup> <sup><a href="#ref-wiki-schwarz">[4]</a></sup>:
+</p>
+<div class="eq">
+    (d<em>u</em>/d&phi;)&sup2; = <em>u</em>&sup3; &minus; <em>u</em>&sup2; + 1/<em>b</em>&sup2;
+</div>
+<p>
+    where <em>u</em> = 1/<em>r</em> and <em>b</em> = <em>L</em>/<em>E</em> is the impact parameter
+    (in units where <em>r<sub>s</sub></em> = 1). Rearranging, define the
+    <strong>Binet conserved energy</strong>:
+</p>
+<div class="eq">
+    <em>E</em><sub>Binet</sub> = (d<em>u</em>/d&phi;)&sup2; + <em>u</em>&sup2; &minus; <em>u</em>&sup3;
+</div>
+<p>
+    This quantity is conserved along the geodesic (it equals 1/<em>b</em>&sup2; = const).
+    The term <em>u</em>&sup2; &minus; <em>u</em>&sup3; defines an <strong>effective potential barrier</strong>
+    for photon orbits. This potential has a maximum at <em>u</em> = 2/3 (i.e., <em>r</em> = 1.5 <em>r<sub>s</sub></em>,
+    the photon sphere):
+</p>
+<div class="eq">
+    <em>V</em><sub>max</sub> = (2/3)&sup2; &minus; (2/3)&sup3; = 4/9 &minus; 8/27 = 4/27 &approx; 0.1481
+</div>
+<p>
+    This critical value <em>E</em><sub>crit</sub> = 4/27 determines whether a photon can
+    surmount the barrier and escape, or whether it is reflected back and captured
+    <sup><a href="#ref-mtw">[1]</a></sup> <sup><a href="#ref-chandrasekhar">[28]</a></sup>.
+</p>
+
+<h3 id="sec-escape-class">18.2. Escape vs. Capture Classification</h3>
+
+<p>
+    For each ray launched from the interior observer (at <em>u</em><sub>obs</sub> &gt; 1,
+    i.e., <em>r</em><sub>obs</sub> &lt; <em>r<sub>s</sub></em>), the shader computes the
+    initial d<em>u</em>/d&phi; from the ray's tangent vector and classifies it
+    <strong>analytically before any integration</strong>:
+</p>
+
+<table>
+    <tr>
+        <th>Condition</th>
+        <th>Outcome</th>
+        <th>Physical meaning</th>
+    </tr>
+    <tr>
+        <td>d<em>u</em>/d&phi; &ge; 0</td>
+        <td><strong>Captured</strong></td>
+        <td>Ray is moving inward (increasing <em>u</em> = 1/<em>r</em>); it will hit the singularity.</td>
+    </tr>
+    <tr>
+        <td>d<em>u</em>/d&phi; &lt; 0 and <em>E</em><sub>Binet</sub> &le; 4/27</td>
+        <td><strong>Captured</strong></td>
+        <td>Ray is moving outward but has insufficient energy to surmount the potential barrier
+            at the photon sphere; it is reflected back and captured.</td>
+    </tr>
+    <tr>
+        <td>d<em>u</em>/d&phi; &lt; 0 and <em>E</em><sub>Binet</sub> &gt; 4/27</td>
+        <td><strong>Escapes</strong></td>
+        <td>Ray has enough energy to clear the photon sphere barrier and reach the external universe.
+            This ray shows the distorted image of the outside sky.</td>
+    </tr>
+</table>
+
+<p>
+    This classification is <strong>exact</strong> for Schwarzschild null geodesics — it follows
+    directly from the effective potential analysis of the orbit equation. It produces the
+    characteristic <strong>shrinking sky window</strong> effect: as the observer falls deeper
+    (larger <em>u</em><sub>obs</sub>), more of the effective energy goes into the
+    <em>u</em>&sup3; term, leaving fewer rays with <em>E</em><sub>Binet</sub> &gt; 4/27.
+    The cone of directions that show the outside universe narrows continuously until, at the
+    singularity, it vanishes entirely <sup><a href="#ref-hamilton-falling">[29]</a></sup>.
+</p>
+
+<div class="note">
+    <strong>Implementation detail:</strong> Because the vast majority of interior rays are captured
+    (especially deep inside the horizon), the analytical pre-classification allows the shader to
+    skip the expensive integration loop for those rays entirely, rendering them as black.
+    Only the small fraction of escaping rays enter the geodesic integration, dramatically
+    improving performance inside the black hole.
+</div>
+
+<h3 id="sec-analytical-exit">18.3. Analytical Exit Direction</h3>
+
+<p>
+    For rays that escape, the simulation needs to determine where they hit the background sky.
+    Rather than marching the ray all the way out (expensive and numerically fragile from the interior),
+    the shader uses the <strong>Binet tangent formula</strong> to compute the analytical exit direction.
+</p>
+<p>
+    At any point along the geodesic, the 3D direction vector in the orbital plane is:
+</p>
+<div class="eq">
+    <strong>d</strong> = <em>&phi;&#x0302;</em> / <em>u</em>
+    &minus; <em>r&#x0302;</em> &middot; (d<em>u</em>/d&phi;) / <em>u</em>&sup2;
+</div>
+<p>
+    where <em>&phi;&#x0302;</em> and <em>r&#x0302;</em> are the azimuthal and radial unit vectors.
+    As <em>u</em> &rarr; 0 (ray reaching infinity), this vector gives the asymptotic propagation
+    direction directly. The shader integrates only to the point where the ray exits the horizon
+    (or to a safe outer radius), then uses this formula to reconstruct the exit direction on
+    the sky sphere.
+</p>
+<p>
+    For escaping rays viewed from the interior, the simulation also applies a
+    <strong>gravitational blueshift boost</strong> to the background sky luminance:
+</p>
+<div class="eq">
+    <em>f</em><sub>blue</sub> = 1 + 0.5 &middot; &radic;|1/<em>r</em> &minus; 1|,
+    &nbsp;&nbsp;capped at 4.0
+</div>
+<p>
+    This models the fact that photons falling into the potential well gain energy (blueshift),
+    which is the time-reverse of the well-known gravitational redshift of outgoing photons
+    <sup><a href="#ref-mtw">[1]</a></sup>.
+</p>
+
+<div class="comparison">
+    <strong>Accuracy:</strong> The escape classification is <em>exact</em> for Schwarzschild.
+    The shrinking-window effect — a circular porthole showing the outside universe that progressively
+    narrows as the observer approaches the singularity — matches the analytical predictions
+    in Hamilton &amp; Lisle (2008) <sup><a href="#ref-hamilton-falling">[29]</a></sup> and the
+    pedagogical visualizations by Hamilton
+    <a href="https://jila.colorado.edu/~ajsh/insidebh/">"Inside a black hole"</a>
+    <sup><a href="#ref-hamilton-inside">[30]</a></sup>.
+    The NASA Goddard visualization by Schnittman (2024) shows the same effect using a full
+    numerical ray-tracer <sup><a href="#ref-nasa-plunge">[31]</a></sup>.
+</div>
+
+<!-- ============================================================ -->
+<!-- 19. FREE-FALL DIVE -->
+<!-- ============================================================ -->
+
+<h2 id="sec-freefall">19. Free-Fall Dive &amp; Observer Frame</h2>
+
+<p>
+    The simulation offers a <strong>"Dive"</strong> mode that drops the observer on a
+    radial free-fall trajectory from rest at infinity into and through the event horizon.
+    This is the simplest physically realizable infall: a test mass released from infinity
+    with zero initial velocity.
+</p>
+
+<h3 id="sec-radial-freefall">19.1. Radial Free-Fall Trajectory</h3>
+
+<p>
+    For a massive test particle falling radially from rest at infinity in Schwarzschild spacetime,
+    the equation of motion in terms of proper time &tau; is
+    <sup><a href="#ref-mtw">[1]</a></sup> <sup><a href="#ref-wiki-freefall">[32]</a></sup>:
+</p>
+<div class="eq">
+    d<em>r</em>/d&tau; = &minus;&radic;(<em>r<sub>s</sub></em>/<em>r</em>)
+</div>
+<p>
+    In the simulation's units (<em>r<sub>s</sub></em> = 1, <em>c</em> = 1):
+</p>
+<div class="eq">
+    d<em>r</em>/d&tau; = &minus;&radic;(1/<em>r</em>) = &minus;<em>r</em><sup>&minus;1/2</sup>
+</div>
+<p>
+    This is integrated numerically using the <strong>RK2 midpoint method</strong> for stability:
+</p>
+<pre><code>k1   = -sqrt(1/r) * dt
+rMid = max(r + k1*0.5,  0.01)
+k2   = -sqrt(1/rMid) * dt
+newR = max(r + k2,  r_min)</code></pre>
+<p>
+    The three-velocity of the falling observer in Schwarzschild coordinates is:
+</p>
+<div class="eq">
+    <em>v</em>(<em>r</em>) = &radic;(<em>r<sub>s</sub></em>/<em>r</em>) = &radic;(1/<em>r</em>)
+</div>
+<p>
+    This velocity approaches <em>c</em> as <em>r</em> &rarr; <em>r<sub>s</sub></em> and exceeds
+    the coordinate speed of light inside the horizon (a coordinate artifact — the observer's
+    locally measured speed is always subluminal). The simulation caps
+    <em>v</em> at 0.998<em>c</em> to avoid numerical singularities.
+</p>
+
+<div class="note">
+    <strong>Proper time to singularity:</strong> Integrating the equation of motion gives the
+    well-known result that an observer falling from the horizon reaches the singularity in
+    a finite proper time <sup><a href="#ref-mtw">[1]</a></sup>:
+    <div class="eq">
+        &Delta;&tau; = (&pi;/2) <em>r<sub>s</sub></em> = (&pi;/2) &middot; 1 &approx; 1.571
+    </div>
+    This is experienced as a very short time — about 11 microseconds for a stellar-mass
+    black hole (10 <em>M</em><sub>☉</sub>), or about 17 hours for a supermassive black hole
+    like M87* (6.5 &times; 10<sup>9</sup> <em>M</em><sub>☉</sub>).
+</div>
+
+<h3 id="sec-dive-frame">19.2. Locally Inertial Dive Frame</h3>
+
+<p>
+    A free-falling observer carries a <strong>locally inertial reference frame</strong>
+    (a tetrad) constructed from their four-velocity and spatial basis vectors.
+    For a radially infalling observer, the simulation builds this frame using
+    Three.js's <code>makeBasis()</code> from three orthogonal vectors:
+</p>
+<ul>
+    <li><strong>Inward</strong> (<em>&ecirc;</em><sub>1</sub>): The direction of infall
+        (negative radial direction, &minus;<em>r&#x0302;</em>). This becomes the camera's
+        look direction.</li>
+    <li><strong>Right</strong> (<em>&ecirc;</em><sub>2</sub>): Perpendicular to infall and to
+        the vertical, computed via cross products.</li>
+    <li><strong>Up</strong> (<em>&ecirc;</em><sub>3</sub>): Completes the right-handed triad,
+        preferring alignment with the global <em>z</em>-axis.</li>
+</ul>
+<p>
+    This frame is passed to the ray-tracing shader as the observer's orientation matrix.
+    The shader then launches rays in the observer's local sky, using this frame to convert
+    pixel coordinates to 3D ray directions.
+</p>
+
+<h3 id="sec-interior-rendering">19.3. Interior Rendering Pipeline</h3>
+
+<p>
+    When the observer is inside the horizon (<em>r</em> &lt; <em>r<sub>s</sub></em>), the shader
+    activates the <strong>interior mode</strong>, which changes several aspects of the rendering:
+</p>
+<ol>
+    <li><strong>Analytical pre-classification</strong> (Section 18.2) eliminates the numerical
+        integration loop for most rays, which would otherwise waste the step budget on
+        captured trajectories.</li>
+    <li><strong>Adaptive stepping</strong> is relaxed: the photon-sphere refinement factor is
+        reduced by 3&times;, and the step size is scaled by a depth-dependent factor
+        <code>1 + 0.5 &middot; max(u &minus; 1, 0)</code> to handle the rapidly changing curvature deep inside.</li>
+    <li><strong>Frame-drag clamping:</strong> The <em>u</em>&sup3; frame-drag term (Section 5)
+        uses <code>min(<em>u</em>, 1.2)</code> instead of raw <em>u</em> to prevent the
+        spin correction from diverging at small <em>r</em>.</li>
+    <li><strong>Gravitational shift:</strong> The accretion disk redshift formula uses
+        <code>abs(1 &minus; 1/<em>r</em>)</code> to avoid taking the square root of a
+        negative number inside the horizon.</li>
+    <li><strong>Shadow capture condition:</strong> In the exterior, capture is <em>u</em> &ge; 1;
+        in the interior, it is <em>u</em> &lt; 0 (the ray has somehow reversed — a numerical
+        safety net).</li>
+</ol>
+
+<div class="comparison">
+    <strong>Accuracy:</strong> The interior rendering faithfully solves the same Binet equation
+    that governs photon trajectories in the exterior — the equation is valid everywhere outside
+    the singularity. The technique of following photon geodesics backward from an interior observer
+    is described in Hamilton &amp; Lisle (2008) <sup><a href="#ref-hamilton-falling">[29]</a></sup>
+    and in the pedagogical visualizations by Andrew Hamilton at the University of Colorado
+    <sup><a href="#ref-hamilton-inside">[30]</a></sup>. The qualitative appearance — a narrowing
+    window of the external universe surrounded by darkness — matches the NASA Goddard
+    visualization <sup><a href="#ref-nasa-plunge">[31]</a></sup> and the analytical expectations from
+    Chandrasekhar's <em>Mathematical Theory of Black Holes</em>
+    <sup><a href="#ref-chandrasekhar">[28]</a></sup>.
+</div>
+
+<!-- ============================================================ -->
+<!-- 20. CINEMATIC SPEED -->
+<!-- ============================================================ -->
+
+<h2 id="sec-cinematic-speed">20. Cinematic Auto-Speed Envelope</h2>
+
+<p>
+    In a real free-fall, the observer accelerates continuously and crosses the most visually
+    interesting regions (the photon sphere and the event horizon) in a tiny fraction of the
+    total infall time. To give users time to appreciate these regions, the simulation offers
+    an <strong>auto-speed ("cinematic") mode</strong> that varies the playback rate as a
+    function of the observer's radial position.
+</p>
+
+<h3>Speed envelope function</h3>
+<p>
+    The effective playback speed is multiplied by a position-dependent factor:
+</p>
+<div class="eq">
+    <em>f</em>(<em>r</em>) =
+    (1 + <em>f</em><sub>far</sub>) / (1 + <em>f</em><sub>photon</sub> + <em>f</em><sub>horizon</sub>)
+</div>
+<p>where:</p>
+<div class="eq">
+    <em>f</em><sub>far</sub> = 2 &middot; max(<em>r</em> &minus; 3, 0) / 7
+    &nbsp;&nbsp;&nbsp;(speed-up far from hole)
+    <br>
+    <em>f</em><sub>photon</sub> = 3 &middot; exp(&minus;[(<em>r</em> &minus; 1.5)/0.30]&sup2;)
+    &nbsp;&nbsp;&nbsp;(slow near photon sphere)
+    <br>
+    <em>f</em><sub>horizon</sub> = 5 &middot; exp(&minus;[(<em>r</em> &minus; 1.0)/0.22]&sup2;)
+    &nbsp;&nbsp;&nbsp;(slow near horizon)
+</div>
+
+<table>
+    <tr><th>Region</th><th><em>r</em> / <em>r<sub>s</sub></em></th><th>Approximate <em>f</em></th><th>Effect</th></tr>
+    <tr><td>Far approach</td><td>&gt; 5</td><td>~1.6</td><td>Fast-forward through uneventful space</td></tr>
+    <tr><td>Near field</td><td>3 &ndash; 2</td><td>~1.0</td><td>Normal playback</td></tr>
+    <tr><td>Photon sphere</td><td>&sim;1.5</td><td>~0.25</td><td>4&times; slow-motion at peak lensing</td></tr>
+    <tr><td>Between photon sphere &amp; horizon</td><td>1.2</td><td>~0.6</td><td>Moderate slow-down</td></tr>
+    <tr><td>Event horizon</td><td>&sim;1.0</td><td>~0.17</td><td>6&times; slow-motion at horizon crossing</td></tr>
+    <tr><td>Deep interior</td><td>&lt; 0.5</td><td>~1.0</td><td>Returns to normal speed</td></tr>
+</table>
+
+<p>
+    The Gaussian shape of the slow-down factors is chosen so that the transitions are smooth
+    and continuous, with no abrupt speed changes. The photon sphere slow-down (width &sigma; = 0.30)
+    is broader than the horizon slow-down (&sigma; = 0.22) because the photon sphere's lensing
+    effects are visible over a wider range of radii.
+</p>
+
+<div class="note">
+    <strong>Physics rationale:</strong> The photon sphere (<em>r</em> = 1.5 <em>r<sub>s</sub></em>) is
+    where light can orbit the black hole, producing the most dramatic lensing —
+    higher-order Einstein rings and extreme magnification of the background sky.
+    The event horizon (<em>r</em> = <em>r<sub>s</sub></em>) is where the transition to the
+    interior regime occurs, with the sky window beginning its collapse.
+    Both are brief events in proper time but visually rich, motivating the slow-down.
+</div>
+
+<!-- ============================================================ -->
+<!-- 21. COMPARISON WITH REALITY -->
+<!-- ============================================================ -->
+
+<h2 id="sec-comparison">21. Comparison with Reality</h2>
 
 <h3>What the simulation gets right</h3>
 
@@ -1220,6 +1563,25 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
         <td>Observer time dilation (circular orbit)</td>
         <td>&radic;(1 − 3/(2r))</td>
         <td>Exact for Schwarzschild<sup><a href="#ref-mtw">[1]</a></sup></td>
+        <td><strong>Exact</strong></td>
+    </tr>
+    <tr>
+        <td>Interior escape classification</td>
+        <td>Binet conserved energy vs. E<sub>crit</sub> = 4/27</td>
+        <td>Effective potential analysis<sup><a href="#ref-chandrasekhar">[28]</a></sup></td>
+        <td><strong>Exact</strong></td>
+    </tr>
+    <tr>
+        <td>Shrinking sky window (interior)</td>
+        <td>Emerges from escape classification</td>
+        <td>Hamilton &amp; Lisle (2008)<sup><a href="#ref-hamilton-falling">[29]</a></sup>,
+            NASA visualization<sup><a href="#ref-nasa-plunge">[31]</a></sup></td>
+        <td><strong>Exact</strong></td>
+    </tr>
+    <tr>
+        <td>Radial free-fall trajectory</td>
+        <td>dr/d&tau; = &minus;&radic;(1/r), RK2 integration</td>
+        <td>Exact Schwarzschild result<sup><a href="#ref-wiki-freefall">[32]</a></sup></td>
         <td><strong>Exact</strong></td>
     </tr>
 </table>
@@ -1335,10 +1697,10 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 </ul>
 
 <!-- ============================================================ -->
-<!-- 19. KNOWN LIMITATIONS -->
+<!-- 22. KNOWN LIMITATIONS -->
 <!-- ============================================================ -->
 
-<h2 id="sec-limitations">19. Known Limitations &amp; Approximations</h2>
+<h2 id="sec-limitations">22. Known Limitations &amp; Approximations</h2>
 
 <ul>
     <li><strong>No self-consistent Kerr geodesics:</strong> The frame-dragging is a perturbative addition to
@@ -1359,13 +1721,21 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     <li><strong>No gravitational waves:</strong> The spacetime is static (or stationary for Kerr);
         there is no dynamical spacetime evolution.</li>
     <li><strong>Single black hole:</strong> No binary or multi-body spacetimes.</li>
+    <li><strong>No tidal effects in interior:</strong> The dive mode treats the observer as a point
+        particle; no tidal deformation (spaghettification) of the camera frame is modeled.</li>
+    <li><strong>No Penrose diagram mapping:</strong> The interior rendering uses the same
+        Schwarzschild coordinate Binet equation; it does not implement Kruskal–Szekeres or
+        Eddington–Finkelstein coordinates, so the coordinate singularity at the horizon
+        is handled by an abrupt switch rather than a smooth transition.</li>
+    <li><strong>Cinematic speed is artistic:</strong> The auto-speed envelope (Section 20) is
+        a user-experience choice, not a physical model — real free-fall has no variable speed.</li>
 </ul>
 
 <!-- ============================================================ -->
-<!-- 20. REFERENCES -->
+<!-- 23. REFERENCES -->
 <!-- ============================================================ -->
 
-<h2 id="sec-references">20. References</h2>
+<h2 id="sec-references">23. References</h2>
 
 <ol class="references">
     <li id="ref-mtw">
@@ -1548,6 +1918,44 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
         <a href="https://doi.org/10.1051/0004-6361/201936498">doi:10.1051/0004-6361/201936498</a>.
         <a href="https://arxiv.org/abs/1905.02600">arXiv:1905.02600</a>.
         — RAPTOR ray-tracing code for GRMHD jet models.
+    </li>
+    <li id="ref-chandrasekhar">
+        Chandrasekhar, S. (1983).
+        <em>The Mathematical Theory of Black Holes</em>. Oxford University Press. ISBN: 0-19-850370-9.
+        <a href="https://en.wikipedia.org/wiki/The_Mathematical_Theory_of_Black_Holes">Wikipedia</a>.
+        — Comprehensive treatment of geodesics in Schwarzschild and Kerr spacetimes, including
+        the effective potential for photon orbits and the critical impact parameter.
+    </li>
+    <li id="ref-hamilton-falling">
+        Hamilton, A. J. S. &amp; Lisle, J. P. (2008).
+        "The river model of black holes."
+        <em>American Journal of Physics</em>, 76(6), 519–532.
+        <a href="https://doi.org/10.1119/1.2830526">doi:10.1119/1.2830526</a>.
+        <a href="https://arxiv.org/abs/gr-qc/0411060">arXiv:gr-qc/0411060</a>.
+        — Describes the "river model" for visualizing black hole interiors; discusses what
+        a free-falling observer sees including the shrinking sky window.
+    </li>
+    <li id="ref-hamilton-inside">
+        Hamilton, A. J. S.
+        "Falling into a black hole."
+        JILA, University of Colorado.
+        <a href="https://jila.colorado.edu/~ajsh/insidebh/">https://jila.colorado.edu/~ajsh/insidebh/</a>.
+        — Pedagogical visualization showing the visual appearance from inside a Schwarzschild
+        black hole, including the collapsing sky window, blueshift, and appearance of the singularity.
+    </li>
+    <li id="ref-nasa-plunge">
+        Schnittman, J. D. &amp; NASA Goddard Space Flight Center (2024).
+        "NASA's Black Hole Visualization Takes Viewers Beyond the Brink."
+        <a href="https://svs.gsfc.nasa.gov/14681/">https://svs.gsfc.nasa.gov/14681/</a>.
+        <a href="https://www.youtube.com/watch?v=1_bR4wv3RRo">YouTube</a>.
+        — Full numerical ray-tracing visualization of a plunge into a supermassive black hole,
+        showing the shrinking sky porthole, blueshift of the external universe, and
+        multiple Einstein ring images from inside the horizon.
+    </li>
+    <li id="ref-wiki-freefall">
+        Wikipedia contributors. "Schwarzschild geodesics — Radial free fall."
+        <a href="https://en.wikipedia.org/wiki/Schwarzschild_geodesics#Radial_free_fall">Wikipedia</a>.
+        — Derivation of dr/dτ = −√(r<sub>s</sub>/r) for a test mass falling from rest at infinity.
     </li>
 </ol>
 

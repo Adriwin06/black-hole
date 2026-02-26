@@ -34,8 +34,11 @@ float geodesic_accel(float u, float spin_alignment) {
     // - Prograde light bends less (aligned with rotation)
     // - Retrograde light bends more (against rotation)
     // Using u³ term (1/r³ dependence) which is more physical than u⁴
+    // Cap u for the drag term — the approximation is only valid exterior;
+    // inside the horizon the u³ term would dominate and produce nonsense.
+    float u_drag = min(u, 1.2);
     float frame_drag_term = bh_rotation_enabled * bh_spin * bh_spin_strength *
-        spin_alignment * 0.8 * u*u*u;
+        spin_alignment * 0.8 * u_drag*u_drag*u_drag;
     
     return schwarzschild_accel + frame_drag_term;
 }

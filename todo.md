@@ -1,5 +1,4 @@
-- Improve performances (New WebGL 2.0, or WebGPU rewrite, or something else more optimized)
-- Improve thin and torus accretion disk models with more parameters
-- Add mass scaling
-- Add presets for different real black holes (M87, Sgr A*, Cygnus X-1, etc.) with accurate spin and temperature estimates
-- Fix jet
+- Improve performances (WebGPU rewrite, or something else more optimized)
+- Add mass scaling 
+- Add time dilation effects with comparison to a distant observer's clock
+- Fix the accretion disk not being animated sometimes (need page refresh)

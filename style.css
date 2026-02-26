@@ -92,4 +92,254 @@ a:hover {
     #effect-readout > div {
         font-size: 30px;
     }
+
+    #dive-panel {
+        right: 4px !important;
+        top: auto !important;
+        bottom: 4px;
+        width: 200px !important;
+    }
+}
+
+/* ─── Freefall Dive Panel ─────────────────────────────────────────────────── */
+
+#dive-panel {
+    position: absolute;
+    top: 2px;
+    right: 370px;
+    width: 250px;
+    background: rgba(10, 10, 14, 0.92);
+    border: 1px solid #2a2a34;
+    border-radius: 6px;
+    padding: 14px 16px 12px;
+    font-family: 'Lucida Grande', 'Segoe UI', sans-serif;
+    font-size: 11px;
+    color: #ccc;
+    z-index: 100;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.6);
+}
+
+.dive-title {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 2.5px;
+    color: #e8e8f0;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+}
+
+.dive-desc {
+    font-size: 10px;
+    color: #888;
+    line-height: 1.4;
+    margin-bottom: 12px;
+}
+
+.dive-btn {
+    display: block;
+    width: 100%;
+    padding: 8px 0;
+    border: none;
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: background 0.18s, box-shadow 0.18s, opacity 0.18s;
+    outline: none;
+}
+
+.dive-btn:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+.dive-btn-start {
+    background: linear-gradient(135deg, #1a6bff 0%, #0044cc 100%);
+    color: #fff;
+    margin-bottom: 12px;
+    box-shadow: 0 2px 8px rgba(26, 107, 255, 0.25);
+}
+
+.dive-btn-start:hover:not(:disabled) {
+    background: linear-gradient(135deg, #3380ff 0%, #0055ee 100%);
+    box-shadow: 0 2px 14px rgba(26, 107, 255, 0.4);
+}
+
+.dive-btn-reset {
+    background: #2a2a34;
+    color: #aaa;
+    margin-top: 10px;
+}
+
+.dive-btn-reset:hover:not(:disabled) {
+    background: #3a3a48;
+    color: #ddd;
+}
+
+.dive-control-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.dive-control-row label {
+    font-size: 10px;
+    color: #999;
+    white-space: nowrap;
+    min-width: 56px;
+}
+
+.dive-control-row input[type="range"] {
+    flex: 1;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: #333;
+    border-radius: 2px;
+    outline: none;
+}
+
+.dive-control-row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #5599ff;
+    cursor: pointer;
+}
+
+#dive-speed-val {
+    font-size: 10px;
+    color: #8ab4f8;
+    min-width: 28px;
+    text-align: right;
+}
+
+.dive-cinematic-row {
+    margin-top: -4px;
+    align-items: flex-start;
+}
+
+.dive-cinematic-row label {
+    padding-top: 1px;
+}
+
+.dive-cinematic-row input[type="checkbox"] {
+    margin: 0;
+    accent-color: #5599ff;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.dive-cinematic-hint {
+    font-size: 9px;
+    color: #666;
+    line-height: 1.3;
+}
+
+/* Horizon proximity bar */
+.dive-horizon-track {
+    position: relative;
+    height: 6px;
+    background: #1a1a22;
+    border-radius: 3px;
+    margin-bottom: 8px;
+    overflow: hidden;
+    border: 1px solid #2a2a34;
+    cursor: pointer;
+}
+
+.dive-horizon-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.12s ease-out, background 0.4s;
+    width: 0%;
+}
+
+.dive-horizon-fill.outside {
+    background: linear-gradient(90deg, #1a6bff, #4499ff);
+}
+
+.dive-horizon-fill.inside {
+    background: linear-gradient(90deg, #ff4444, #ff8800, #ffcc00);
+}
+
+.dive-horizon-label {
+    position: absolute;
+    top: -15px;
+    right: 0;
+    font-size: 9px;
+    color: #555;
+    letter-spacing: 0.5px;
+}
+
+.dive-readout {
+    background: #111118;
+    border: 1px solid #222230;
+    border-radius: 4px;
+    padding: 8px 10px;
+    margin-bottom: 4px;
+}
+
+.dive-metric {
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    color: #c0d8ff;
+    line-height: 1.6;
+}
+
+.dive-status {
+    font-size: 11px;
+    font-weight: 600;
+    margin-top: 4px;
+    padding: 3px 0;
+    letter-spacing: 0.5px;
+}
+
+.dive-status.ready { color: #6688aa; }
+.dive-status.approaching { color: #5599ff; }
+.dive-status.near-horizon { color: #ff9900; animation: pulse-glow 1s infinite; }
+.dive-status.inside { color: #ff4444; animation: pulse-glow 0.7s infinite; }
+.dive-status.deep { color: #ff2200; animation: pulse-glow 0.4s infinite; }
+.dive-status.paused { color: #aaaaaa; }
+.dive-status.singularity { color: #ffcc00; }
+
+@keyframes pulse-glow {
+    0%, 100% { opacity: 1.0; }
+    50% { opacity: 0.55; }
+}
+
+/* Fade-to-black overlay for deep interior */
+#dive-fade-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: black;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 90;
+    transition: opacity 0.5s ease;
+}
+
+/* 3-D axes orientation gizmo */
+#axes-gizmo-container {
+    position: fixed;
+    bottom: 80px;
+    left: 10px;
+    width: 80px;
+    height: 80px;
+    z-index: 50;
+    pointer-events: none;
+}
+
+#axes-gizmo {
+    width: 80px;
+    height: 80px;
 }

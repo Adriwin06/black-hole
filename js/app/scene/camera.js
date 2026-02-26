@@ -47,6 +47,23 @@ function updateCamera( event ) {
 
         observer.orientation = observer.orbitalFrame().multiply(camera_matrix);
 
+    } else if (diveState && diveState.active) {
+        // Dive frame: inward direction in column 1 → cam_z (look direction)
+        // through the y/z swap, matching how orbitalFrame places orbital_y
+        // (the look direction) in column 1.
+        // Use a fresh matrix for orbit-control rotation to avoid stale refs.
+        var orbitRot = new THREE.Matrix3();
+        orbitRot.set(m[0], m[1], m[2], m[8], m[9], m[10], m[4], m[5], m[6]);
+
+        var inward = diveState.direction.clone().negate();
+        var up_hint = Math.abs(inward.z) < 0.99
+            ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(0, 1, 0);
+        var right = (new THREE.Vector3()).crossVectors(inward, up_hint).normalize();
+        var up = (new THREE.Vector3()).crossVectors(right, inward).normalize();
+
+        var diveFrame = (new THREE.Matrix4()).makeBasis(right, inward, up).linearPart();
+        observer.orientation = diveFrame.multiply(orbitRot);
+        shader.needsUpdate = true;
     } else {
 
         var p = new THREE.Vector3(

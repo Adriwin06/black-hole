@@ -34,6 +34,8 @@ uniform vec3 cam_z;
 uniform vec3 cam_vel;
 uniform vec2 cam_pan;
 
+uniform float interior_mode; // 0.0 = exterior (capture at horizon), 1.0 = interior (trace past horizon)
+
 uniform float planet_distance, planet_radius;
 uniform float disk_temperature;
 uniform float bh_spin, bh_spin_strength, bh_rotation_enabled;

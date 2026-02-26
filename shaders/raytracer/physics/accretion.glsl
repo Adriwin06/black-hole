@@ -47,8 +47,15 @@ float accretion_temperature(float radius) {
 }
 
 float gravitational_shift(float emission_radius) {
-    float observer_term = max(1.0 - 1.0 / max(length(cam_pos), 1.0001), 0.0001);
-    float emission_term = max(1.0 - 1.0 / max(emission_radius, 1.0001), 0.0001);
+    // For an observer inside the event horizon (free-falling), the Schwarzschild
+    // metric component (1 - r_s/r) is negative.  Rather than the divergent
+    // static-frame formula, use the Doppler factor a Painlevé observer would
+    // measure: g_eff ≈ sqrt(|1 - r_s/r_emit|) / max(sqrt(|1 - r_s/r_obs|), cap).
+    // The cam_vel aberration (applied elsewhere) already accounts for the
+    // dominant kinematic blueshift of the free-falling frame.
+    float r_obs = max(length(cam_pos), 0.05);
+    float observer_term = max(abs(1.0 - 1.0 / r_obs), 0.001);
+    float emission_term = max(abs(1.0 - 1.0 / max(emission_radius, 1.0001)), 0.0001);
     return sqrt(emission_term / observer_term);
 }
 

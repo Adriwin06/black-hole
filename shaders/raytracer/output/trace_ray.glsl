@@ -45,12 +45,35 @@ vec4 trace_ray(vec3 ray) {
     float u0 = u;
 
     vec3 normal_vec = normalize(pos);
-    vec3 tangent_vec = normalize(cross(cross(normal_vec, ray), normal_vec));
+    // Tangential component of ray (perpendicular to radial direction).
+    // For near-radial rays the cross product is tiny → degenerate tangent_vec.
+    // Guard with a fallback perpendicular direction.
+    vec3 ray_perp = cross(cross(normal_vec, ray), normal_vec);
+    float ray_perp_len = length(ray_perp);
+    vec3 tangent_vec;
+    if (ray_perp_len > 1e-6) {
+        tangent_vec = ray_perp / ray_perp_len;
+    } else {
+        // Purely radial ray — pick an arbitrary perpendicular direction
+        tangent_vec = abs(normal_vec.y) < 0.9
+            ? normalize(cross(normal_vec, vec3(0.0, 1.0, 0.0)))
+            : normalize(cross(normal_vec, vec3(1.0, 0.0, 0.0)));
+        ray_perp_len = 1e-6;
+    }
     vec3 spin_axis = vec3(0.0, 0.0, 1.0);
     float spin_alignment = clamp(dot(safe_normalize(cross(pos, ray)), spin_axis), -1.0, 1.0);
     float frame_drag_phase = 0.0;
 
-    float du = -dot(ray,normal_vec) / dot(ray,tangent_vec) * u;
+    // du/dφ: rate of inverse-radius change per orbit angle.
+    // For near-radial rays (small tangential component), du is large but finite.
+    float dot_tang = dot(ray, tangent_vec);
+    float du = (abs(dot_tang) > 1e-6)
+        ? -dot(ray, normal_vec) / dot_tang * u
+        : -sign(dot(ray, normal_vec)) * u * 200.0; // nearly radial — large du
+    // Clamp: ±200 keeps near-radial rays integrable while covering all
+    // physically relevant escape trajectories from inside the horizon.
+    // (Critical du for escape ≈ sqrt(2|u²-u³|) which is ~124 at u=20.)
+    du = clamp(du, -200.0, 200.0);
     float du0 = du;
 
     float phi = 0.0;
@@ -66,14 +89,46 @@ vec4 trace_ray(vec3 ray) {
 
     vec3 old_pos = pos;
 
+    // ── Interior mode: analytical escape classification ─────────────────
+    // The Binet conserved energy E = (du/dφ)² + u² − u³ determines escape.
+    // Potential barrier maximum at u = 2/3 (photon sphere): E_crit = 4/27.
+    //   • du ≥ 0  (inward ray)           → always captured (singularity)
+    //   • du < 0  and  E ≤ 4/27          → reflected by barrier → captured
+    //   • du < 0  and  E > 4/27          → escapes through horizon
+    // Pre-classifying captured rays avoids wasting integration steps on
+    // rays that can never escape, completely eliminating the numerical
+    // artefacts that produced the blue-blob rendering.
+    if (interior_mode > 0.5) {
+        if (du >= 0.0) {
+            shadow_capture = true;  // inward → singularity
+        } else {
+            float E_binet = du*du + u*u*(1.0 - u);
+            if (E_binet <= 4.0/27.0) {
+                shadow_capture = true;  // not enough energy to escape
+            }
+        }
+    }
+
     for (int j=0; j < NSTEPS; j++) {
+        if (shadow_capture) break;  // pre-classified capture → skip loop
         {{#kerr_fast_mode}}
         step = MAX_REVOLUTIONS * 2.0*M_PI / float(NSTEPS);
 
         // adaptive step size based on rate of change
-        float max_rel_u_change = (1.0-log(max(u, 0.0001)))*10.0 / float(NSTEPS);
-        if ((du > 0.0 || (du0 < 0.0 && u0/u < 5.0)) && abs(du) > abs(max_rel_u_change*u) / step) {
-            step = max_rel_u_change*u/abs(du);
+        float max_rel_u_change = max(1.0-log(max(u, 0.0001)), 0.05)*10.0 / float(NSTEPS);
+        // Interior mode: always apply adaptive stepping (the exterior
+        // condition u0/u<5 breaks down when u0>>1).  Also scale the
+        // allowed change with depth so rays can traverse the large
+        // u-range without exhausting the step budget.
+        if (interior_mode > 0.5) {
+            max_rel_u_change *= 3.0 + 2.0 * max(u - 1.0, 0.0);
+            if (abs(du) > abs(max_rel_u_change*u) / step) {
+                step = max_rel_u_change*u/abs(du);
+            }
+        } else {
+            if ((du > 0.0 || (du0 < 0.0 && u0/u < 5.0)) && abs(du) > abs(max_rel_u_change*u) / step) {
+                step = max_rel_u_change*u/abs(du);
+            }
         }
 
         // Additional step refinement near photon sphere (u ≈ 0.667 for r = 1.5)
@@ -81,20 +136,41 @@ vec4 trace_ray(vec3 ray) {
         float photon_sphere_proximity = exp(-12.0 * (u - u_photon_sphere) * (u - u_photon_sphere));
         step *= 1.0 - 0.7 * photon_sphere_proximity;
 
+        // Interior mode: refine steps crossing the horizon (u ≈ 1) for stability
+        if (interior_mode > 0.5) {
+            float horizon_proximity = exp(-8.0 * (u - 1.0) * (u - 1.0));
+            step *= 1.0 - 0.6 * horizon_proximity;
+            // Floor: prevent step from becoming too tiny
+            step = max(step, 0.5 * M_PI / float(NSTEPS));
+        }
+
         old_u = u;
 
         {{#light_travel_time}}
         {{#gravitational_time_dilation}}
-        dt = sqrt(du*du + u*u*(1.0-u))/(u*u*(1.0-u))*step;
+        dt = sqrt(max(du*du + u*u*(1.0-u), 0.0001))/max(abs(u*u*(1.0-u)), 0.0001)*step;
         {{/gravitational_time_dilation}}
         {{/light_travel_time}}
 
         integrate_geodesic_step(u, du, step, spin_alignment);
 
-        if (u < 0.0) break;
-        if (u >= 1.0) {
-            shadow_capture = true;
+        // u < 0 is non-physical.  In exterior it means the ray escaped;
+        // in interior it is a numerical artefact → treat as black.
+        if (u < 0.0) {
+            if (interior_mode > 0.5) shadow_capture = true;
             break;
+        }
+        // Interior mode: trace past horizon, stop only at singularity
+        if (interior_mode < 0.5) {
+            if (u >= 1.0) {
+                shadow_capture = true;
+                break;
+            }
+        } else {
+            if (u >= 20.0) {
+                shadow_capture = true;
+                break;
+            }
         }
 
         phi += step;
@@ -116,9 +192,16 @@ vec4 trace_ray(vec3 ray) {
         step = MAX_REVOLUTIONS * 2.0*M_PI / float(NSTEPS);
 
         // adaptive step size based on rate of change
-        float max_rel_u_change_fc = (1.0-log(max(u, 0.0001)))*10.0 / float(NSTEPS);
-        if ((du > 0.0 || (du0 < 0.0 && u0/u < 5.0)) && abs(du) > abs(max_rel_u_change_fc*u) / step) {
-            step = max_rel_u_change_fc*u/abs(du);
+        float max_rel_u_change_fc = max(1.0-log(max(u, 0.0001)), 0.05)*10.0 / float(NSTEPS);
+        if (interior_mode > 0.5) {
+            max_rel_u_change_fc *= 3.0 + 2.0 * max(u - 1.0, 0.0);
+            if (abs(du) > abs(max_rel_u_change_fc*u) / step) {
+                step = max_rel_u_change_fc*u/abs(du);
+            }
+        } else {
+            if ((du > 0.0 || (du0 < 0.0 && u0/u < 5.0)) && abs(du) > abs(max_rel_u_change_fc*u) / step) {
+                step = max_rel_u_change_fc*u/abs(du);
+            }
         }
 
         // Additional step refinement near photon sphere (u ≈ 0.667 for r = 1.5)
@@ -126,20 +209,38 @@ vec4 trace_ray(vec3 ray) {
         float photon_sphere_proximity_fc = exp(-12.0 * (u - u_photon_sphere_fc) * (u - u_photon_sphere_fc));
         step *= 1.0 - 0.7 * photon_sphere_proximity_fc;
 
+        // Interior mode: refine steps crossing the horizon (u ≈ 1)
+        if (interior_mode > 0.5) {
+            float horizon_proximity_fc = exp(-8.0 * (u - 1.0) * (u - 1.0));
+            step *= 1.0 - 0.6 * horizon_proximity_fc;
+            step = max(step, 0.5 * M_PI / float(NSTEPS));
+        }
+
         old_u = u;
 
         {{#light_travel_time}}
         {{#gravitational_time_dilation}}
-        dt = sqrt(du*du + u*u*(1.0-u))/(u*u*(1.0-u))*step;
+        dt = sqrt(max(du*du + u*u*(1.0-u), 0.0001))/max(abs(u*u*(1.0-u)), 0.0001)*step;
         {{/gravitational_time_dilation}}
         {{/light_travel_time}}
 
         integrate_geodesic_step(u, du, step, spin_alignment);
 
-        if (u < 0.0) break;
-        if (u >= 1.0) {
-            shadow_capture = true;
+        if (u < 0.0) {
+            if (interior_mode > 0.5) shadow_capture = true;
             break;
+        }
+        // Interior mode: trace past horizon, stop only at singularity
+        if (interior_mode < 0.5) {
+            if (u >= 1.0) {
+                shadow_capture = true;
+                break;
+            }
+        } else {
+            if (u >= 20.0) {
+                shadow_capture = true;
+                break;
+            }
         }
 
         phi += step;
@@ -508,27 +609,62 @@ vec4 trace_ray(vec3 ray) {
         t -= dt;
         {{/light_travel_time}}
 
-        if (solid_isec_t <= 1.0) u = 2.0; // break
+        if (solid_isec_t <= 1.0) u = 100.0; // break (exceeds both exterior and interior thresholds)
 
         {{#kerr_fast_mode}}
-        float capture_u = 1.0 + bh_rotation_enabled * bh_spin * bh_spin_strength *
-            spin_alignment * 0.12;
-        capture_u = clamp(capture_u, 0.82, 1.18);
-        if (u > capture_u) {
+        if (interior_mode < 0.5) {
+            float capture_u = 1.0 + bh_rotation_enabled * bh_spin * bh_spin_strength *
+                spin_alignment * 0.12;
+            capture_u = clamp(capture_u, 0.82, 1.18);
+            if (u > capture_u) {
+                shadow_capture = true;
+                break;
+            }
+        } else if (u >= 20.0) {
             shadow_capture = true;
             break;
         }
         {{/kerr_fast_mode}}
         {{#kerr_full_core}}
-        // Realtime Kerr: capture at horizon (u >= 1.0 already handled above)
+        // Realtime Kerr: capture at horizon or singularity
+        if (interior_mode > 0.5 && u >= 20.0) {
+            shadow_capture = true;
+            break;
+        }
         {{/kerr_full_core}}
     }
 
-    // the event horizon is at u = 1
+    // Background sky: show for rays that escaped to far field.
+    // Interior escaped rays use analytical exit direction (Binet tangent)
+    // which avoids the numerical drift of pos − old_pos over many steps.
     if (!shadow_capture && u < 1.0) {
-        ray = normalize(pos - old_pos);
+
+        if (interior_mode > 0.5) {
+            // Analytical exit direction from the Binet parametrisation:
+            //   d(pos)/dφ  =  φ̂/u  −  r̂·(du/u²)
+            // where r̂ and φ̂ are the radial and tangential unit vectors
+            // rotated to the current orbit angle φ.
+            vec3 r_hat  = cos(phi)*normal_vec + sin(phi)*tangent_vec;
+            vec3 phi_hat = -sin(phi)*normal_vec + cos(phi)*tangent_vec;
+            vec3 exit_dir = phi_hat / max(u, 0.001)
+                          - r_hat  * du / max(u*u, 0.001);
+            exit_dir = rotate_about_z(exit_dir, frame_drag_phase);
+            ray = normalize(exit_dir);
+        } else {
+            ray = normalize(pos - old_pos);
+        }
+
         vec2 tex_coord = sphere_map(ray * BG_COORDS);
         float t_coord;
+
+        // Interior blueshift: escaped photons gain energy climbing out
+        // of the gravitational potential well.  Boost ~ 1/√|1 − 1/r|.
+        float interior_boost = 1.0;
+        if (interior_mode > 0.5) {
+            float r_obs = max(length(cam_pos), 0.08);
+            interior_boost = 1.0 + 0.5 * sqrt(abs(1.0/r_obs - 1.0));
+            interior_boost = min(interior_boost, 4.0);
+        }
 
         vec4 star_color = texture2D(star_texture, tex_coord);
         if (star_color.r > 0.0) {
@@ -536,10 +672,10 @@ vec4 trace_ray(vec3 ray) {
                 (STAR_MAX_TEMPERATURE-STAR_MIN_TEMPERATURE) * star_color.g)
                  / ray_doppler_factor;
 
-            color += BLACK_BODY_COLOR(t_coord) * star_color.r * STAR_BRIGHTNESS * look_star_gain * vol_transmittance;
+            color += BLACK_BODY_COLOR(t_coord) * star_color.r * STAR_BRIGHTNESS * look_star_gain * vol_transmittance * interior_boost;
         }
 
-        color += galaxy_color(tex_coord, ray_doppler_factor) * GALAXY_BRIGHTNESS * look_galaxy_gain * vol_transmittance;
+        color += galaxy_color(tex_coord, ray_doppler_factor) * GALAXY_BRIGHTNESS * look_galaxy_gain * vol_transmittance * interior_boost;
     }
 
     return color*ray_intensity;
