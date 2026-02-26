@@ -560,6 +560,20 @@ function setupGUI() {
         'Realtime Kerr core': 'realtime_full_kerr_core'
     };
 
+    // ─── Real Black Hole Presets ─────────────────────────────────────────────────
+    // applyBlackHolePreset is assigned below, after visibility helpers are defined.
+    var presetObj = { preset: 'Default' };
+    var applyBlackHolePreset;
+    var presetsFolder = gui.addFolder('Black Hole Presets');
+    addControl(presetsFolder, presetObj, 'preset', {
+        name: 'preset',
+        options: ['Custom', 'Default', 'M87*', 'Sgr A*', 'Cygnus X-1', 'GRS 1915+105', 'Gargantua (Interstellar visuals)', 'Schwarzschild'],
+        onChange: function(val) { if (applyBlackHolePreset) applyBlackHolePreset(val); },
+        help: 'Load physically motivated parameters for a real black hole. Overrides all settings below. Select Custom to tweak freely.'
+    });
+    presetsFolder.open();
+    // ─────────────────────────────────────────────────────────────────────────────
+
     var renderFolder = gui.addFolder('Rendering');
     addControl(renderFolder, p, 'quality', {
         options: qualityLabels,
@@ -765,6 +779,184 @@ function setupGUI() {
         updateJetModeVisibility(p.jet.mode, val);
         updateShader();
     });
+
+    // ─── Real black hole preset data ─────────────────────────────────────────────
+    var BH_PRESETS = {
+        'Default': {
+            // Simulation defaults — use this to restore the starting configuration.
+            spin_enabled: true, spin: 0.90, spin_strength: 1.0,
+            accretion_disk: true, accretion_mode: 'thin_disk',
+            disk_temperature: 5000,
+            torus: { r0: 4.0, h_ratio: 0.45 },
+            jet: { enabled: false, mode: 'simple', half_angle: 5.0,
+                   lorentz_factor: 3.0, brightness: 1.2, length: 30.0,
+                   magnetization: 10.0, knot_spacing: 6.0, corona_brightness: 1.5 },
+            observer: { distance: 11.0 },
+            beaming: true,
+            physical_beaming: true,
+            doppler_shift: true,
+            disk_gain: 1.0,
+            glow: 0.0,
+            tonemap_mode: 1
+        },
+        'M87*': {
+            // Supermassive BH in M87 (Virgo A), M = 6.5×10⁹ M☉, first EHT image (2019).
+            // Spin: a/M ≈ 0.90 ± 0.1 (Tamburini et al. 2019, twisted photon OAM).
+            // Confirmed by Daly 2019 (outflow method): a/M = 1.00 ± 0.15.
+            // Accretion: ADAF/RIAF thick torus — low-luminosity AGN, sub-mm synchrotron.
+            // Prominent relativistic jet (HST-1, superluminal knots).
+            spin_enabled: true, spin: 0.90, spin_strength: 1.0,
+            accretion_disk: true, accretion_mode: 'thick_torus',
+            disk_temperature: 20000,
+            torus: { r0: 4.0, h_ratio: 0.45 },
+            jet: { enabled: true, mode: 'physical', half_angle: 4.0,
+                   lorentz_factor: 5.0, brightness: 1.2, length: 35.0,
+                   magnetization: 15.0, knot_spacing: 7.0, corona_brightness: 2.0 },
+            observer: { distance: 11.0 },
+            beaming: true,
+            physical_beaming: true,
+            doppler_shift: true,
+            disk_gain: 1.0,
+            glow: 0.0,
+            tonemap_mode: 1
+        },
+        'Sgr A*': {
+            // Milky Way centre SMBH, M = 4.297 ± 0.012 × 10⁶ M☉, EHT image (2022).
+            // Spin: highly debated — a* < 0.1 (Fragione & Loeb 2020) to
+            //   a* = 0.90 ± 0.06 (Daly et al. 2023). Mid-range a* ≈ 0.50 adopted.
+            // Accretion: RIAF/ADAF; quiescent low-luminosity state.
+            // No persistent jet detected observationally.
+            spin_enabled: true, spin: 0.50, spin_strength: 1.0,
+            accretion_disk: true, accretion_mode: 'thick_torus',
+            disk_temperature: 15000,
+            torus: { r0: 3.5, h_ratio: 0.50 },
+            jet: { enabled: false, mode: 'physical', half_angle: 4.0,
+                   lorentz_factor: 3.0, brightness: 0.6, length: 20.0,
+                   magnetization: 10.0, knot_spacing: 5.0, corona_brightness: 1.0 },
+            observer: { distance: 11.0 },
+            beaming: true,
+            physical_beaming: true,
+            doppler_shift: true,
+            disk_gain: 1.0,
+            glow: 0.0,
+            tonemap_mode: 1
+        },
+        'Cygnus X-1': {
+            // Stellar-mass BH X-ray binary with HDE 226868 (blue supergiant).
+            // M ≈ 21.2 M☉ (Miller-Jones et al. 2021).
+            // Spin: a/M > 0.983 at 3σ (Gou et al. 2011, continuum fitting) — capped 0.99.
+            // Accretion: geometrically thin Shakura-Sunyaev disk (soft state).
+            // Inner disk temperature ~10⁷ K (X-ray); visual proxy shown here.
+            // Microquasar with transient jets; disabled here for canonical soft state.
+            spin_enabled: true, spin: 0.99, spin_strength: 1.0,
+            accretion_disk: true, accretion_mode: 'thin_disk',
+            disk_temperature: 12000,
+            torus: { r0: 4.0, h_ratio: 0.45 },
+            jet: { enabled: false, mode: 'simple', half_angle: 5.0,
+                   lorentz_factor: 2.0, brightness: 0.8, length: 20.0,
+                   magnetization: 10.0, knot_spacing: 6.0, corona_brightness: 1.0 },
+            observer: { distance: 8.0 },
+            beaming: true,
+            physical_beaming: true,
+            doppler_shift: true,
+            disk_gain: 1.0,
+            glow: 0.0,
+            tonemap_mode: 1
+        },
+        'GRS 1915+105': {
+            // Stellar-mass BH microquasar, M = 12.4 ± 2 M☉.
+            // First galactic object with superluminal jets (v_app ~ 1.25c).
+            // Spin: a/M > 0.98, near-extreme Kerr (McClintock et al. 2006).
+            // Rotates ≥ 950 rev/s. Super-Eddington accretion episodes → slim disk.
+            // Jets at ~0.9c; Lorentz factor Γ ≈ 2–5 (apparent superluminal).
+            spin_enabled: true, spin: 0.98, spin_strength: 1.0,
+            accretion_disk: true, accretion_mode: 'slim_disk',
+            disk_temperature: 22000,
+            torus: { r0: 4.0, h_ratio: 0.45 },
+            jet: { enabled: true, mode: 'simple', half_angle: 3.0,
+                   lorentz_factor: 4.0, brightness: 1.0, length: 25.0,
+                   magnetization: 10.0, knot_spacing: 6.0, corona_brightness: 1.5 },
+            observer: { distance: 9.0 },
+            beaming: true,
+            physical_beaming: true,
+            doppler_shift: true,
+            disk_gain: 1.0,
+            glow: 0.0,
+            tonemap_mode: 1
+        },
+        'Gargantua (Interstellar visuals)': {
+            spin_enabled: true, spin: 0.7, spin_strength: 1.0,
+            accretion_disk: true, accretion_mode: 'thin_disk',
+            disk_temperature: 5800,
+            torus: { r0: 4.0, h_ratio: 0.45 },
+            jet: { enabled: false, mode: 'simple', half_angle: 5.0,
+                   lorentz_factor: 3.0, brightness: 1.0, length: 30.0,
+                   magnetization: 10.0, knot_spacing: 6.0, corona_brightness: 1.5 },
+            observer: { distance: 11.0 },
+            beaming: false,
+            physical_beaming: false,
+            doppler_shift: false,
+            disk_gain: 2.0,
+            glow: 1.0,
+            tonemap_mode: 0
+        },
+        'Schwarzschild': {
+            // Idealised non-rotating black hole (a/M = 0).
+            // Classical textbook case: symmetric circular shadow, no frame dragging.
+            spin_enabled: false, spin: 0.0, spin_strength: 1.0,
+            accretion_disk: true, accretion_mode: 'thin_disk',
+            disk_temperature: 5000,
+            torus: { r0: 4.0, h_ratio: 0.45 },
+            jet: { enabled: false, mode: 'simple', half_angle: 5.0,
+                   lorentz_factor: 3.0, brightness: 1.0, length: 30.0,
+                   magnetization: 10.0, knot_spacing: 6.0, corona_brightness: 1.5 },
+            observer: { distance: 11.0 },
+            beaming: true,
+            physical_beaming: true,
+            doppler_shift: true,
+            disk_gain: 1.0,
+            glow: 0.0,
+            tonemap_mode: 1
+        }
+    };
+
+    applyBlackHolePreset = function(name) {
+        if (name === 'Custom') return;
+        var preset = BH_PRESETS[name];
+        if (!preset) return;
+
+        p.black_hole.spin_enabled    = preset.spin_enabled;
+        p.black_hole.spin            = preset.spin;
+        p.black_hole.spin_strength   = preset.spin_strength;
+        p.accretion_disk             = preset.accretion_disk;
+        p.accretion_mode             = preset.accretion_mode;
+        p.disk_temperature           = preset.disk_temperature;
+        p.torus.r0                   = preset.torus.r0;
+        p.torus.h_ratio              = preset.torus.h_ratio;
+        p.jet.enabled                = preset.jet.enabled;
+        p.jet.mode                   = preset.jet.mode;
+        p.jet.half_angle             = preset.jet.half_angle;
+        p.jet.lorentz_factor         = preset.jet.lorentz_factor;
+        p.jet.brightness             = preset.jet.brightness;
+        p.jet.length                 = preset.jet.length;
+        p.jet.magnetization          = preset.jet.magnetization;
+        p.jet.knot_spacing           = preset.jet.knot_spacing;
+        p.jet.corona_brightness      = preset.jet.corona_brightness;
+        p.observer.distance          = preset.observer.distance;
+        p.beaming                    = preset.beaming;
+        p.physical_beaming           = preset.physical_beaming;
+        p.doppler_shift              = preset.doppler_shift;
+        p.look.disk_gain             = preset.disk_gain;
+        p.look.glow                  = preset.glow;
+        p.look.tonemap_mode          = preset.tonemap_mode;
+
+        updateAccretionModeVisibility(p.accretion_mode);
+        updateJetModeVisibility(p.jet.mode, p.jet.enabled);
+        updateCamera();
+        updateShader();
+        refreshAllControllers();
+    };
+    // ─────────────────────────────────────────────────────────────────────────────
 
     var spinFolder = gui.addFolder('Black hole');
     addControl(spinFolder, p.black_hole, 'spin_enabled', {
