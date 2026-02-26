@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Physics of the Black Hole Simulation</title>
+    <link rel="icon" type="image/x-icon" href="/img/icons/atom_alt.png"> 
+    <!-- Icon by Freepik -->
     <style>
         :root {
             --bg: #0d1117;
@@ -460,7 +462,7 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 <p>
     with &chi; = <em>a</em>/<em>M</em> the dimensionless spin parameter, and &minus; for prograde,
     + for retrograde orbits. In the code, this is implemented in the <code>calculateISCO()</code>
-    function in <code>main.js</code>, converting from gravitational radii (<em>r<sub>g</sub></em> = <em>GM</em>/<em>c</em>&sup2;)
+    function in <code>js/app/core/renderer.js</code>, converting from gravitational radii (<em>r<sub>g</sub></em> = <em>GM</em>/<em>c</em>&sup2;)
     to Schwarzschild radii (<em>r<sub>s</sub></em> = 2<em>r<sub>g</sub></em>) with the factor 0.5.
 </p>
 

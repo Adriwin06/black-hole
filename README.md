@@ -56,14 +56,54 @@ Open `http://localhost:8000` in a modern browser (Chrome or Firefox recommended)
 
 ## Project Structure
 
+The codebase is organized into logical modules by function and responsibility.
+
+### **GLSL Shaders** (`shaders/raytracer/`)
+
 ```
-index.html                Web page and shader loading
-main.js                   Application logic, GUI, observer physics
-raytracer.glsl            GPU ray-tracer (all physics equations)
-style.css                 Styling
-three-js-monkey-patch.js  Three.js compatibility patch
-docs/physics.html         Comprehensive physics documentation
-js-libs/                  Third-party libraries (three.js, dat.GUI, etc.)
+shaders/raytracer/
+├── core/                          # Foundational definitions
+│   ├── defines.glsl              # Constants, macros, uniforms, rendering params
+│   └── math.glsl                 # Math utilities, coordinate transforms, noise
+├── physics/                       # Physics models
+│   ├── geodesics.glsl            # Kerr metric, geodesic integration
+│   ├── accretion.glsl            # Accretion disk models (thin, torus, slim)
+│   ├── jet.glsl                  # Relativistic jet models (simple, physical)
+│   ├── planet.glsl               # Planet ray-sphere intersection
+│   └── background.glsl           # Galaxy/star background rendering
+└── output/                        # Rendering pipeline
+    ├── tonemapping.glsl          # ACES, AGX, scientific tone-mappers
+    ├── trace_ray.glsl            # Core ray-marching loop
+    └── main.glsl                 # GLSL main() entry point
+```
+
+### **JavaScript Modules** (`js/app/`)
+
+```
+js/app/
+├── bootstrap.js                  # Entry point: fetches GLSL shards & textures
+├── core/                         # System core
+│   ├── observer.js               # Observer entity, orbital mechanics
+│   ├── shader.js                 # Shader class, compile-time parameters
+│   └── renderer.js               # Three.js scene, init, render loop
+├── scene/                        # Scene management
+│   └── camera.js                 # Camera initialization & updates
+├── graphics/                     # Graphics effects
+│   └── bloom.js                  # Multi-pass bloom post-processing
+└── ui/                           # User interface
+    ├── presets.js                # Black hole presets library
+    └── gui.js                    # dat.GUI panel setup
+```
+
+### **Other files**
+
+```
+index.html                        # Web page entry point
+style.css                         # Styling
+three-js-monkey-patch.js          # Three.js compatibility patch
+js-libs/                          # Third-party libraries (three.js, dat.GUI, etc.)
+docs/
+├── physics.html                  # Comprehensive physics documentation
 ```
 
 ## How It Works

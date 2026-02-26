@@ -9,16 +9,16 @@
     // Ordered list of GLSL shards — concatenated top-to-bottom to form the
     // complete fragment shader before Mustache template expansion.
     var SHADER_SHARDS = [
-        'shaders/raytracer/defines.glsl',
-        'shaders/raytracer/math.glsl',
-        'shaders/raytracer/geodesics.glsl',
-        'shaders/raytracer/accretion.glsl',
-        'shaders/raytracer/jet.glsl',
-        'shaders/raytracer/tonemapping.glsl',
-        'shaders/raytracer/planet.glsl',
-        'shaders/raytracer/background.glsl',
-        'shaders/raytracer/trace_ray.glsl',
-        'shaders/raytracer/main.glsl'
+        'shaders/raytracer/core/defines.glsl',
+        'shaders/raytracer/core/math.glsl',
+        'shaders/raytracer/physics/geodesics.glsl',
+        'shaders/raytracer/physics/accretion.glsl',
+        'shaders/raytracer/physics/jet.glsl',
+        'shaders/raytracer/output/tonemapping.glsl',
+        'shaders/raytracer/physics/planet.glsl',
+        'shaders/raytracer/physics/background.glsl',
+        'shaders/raytracer/output/trace_ray.glsl',
+        'shaders/raytracer/output/main.glsl'
     ];
 
     var textures = {};
