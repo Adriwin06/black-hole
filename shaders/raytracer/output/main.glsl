@@ -35,8 +35,9 @@ void main() {
         vec2 jitter = sample_offset(sample_index, gl_FragCoord.xy);
         vec2 p = -1.0 + 2.0 * (gl_FragCoord.xy + jitter) / resolution.xy;
         p.y *= resolution.y / resolution.x;
+        vec2 p_cam = p + cam_pan;
 
-        vec3 ray = normalize(p.x*cam_x + p.y*cam_y + FOV_MULT*cam_z);
+        vec3 ray = normalize(p_cam.x*cam_x + p_cam.y*cam_y + FOV_MULT*cam_z);
         accumulated += trace_ray(ray);
     }
 

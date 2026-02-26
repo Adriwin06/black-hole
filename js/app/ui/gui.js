@@ -630,6 +630,25 @@ function setupGUI() {
         },
         help: 'Observer distance from the black hole center in Schwarzschild-radius units.'
     });
+    var observerActions = {
+        reset_camera: function() {
+            if (cameraControls) {
+                cameraControls.reset();
+                cameraControls.target.set(0, 0, 0);
+            }
+            if (cameraPan) {
+                cameraPan.set(0, 0);
+            }
+            updateCamera();
+            shader.needsUpdate = true;
+            hint.text('Camera reset');
+            hint.stop(true, true).fadeIn(120).delay(700).fadeOut(320);
+        }
+    };
+    addControl(folder, observerActions, 'reset_camera', {
+        name: 'reset camera',
+        help: 'Reset camera pan, tilt/roll, and orbit orientation.'
+    });
     folder.open();
 
     folder = gui.addFolder('Planet');

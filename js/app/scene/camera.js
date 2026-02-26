@@ -20,6 +20,10 @@ function initializeCamera(camera) {
 
 function updateCamera( event ) {
 
+    // Keep matrices current when called from OrbitControls change events.
+    camera.updateMatrixWorld();
+    camera.matrixWorldInverse.getInverse(camera.matrixWorld);
+
     var zoom_dist = camera.position.length();
     var m = camera.matrixWorldInverse.elements;
     var camera_matrix;

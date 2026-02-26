@@ -32,6 +32,7 @@ uniform vec3 cam_x;
 uniform vec3 cam_y;
 uniform vec3 cam_z;
 uniform vec3 cam_vel;
+uniform vec2 cam_pan;
 
 uniform float planet_distance, planet_radius;
 uniform float disk_temperature;

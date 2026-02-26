@@ -15,6 +15,7 @@ var DISK_TEMPERATURE_MAX = 30000.0;
 var container, stats;
 var camera, scene, renderer, cameraControls, shader = null;
 var observer = new Observer();
+var cameraPan = new THREE.Vector2(0, 0);
 var distanceController = null;
 var refreshAllControllersGlobal = null; // Will be set in setupGUI
 var bloomPass = null;
@@ -59,6 +60,7 @@ function init(glslSource, textures) {
         cam_y: { type: "v3", value: new THREE.Vector3() },
         cam_z: { type: "v3", value: new THREE.Vector3() },
         cam_vel: { type: "v3", value: new THREE.Vector3() },
+        cam_pan: { type: "v2", value: new THREE.Vector2() },
 
         planet_distance: { type: "f" },
         planet_radius: { type: "f" },
@@ -184,6 +186,7 @@ function init(glslSource, textures) {
 
         setVec('cam_pos', observer.position);
         setVec('cam_vel', observer.velocity);
+        uniforms.cam_pan.value.set(cameraPan.x, cameraPan.y);
 
         updateEffectLabels();
     };
@@ -232,6 +235,16 @@ function init(glslSource, textures) {
     cameraControls = new THREE.OrbitControls( camera, renderer.domElement );
     cameraControls.target.set( 0, 0, 0 );
     cameraControls.enableZoom = false; // We handle zoom manually for distance sync
+    cameraControls.panCallback = function(deltaX, deltaY, width, height) {
+        var panSpeed = 0.75;
+        var maxPan = 0.45;
+        cameraPan.x -= 2.0 * deltaX / width * panSpeed;
+        cameraPan.y += 2.0 * deltaY / height * panSpeed;
+        cameraPan.x = Math.max(-maxPan, Math.min(maxPan, cameraPan.x));
+        cameraPan.y = Math.max(-maxPan, Math.min(maxPan, cameraPan.y));
+        shader.needsUpdate = true;
+        return true;
+    };
     cameraControls.addEventListener( 'change', updateCamera );
     updateCamera();
 

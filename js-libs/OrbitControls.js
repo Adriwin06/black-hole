@@ -365,6 +365,7 @@
 
 		// Mouse buttons
 		this.mouseButtons = { ORBIT: THREE.MOUSE.LEFT, ZOOM: THREE.MOUSE.MIDDLE, PAN: THREE.MOUSE.RIGHT };
+		this.panCallback = null;
 
 		////////////
 		// internals
@@ -375,6 +376,10 @@
 		var rotateEnd = new THREE.Vector2();
 		var rotateDelta = new THREE.Vector2();
 
+		var rollStart = new THREE.Vector2();
+		var rollEnd = new THREE.Vector2();
+		var rollDelta = new THREE.Vector2();
+
 		var panStart = new THREE.Vector2();
 		var panEnd = new THREE.Vector2();
 		var panDelta = new THREE.Vector2();
@@ -383,15 +388,18 @@
 		var dollyEnd = new THREE.Vector2();
 		var dollyDelta = new THREE.Vector2();
 
-		var STATE = { NONE : - 1, ROTATE : 0, DOLLY : 1, PAN : 2, TOUCH_ROTATE : 3, TOUCH_DOLLY : 4, TOUCH_PAN : 5 };
+		var STATE = { NONE : - 1, ROTATE : 0, DOLLY : 1, PAN : 2, ROLL : 3, TOUCH_ROTATE : 4, TOUCH_DOLLY : 5, TOUCH_PAN : 6 };
 
 		var state = STATE.NONE;
+		var LEFT_BUTTON_MASK = 1;
+		var RIGHT_BUTTON_MASK = 2;
 
 		// for reset
 
 		this.target0 = this.target.clone();
 		this.position0 = this.object.position.clone();
 		this.zoom0 = this.object.zoom;
+		this.up0 = this.object.up.clone();
 
 		// events
 
@@ -408,6 +416,23 @@
 			constraint.pan( deltaX, deltaY, element.clientWidth, element.clientHeight );
 
 		}
+
+		var roll = function() {
+
+			var viewDir = new THREE.Vector3();
+
+			return function roll( deltaX, screenWidth ) {
+
+				viewDir.subVectors( scope.target, scope.object.position );
+				if ( viewDir.lengthSq() === 0 ) return;
+
+				viewDir.normalize();
+				scope.object.up.applyAxisAngle( viewDir, 2 * Math.PI * deltaX / screenWidth * scope.rotateSpeed );
+				scope.object.up.normalize();
+
+			};
+
+		}();
 
 		this.update = function () {
 
@@ -432,6 +457,7 @@
 			this.target.copy( this.target0 );
 			this.object.position.copy( this.position0 );
 			this.object.zoom = this.zoom0;
+			this.object.up.copy( this.up0 );
 
 			this.object.updateProjectionMatrix();
 			this.dispatchEvent( changeEvent );
@@ -452,13 +478,40 @@
 
 		}
 
+		function hasButtonMask( event, mask ) {
+
+			if ( event.buttons === undefined ) return false;
+			return ( event.buttons & mask ) === mask;
+
+		}
+
+		function isLeftRightCombo( event ) {
+
+			return hasButtonMask( event, LEFT_BUTTON_MASK | RIGHT_BUTTON_MASK );
+
+		}
+
+		function isRightOnly( event ) {
+
+			return hasButtonMask( event, RIGHT_BUTTON_MASK ) && ! hasButtonMask( event, LEFT_BUTTON_MASK );
+
+		}
+
 		function onMouseDown( event ) {
 
 			if ( scope.enabled === false ) return;
 
 			event.preventDefault();
 
-			if ( event.button === scope.mouseButtons.ORBIT ) {
+			if ( isLeftRightCombo( event ) ) {
+
+				if ( scope.enableRotate === false ) return;
+
+				state = STATE.ROLL;
+
+				rollStart.set( event.clientX, event.clientY );
+
+			} else if ( event.button === scope.mouseButtons.ORBIT ) {
 
 				if ( scope.enableRotate === false ) return;
 
@@ -502,7 +555,43 @@
 
 			var element = scope.domElement === document ? scope.domElement.body : scope.domElement;
 
-			if ( state === STATE.ROTATE ) {
+			// Allow switching modes mid-drag based on currently pressed buttons.
+			if ( isLeftRightCombo( event ) ) {
+
+				if ( scope.enableRotate === false ) return;
+
+				if ( state !== STATE.ROLL ) {
+
+					state = STATE.ROLL;
+					rollStart.set( event.clientX, event.clientY );
+
+				}
+
+			} else if ( isRightOnly( event ) ) {
+
+				if ( scope.enablePan === false ) return;
+
+				if ( state !== STATE.PAN ) {
+
+					state = STATE.PAN;
+					panStart.set( event.clientX, event.clientY );
+
+				}
+
+			}
+
+			if ( state === STATE.ROLL ) {
+
+				if ( scope.enableRotate === false ) return;
+
+				rollEnd.set( event.clientX, event.clientY );
+				rollDelta.subVectors( rollEnd, rollStart );
+
+				roll( rollDelta.x, element.clientWidth );
+
+				rollStart.copy( rollEnd );
+
+			} else if ( state === STATE.ROTATE ) {
 
 				if ( scope.enableRotate === false ) return;
 
@@ -542,8 +631,16 @@
 
 				panEnd.set( event.clientX, event.clientY );
 				panDelta.subVectors( panEnd, panStart );
-
-				pan( panDelta.x, panDelta.y );
+				if ( scope.panCallback ) {
+					var consumed = scope.panCallback(
+						panDelta.x, panDelta.y, element.clientWidth, element.clientHeight
+					) === true;
+					if ( ! consumed ) {
+						pan( panDelta.x, panDelta.y );
+					}
+				} else {
+					pan( panDelta.x, panDelta.y );
+				}
 
 				panStart.copy( panEnd );
 
