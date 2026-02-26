@@ -47,7 +47,6 @@
         <script src="js-libs/OrbitControls.js"></script>
         <script src="js-libs/Detector.js"></script>
         <script src="js-libs/stats.min.js"></script>
-        <script src="js-libs/ShaderLoader.min.js"></script>
         <script src="js-libs/mustache.min.js"></script>
         <script src="js-libs/dat.gui.min.js"></script>
         <script src="three-js-monkey-patch.js"></script>
@@ -61,8 +60,16 @@
             }
 
         </script>
-        <script data-src="raytracer.glsl" data-name="raytracer" type="x-shader/x-fragment"></script>
-        <script src="main.js"></script>
+
+        <!-- App modules (load order matters — later files depend on earlier ones) -->
+        <script src="js/app/observer.js"></script>
+        <script src="js/app/shader.js"></script>
+        <script src="js/app/camera.js"></script>
+        <script src="js/app/bloom.js"></script>
+        <script src="js/app/presets.js"></script>
+        <script src="js/app/gui.js"></script>
+        <script src="js/app/renderer.js"></script>
+        <script src="js/app/bootstrap.js"></script>
 
     </body>
 </html>
