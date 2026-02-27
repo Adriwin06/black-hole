@@ -590,8 +590,57 @@ function onWindowResize( event ) {
     updateUniforms();
 }
 
+var lastCameraMat = new THREE.Matrix4().identity();
+
+// ─── Frame timing ─────────────────────────────────────────────────────────────
+// Always called once per RAF tick (inside animate()), never inside render().
+// Capping at MAX_FRAME_DT means a tab-switch or slow frame can never hand a
+// multi-second delta to the physics integration.
+var getFrameDuration = (function() {
+    var MAX_FRAME_DT = 0.1; // seconds — max delta per frame
+    var _now = (typeof performance !== 'undefined' && performance.now)
+        ? function() { return performance.now(); }
+        : function() { return new Date().getTime(); };
+    var lastTimestamp = _now();
+
+    function resetClock() { lastTimestamp = _now(); }
+
+    // Reset on tab-show so the first resumed frame gets ~0 dt, not accumulated time.
+    document.addEventListener('visibilitychange', function() {
+        if (!document.hidden) resetClock();
+    });
+    // Also handle bfcache page restore (navigating back/forward).
+    window.addEventListener('pageshow', function(e) {
+        if (e.persisted) resetClock();
+    });
+
+    return function() {
+        var now = _now();
+        var diff = (now - lastTimestamp) / 1000.0;
+        lastTimestamp = now;
+        return Math.min(diff, MAX_FRAME_DT);
+    };
+})();
+// ─────────────────────────────────────────────────────────────────────────────
+
 function animate() {
     requestAnimationFrame( animate );
+
+    // ── Advance simulation time unconditionally every RAF frame ───────────────
+    // This MUST happen outside the lazy-render gate so observer.time (and the
+    // shader's time uniform) always tracks real-world elapsed time, even when
+    // nothing in the scene changes visually (static camera, no orbital motion).
+    // Before this was inside render(), so hidden-tab pauses or post-dive states
+    // with hasMovingParts()==false silently froze the disk animation.
+    var dt = getFrameDuration();
+    if (diveState.active && !diveState.paused && !diveState.reachedSingularity) {
+        updateDive(dt);
+        updateCamera();
+    } else {
+        observer.move(dt);
+        if (shader.parameters.observer.motion) updateCamera();
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     camera.updateMatrixWorld();
     camera.matrixWorldInverse.getInverse( camera.matrixWorld );
@@ -606,39 +655,8 @@ function animate() {
     stats.update();
 }
 
-var lastCameraMat = new THREE.Matrix4().identity();
-
-var getFrameDuration = (function() {
-    var MAX_FRAME_DT = 0.1; // Cap at 100 ms to prevent time jumps after tab switch
-    var lastTimestamp = new Date().getTime();
-
-    // When the page becomes visible again after being hidden, reset the
-    // timestamp so the first frame doesn't get a huge accumulated delta.
-    document.addEventListener('visibilitychange', function() {
-        if (!document.hidden) {
-            lastTimestamp = new Date().getTime();
-        }
-    });
-
-    return function() {
-        var timestamp = new Date().getTime();
-        var diff = (timestamp - lastTimestamp) / 1000.0;
-        lastTimestamp = timestamp;
-        return Math.min(diff, MAX_FRAME_DT);
-    };
-})();
-
 function render() {
-    var dt = getFrameDuration();
-
-    if (diveState.active && !diveState.paused && !diveState.reachedSingularity) {
-        updateDive(dt);
-        updateCamera(); // Keep camera orientation synced
-    } else {
-        observer.move(dt);
-        if (shader.parameters.observer.motion) updateCamera();
-    }
-
+    // Time advancement has already been done in animate(); render() only draws.
     updateUniforms();
 
     if (shader.parameters.bloom.enabled && bloomPass) {

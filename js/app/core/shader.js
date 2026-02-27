@@ -101,6 +101,7 @@ function Shader(mustacheTemplate) {
 
     this.hasMovingParts = function() {
         return this.parameters.accretion_disk ||
+            this.parameters.jet.enabled ||
             this.parameters.planet.enabled || this.parameters.observer.motion ||
             (typeof diveState !== 'undefined' && diveState.active && !diveState.paused);
     };
