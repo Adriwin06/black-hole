@@ -1,4 +1,5 @@
 - Improve performances (WebGPU rewrite, or something else more optimized)
 - Add mass scaling 
 - Add time dilation effects with comparison to a distant observer's clock
-- Fix the accretion disk not being animated sometimes (need page refresh)
+- Add sound effects (gravitational waves, accretion disk noise, jet emissions)
+- Improve UI, make it more intuitive, visually appealing, and customizable

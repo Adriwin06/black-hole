@@ -100,7 +100,8 @@ function Shader(mustacheTemplate) {
     this.needsUpdate = false;
 
     this.hasMovingParts = function() {
-        return this.parameters.planet.enabled || this.parameters.observer.motion ||
+        return this.parameters.accretion_disk ||
+            this.parameters.planet.enabled || this.parameters.observer.motion ||
             (typeof diveState !== 'undefined' && diveState.active && !diveState.paused);
     };
 

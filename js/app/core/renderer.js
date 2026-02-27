@@ -609,12 +609,22 @@ function animate() {
 var lastCameraMat = new THREE.Matrix4().identity();
 
 var getFrameDuration = (function() {
+    var MAX_FRAME_DT = 0.1; // Cap at 100 ms to prevent time jumps after tab switch
     var lastTimestamp = new Date().getTime();
+
+    // When the page becomes visible again after being hidden, reset the
+    // timestamp so the first frame doesn't get a huge accumulated delta.
+    document.addEventListener('visibilitychange', function() {
+        if (!document.hidden) {
+            lastTimestamp = new Date().getTime();
+        }
+    });
+
     return function() {
         var timestamp = new Date().getTime();
         var diff = (timestamp - lastTimestamp) / 1000.0;
         lastTimestamp = timestamp;
-        return diff;
+        return Math.min(diff, MAX_FRAME_DT);
     };
 })();
 
