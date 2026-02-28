@@ -1,7 +1,8 @@
 // Role: dat.GUI configuration — builds every control panel and folder, wires up
 //       all parameter bindings, manages conditional visibility for jet / torus /
 //       planet controls, and defines applyBlackHolePreset() to bulk-apply preset
-//       data from presets.js. Must be called after init() has created the scene.
+//       data from presets.js and quality-presets.js. Must be called after init()
+//       has created the scene.
 
 function setupGUI() {
 
@@ -47,6 +48,134 @@ function setupGUI() {
         if (row) row.title = text;
     }
 
+    var blackHolePresetController = null;
+    var qualityPresetController = null;
+    var blackHoleCustomState = null;
+    var qualityCustomState = null;
+
+    function deepClonePlain(value) {
+        return JSON.parse(JSON.stringify(value));
+    }
+
+    function captureQualityPresetState() {
+        return {
+            n_steps: p.n_steps,
+            sample_count: p.sample_count,
+            max_revolutions: p.max_revolutions,
+            rk4_integration: p.rk4_integration,
+            cinematic_tonemap: p.cinematic_tonemap,
+            resolution_scale: p.resolution_scale,
+            taa_enabled: p.taa_enabled,
+            taa: deepClonePlain(p.taa)
+        };
+    }
+
+    function restoreQualityPresetState(state) {
+        if (!state) return;
+        p.n_steps = state.n_steps;
+        p.sample_count = state.sample_count;
+        p.max_revolutions = state.max_revolutions;
+        p.rk4_integration = state.rk4_integration;
+        p.cinematic_tonemap = state.cinematic_tonemap;
+        p.resolution_scale = state.resolution_scale;
+        p.taa_enabled = state.taa_enabled;
+        p.taa.history_weight = state.taa.history_weight;
+        p.taa.clip_box = state.taa.clip_box;
+        p.taa.motion_rejection = state.taa.motion_rejection;
+        p.taa.max_camera_delta = state.taa.max_camera_delta;
+        p.taa.motion_clip_scale = state.taa.motion_clip_scale;
+    }
+
+    function captureBlackHolePresetState() {
+        return {
+            black_hole: deepClonePlain(p.black_hole),
+            accretion_disk: p.accretion_disk,
+            accretion_mode: p.accretion_mode,
+            disk_temperature: p.disk_temperature,
+            torus: deepClonePlain(p.torus),
+            slim: deepClonePlain(p.slim),
+            jet: deepClonePlain(p.jet),
+            beaming: p.beaming,
+            physical_beaming: p.physical_beaming,
+            doppler_shift: p.doppler_shift,
+            look: {
+                disk_gain: p.look.disk_gain,
+                glow: p.look.glow,
+                tonemap_mode: p.look.tonemap_mode
+            },
+            bloom: deepClonePlain(p.bloom)
+        };
+    }
+
+    function restoreBlackHolePresetState(state) {
+        if (!state) return;
+        p.black_hole.spin_enabled = state.black_hole.spin_enabled;
+        p.black_hole.spin = state.black_hole.spin;
+        p.black_hole.spin_strength = state.black_hole.spin_strength;
+        p.accretion_disk = state.accretion_disk;
+        p.accretion_mode = state.accretion_mode;
+        p.disk_temperature = state.disk_temperature;
+        p.torus.r0 = state.torus.r0;
+        p.torus.h_ratio = state.torus.h_ratio;
+        p.torus.radial_falloff = state.torus.radial_falloff;
+        p.torus.opacity = state.torus.opacity;
+        p.torus.outer_radius = state.torus.outer_radius;
+        p.slim.h_ratio = state.slim.h_ratio;
+        p.slim.opacity = state.slim.opacity;
+        p.slim.puff_factor = state.slim.puff_factor;
+        p.jet.enabled = state.jet.enabled;
+        p.jet.mode = state.jet.mode;
+        p.jet.half_angle = state.jet.half_angle;
+        p.jet.lorentz_factor = state.jet.lorentz_factor;
+        p.jet.brightness = state.jet.brightness;
+        p.jet.length = state.jet.length;
+        p.jet.magnetization = state.jet.magnetization;
+        p.jet.knot_spacing = state.jet.knot_spacing;
+        p.jet.corona_brightness = state.jet.corona_brightness;
+        p.jet.base_width = state.jet.base_width;
+        p.jet.corona_extent = state.jet.corona_extent;
+        p.beaming = state.beaming;
+        p.physical_beaming = state.physical_beaming;
+        p.doppler_shift = state.doppler_shift;
+        p.look.disk_gain = state.look.disk_gain;
+        p.look.glow = state.look.glow;
+        p.look.tonemap_mode = state.look.tonemap_mode;
+        p.bloom.enabled = state.bloom.enabled;
+        p.bloom.strength = state.bloom.strength;
+        p.bloom.threshold = state.bloom.threshold;
+        p.bloom.radius = state.bloom.radius;
+    }
+
+    function markBlackHolePresetCustom() {
+        blackHoleCustomState = captureBlackHolePresetState();
+        if (typeof presetObj !== 'undefined' && presetObj.preset !== 'Custom') {
+            presetObj.preset = 'Custom';
+            if (blackHolePresetController) blackHolePresetController.updateDisplay();
+        }
+    }
+
+    function markQualityPresetCustom() {
+        qualityCustomState = captureQualityPresetState();
+        if (p.quality !== 'custom') {
+            p.quality = 'custom';
+            if (qualityPresetController) qualityPresetController.updateDisplay();
+        }
+    }
+
+    function withBlackHolePresetTracking(handler) {
+        return function() {
+            markBlackHolePresetCustom();
+            if (handler) return handler.apply(this, arguments);
+        };
+    }
+
+    function withQualityPresetTracking(handler) {
+        return function() {
+            markQualityPresetCustom();
+            if (handler) return handler.apply(this, arguments);
+        };
+    }
+
     function addControl(folder, obj, key, cfg) {
         cfg = cfg || {};
         var c;
@@ -59,7 +188,10 @@ function setupGUI() {
         if (cfg.max !== undefined) c = c.max(cfg.max) || c;
         if (cfg.step !== undefined) c = c.step(cfg.step) || c;
         if (cfg.name) c = c.name(cfg.name) || c;
-        if (cfg.onChange) c = c.onChange(cfg.onChange) || c;
+        var onChange = cfg.onChange;
+        if (cfg.trackBlackHolePreset) onChange = withBlackHolePresetTracking(onChange);
+        if (cfg.trackQualityPreset) onChange = withQualityPresetTracking(onChange);
+        if (onChange) c = c.onChange(onChange) || c;
         if (cfg.help) addHelpText(c, cfg.help);
         if (cfg.className) setGuiRowClass(c, cfg.className);
         return c;
@@ -90,97 +222,34 @@ function setupGUI() {
     }
 
     function applyQualityPresetInternal(value) {
-        var isKerr = (p.kerr_mode === 'realtime_full_kerr_core');
         $('.planet-controls').show();
 
-        switch(value) {
-        case 'fast':
-            if (isKerr) {
-                // Kerr mode needs more steps for accuracy, but still faster preset
-                p.n_steps = 200;
-                p.sample_count = 2;
-                p.max_revolutions = 2.5;
-                p.rk4_integration = true;
-            } else {
-                p.n_steps = 40;
-                p.sample_count = 1;
-                p.max_revolutions = 1.5;
-                p.rk4_integration = false;
+        if (value === 'custom') {
+            restoreQualityPresetState(qualityCustomState);
+        } else {
+            var preset = QUALITY_PRESETS[value];
+            if (!preset) return;
+
+            var isKerr = (p.kerr_mode === 'realtime_full_kerr_core');
+            var modeValues = isKerr ? preset.kerr : preset.standard;
+            if (!modeValues) return;
+
+            p.n_steps = modeValues.n_steps;
+            p.sample_count = modeValues.sample_count;
+            p.max_revolutions = modeValues.max_revolutions;
+            p.rk4_integration = modeValues.rk4_integration;
+            p.cinematic_tonemap = preset.cinematic_tonemap;
+            p.resolution_scale = preset.resolution_scale;
+            p.taa_enabled = preset.taa_enabled;
+            p.taa.history_weight = preset.taa.history_weight;
+            p.taa.clip_box = preset.taa.clip_box;
+            p.taa.motion_rejection = preset.taa.motion_rejection;
+            p.taa.max_camera_delta = preset.taa.max_camera_delta;
+            p.taa.motion_clip_scale = preset.taa.motion_clip_scale;
+
+            if (preset.hide_planet_controls) {
+                $('.planet-controls').hide();
             }
-            p.cinematic_tonemap = true;
-            $('.planet-controls').hide();
-            p.resolution_scale = 1.0;
-            p.taa_enabled = false;
-            p.taa.history_weight = 0.88;
-            p.taa.clip_box = 0.06;
-            p.taa.motion_rejection = 8.0;
-            p.taa.max_camera_delta = 0.08;
-            p.taa.motion_clip_scale = 0.6;
-            break;
-        case 'medium':
-            if (isKerr) {
-                p.n_steps = 400;
-                p.sample_count = 3;
-                p.max_revolutions = 3.0;
-                p.rk4_integration = true;
-            } else {
-                p.n_steps = 100;
-                p.sample_count = 1;
-                p.max_revolutions = 2.0;
-                p.rk4_integration = false;
-            }
-            p.cinematic_tonemap = true;
-            p.resolution_scale = 1.0;
-            p.taa_enabled = false;
-            p.taa.history_weight = 0.88;
-            p.taa.clip_box = 0.06;
-            p.taa.motion_rejection = 8.0;
-            p.taa.max_camera_delta = 0.08;
-            p.taa.motion_clip_scale = 0.6;
-            break;
-        case 'high':
-            if (isKerr) {
-                p.n_steps = 520;
-                p.sample_count = 4;
-                p.max_revolutions = 3.5;
-                p.rk4_integration = true;
-            } else {
-                p.n_steps = 320;
-                p.sample_count = 4;
-                p.max_revolutions = 3.2;
-                p.rk4_integration = true;
-            }
-            p.cinematic_tonemap = true;
-            p.resolution_scale = 1.0;
-            p.taa_enabled = false;
-            p.taa.history_weight = 0.88;
-            p.taa.clip_box = 0.06;
-            p.taa.motion_rejection = 8.0;
-            p.taa.max_camera_delta = 0.08;
-            p.taa.motion_clip_scale = 0.6;
-            break;
-        case 'mobile':
-            if (isKerr) {
-                p.n_steps = 120;
-                p.sample_count = 1;
-                p.max_revolutions = 2.0;
-                p.rk4_integration = false;
-            } else {
-                p.n_steps = 28;
-                p.sample_count = 1;
-                p.max_revolutions = 1.4;
-                p.rk4_integration = false;
-            }
-            p.cinematic_tonemap = true;
-            p.resolution_scale = 0.55;
-            p.taa_enabled = true;
-            p.taa.history_weight = 0.82;
-            p.taa.clip_box = 0.08;
-            p.taa.motion_rejection = 10.0;
-            p.taa.max_camera_delta = 0.07;
-            p.taa.motion_clip_scale = 0.8;
-            $('.planet-controls').hide();
-            break;
         }
 
         if (typeof applyRenderScaleFromSettings === 'function') {
@@ -196,26 +265,17 @@ function setupGUI() {
 
     function applyQualityPreset(value) {
         applyQualityPresetInternal(value);
+        if (value === 'custom') {
+            qualityCustomState = captureQualityPresetState();
+        }
     }
-
-    var qualityLabels = {
-        'Fast (preview)': 'fast',
-        'Medium': 'medium',
-        'High': 'high',
-        'Mobile (low power)': 'mobile'
-    };
-
-    var kerrModeLabels = {
-        'Fast (approximate lensing)': 'fast',
-        'Realtime Kerr core': 'realtime_full_kerr_core'
-    };
 
     // ─── Real Black Hole Presets ─────────────────────────────────────────────────
     // applyBlackHolePreset is assigned below, after visibility helpers are defined.
     var presetObj = { preset: 'Default' };
     var applyBlackHolePreset;
     var presetsFolder = gui.addFolder('Black Hole Presets');
-    addControl(presetsFolder, presetObj, 'preset', {
+    blackHolePresetController = addControl(presetsFolder, presetObj, 'preset', {
         name: 'preset',
         options: ['Custom', 'Default', 'M87*', 'Sgr A*', 'Cygnus X-1', 'GRS 1915+105', 'Gargantua (Interstellar visuals)', 'Schwarzschild'],
         onChange: function(val) { if (applyBlackHolePreset) applyBlackHolePreset(val); },
@@ -225,14 +285,14 @@ function setupGUI() {
     // ─────────────────────────────────────────────────────────────────────────────
 
     var renderFolder = gui.addFolder('Rendering');
-    addControl(renderFolder, p, 'quality', {
-        options: qualityLabels,
+    qualityPresetController = addControl(renderFolder, p, 'quality', {
+        options: QUALITY_PRESET_LABELS,
         name: 'quality preset',
         onChange: applyQualityPreset,
-        help: 'Global render preset. High preset uses more ray-marching steps and samples.'
+        help: 'Global render preset. Higher presets use more ray-marching steps and samples.'
     });
     addControl(renderFolder, p, 'kerr_mode', {
-        options: kerrModeLabels,
+        options: KERR_MODE_LABELS,
         name: 'solver mode',
         onChange: applyKerrMode,
         help: 'Fast = fastest approximate. Realtime Kerr core = accurate full GR with good performance.'
@@ -243,6 +303,7 @@ function setupGUI() {
         max: 1400,
         step: 1,
         name: 'ray steps',
+        trackQualityPreset: true,
         onChange: updateShader,
         help: 'More steps improve thin features and strong lensing, but reduce FPS.'
     });
@@ -251,6 +312,7 @@ function setupGUI() {
         max: 12,
         step: 1,
         name: 'samples / pixel',
+        trackQualityPreset: true,
         onChange: updateShader,
         help: 'Supersampling for anti-aliasing and smoother edges. Higher values are slower.'
     });
@@ -259,6 +321,7 @@ function setupGUI() {
         max: 8.0,
         step: 0.1,
         name: 'max orbit turns',
+        trackQualityPreset: true,
         onChange: updateShader,
         help: 'How many wrapped photon turns are traced before escape/capture cutoff.'
     });
@@ -267,6 +330,7 @@ function setupGUI() {
         max: 2.0,
         step: 0.05,
         name: 'resolution scale',
+        trackQualityPreset: true,
         onChange: function() {
             if (typeof applyRenderScaleFromSettings === 'function') {
                 applyRenderScaleFromSettings();
@@ -279,6 +343,7 @@ function setupGUI() {
     });
     var taaEnabledCtrl = addControl(renderFolder, p, 'taa_enabled', {
         name: 'TAA (stable)',
+        trackQualityPreset: true,
         onChange: function() {
             if (typeof resetTemporalAAHistory === 'function') {
                 resetTemporalAAHistory();
@@ -293,6 +358,7 @@ function setupGUI() {
         max: 0.98,
         step: 0.01,
         name: 'taa history weight',
+        trackQualityPreset: true,
         onChange: function() {
             if (typeof resetTemporalAAHistory === 'function') {
                 resetTemporalAAHistory();
@@ -306,6 +372,7 @@ function setupGUI() {
         max: 0.5,
         step: 0.01,
         name: 'taa clip box',
+        trackQualityPreset: true,
         onChange: function() {
             if (typeof resetTemporalAAHistory === 'function') {
                 resetTemporalAAHistory();
@@ -319,6 +386,7 @@ function setupGUI() {
         max: 20.0,
         step: 0.1,
         name: 'taa motion reject',
+        trackQualityPreset: true,
         onChange: function() {
             if (typeof resetTemporalAAHistory === 'function') {
                 resetTemporalAAHistory();
@@ -332,6 +400,7 @@ function setupGUI() {
         max: 0.5,
         step: 0.005,
         name: 'taa max cam delta',
+        trackQualityPreset: true,
         onChange: function() {
             if (typeof resetTemporalAAHistory === 'function') {
                 resetTemporalAAHistory();
@@ -345,6 +414,7 @@ function setupGUI() {
         max: 2.0,
         step: 0.01,
         name: 'taa motion clip',
+        trackQualityPreset: true,
         onChange: function() {
             if (typeof resetTemporalAAHistory === 'function') {
                 resetTemporalAAHistory();
@@ -355,12 +425,15 @@ function setupGUI() {
     });
     addControl(renderFolder, p, 'rk4_integration', {
         name: 'RK4 integration',
+        trackQualityPreset: true,
         onChange: updateShader,
         help: 'Higher-order integration for better stability in curved trajectories.'
     });
     renderFolder.open();
 
     applyQualityPreset(p.quality);
+    blackHoleCustomState = captureBlackHolePresetState();
+    qualityCustomState = captureQualityPresetState();
 
     // Custom scroll handler to control observer distance
     // Placed here so we have access to refreshAllControllers and distanceController
@@ -378,6 +451,7 @@ function setupGUI() {
     var diskFolder = gui.addFolder('Accretion disk');
     addControl(diskFolder, p, 'accretion_disk', {
         name: 'enabled',
+        trackBlackHolePreset: true,
         onChange: function() {
             updateDependentVisibility();
             updateShader();
@@ -387,6 +461,7 @@ function setupGUI() {
     var accretionModeCtrl = addControl(diskFolder, p, 'accretion_mode', {
         name: 'accretion type',
         options: ['thin_disk', 'thick_torus', 'slim_disk'],
+        trackBlackHolePreset: true,
         onChange: function() {
             updateDependentVisibility();
             updateShader();
@@ -398,6 +473,7 @@ function setupGUI() {
         max: DISK_TEMPERATURE_MAX,
         step: 1,
         name: 'temperature (K)',
+        trackBlackHolePreset: true,
         onChange: updateUniformsLive,
         help: 'Rest-frame disk color temperature before relativistic shifts.'
     });
@@ -406,6 +482,7 @@ function setupGUI() {
         max: 10.0,
         step: 0.1,
         name: 'torus center r',
+        trackBlackHolePreset: true,
         onChange: updateUniformsLive,
         help: 'Center radius of the torus in r_s units (thick torus mode only).'
     });
@@ -414,6 +491,7 @@ function setupGUI() {
         max: 1.0,
         step: 0.01,
         name: 'torus H/R',
+        trackBlackHolePreset: true,
         onChange: updateUniformsLive,
         help: 'Height-to-radius ratio of the torus cross-section (thick torus mode only).'
     });
@@ -422,6 +500,7 @@ function setupGUI() {
         max: 5.0,
         step: 0.1,
         name: 'radial falloff',
+        trackBlackHolePreset: true,
         onChange: updateUniformsLive,
         help: 'Power-law index for radial emissivity decay. Physical ADAF: 2-4. Lower = flatter profile, higher = more concentrated.'
     });
@@ -430,6 +509,7 @@ function setupGUI() {
         max: 0.15,
         step: 0.001,
         name: 'opacity',
+        trackBlackHolePreset: true,
         onChange: updateUniformsLive,
         help: 'Absorption coefficient. Low = optically thin (ADAF). Higher = more self-shielding and defined torus surface.'
     });
@@ -438,6 +518,7 @@ function setupGUI() {
         max: 8.0,
         step: 0.1,
         name: 'outer extent',
+        trackBlackHolePreset: true,
         onChange: updateUniformsLive,
         help: 'Outer edge multiplier relative to torus center r0. Controls how far the torus extends.'
     });
@@ -448,6 +529,7 @@ function setupGUI() {
         max: 0.5,
         step: 0.01,
         name: 'slim H/R',
+        trackBlackHolePreset: true,
         onChange: updateUniformsLive,
         help: 'Base height-to-radius ratio of the slim disk. Higher = geometrically thicker.'
     });
@@ -456,6 +538,7 @@ function setupGUI() {
         max: 2.0,
         step: 0.01,
         name: 'slim opacity',
+        trackBlackHolePreset: true,
         onChange: updateUniformsLive,
         help: 'Absorption coefficient. Higher = more opaque, surface-like. Lower = more translucent, volumetric.'
     });
@@ -464,6 +547,7 @@ function setupGUI() {
         max: 6.0,
         step: 0.1,
         name: 'ISCO puff',
+        trackBlackHolePreset: true,
         onChange: updateUniformsLive,
         help: 'How much the disk puffs up near the ISCO due to radiation pressure. Higher = more pronounced thickening.'
     });
@@ -485,6 +569,7 @@ function setupGUI() {
     var jetFolder = gui.addFolder('Relativistic jets');
     addControl(jetFolder, p.jet, 'enabled', {
         name: 'enabled',
+        trackBlackHolePreset: true,
         onChange: function() {
             updateDependentVisibility();
             updateShader();
@@ -494,6 +579,7 @@ function setupGUI() {
     var jetModeCtrl = addControl(jetFolder, p.jet, 'mode', {
         name: 'jet model',
         options: ['simple', 'physical'],
+        trackBlackHolePreset: true,
         onChange: function() {
             updateDependentVisibility();
             updateShader();
@@ -505,6 +591,7 @@ function setupGUI() {
         max: 25.0,
         step: 0.5,
         name: 'half-angle (°)',
+        trackBlackHolePreset: true,
         onChange: updateUniformsLive,
         help: 'Opening half-angle of the jet. Typical AGN jets: 2-7°. Parabolic collimation narrows the beam with distance.'
     });
@@ -513,6 +600,7 @@ function setupGUI() {
         max: 20.0,
         step: 0.1,
         name: 'Lorentz Γ',
+        trackBlackHolePreset: true,
         onChange: updateUniformsLive,
         help: 'Bulk Lorentz factor. Γ~2-5 for AGN jets, Γ~100+ for GRBs. Controls relativistic beaming.'
     });
@@ -521,6 +609,7 @@ function setupGUI() {
         max: 3.0,
         step: 0.01,
         name: 'brightness',
+        trackBlackHolePreset: true,
         onChange: updateUniformsLive,
         help: 'Overall jet synchrotron emission strength.'
     });
@@ -529,6 +618,7 @@ function setupGUI() {
         max: 60.0,
         step: 1.0,
         name: 'length (r_s)',
+        trackBlackHolePreset: true,
         onChange: updateUniformsLive,
         help: 'Visible jet length in Schwarzschild radii.'
     });
@@ -537,6 +627,7 @@ function setupGUI() {
         max: 50.0,
         step: 0.5,
         name: 'σ (magnetization)',
+        trackBlackHolePreset: true,
         onChange: updateUniformsLive,
         help: 'Plasma magnetization at jet base (σ = B²/4πρc²). Higher σ = more magnetically dominated, narrower spine. MAD jets: σ ~ 10-30.'
     });
@@ -545,6 +636,7 @@ function setupGUI() {
         max: 15.0,
         step: 0.5,
         name: 'knot spacing',
+        trackBlackHolePreset: true,
         onChange: updateUniformsLive,
         help: 'Spacing of reconfinement shock knots (in r_s). Observed in M87 (HST-1), 3C 273. Set high to minimize knots.'
     });
@@ -553,6 +645,7 @@ function setupGUI() {
         max: 5.0,
         step: 0.1,
         name: 'corona glow',
+        trackBlackHolePreset: true,
         onChange: updateUniformsLive,
         help: 'Brightness of the jet-corona connection at the base. Hot plasma where the funnel meets the inner accretion flow.'
     });
@@ -561,6 +654,7 @@ function setupGUI() {
         max: 1.0,
         step: 0.01,
         name: 'base width',
+        trackBlackHolePreset: true,
         onChange: updateUniformsLive,
         help: 'Controls how wide the jet funnel is at the base. 0 = narrow collimated base, 1 = wide split-monopole funnel.'
     });
@@ -569,6 +663,7 @@ function setupGUI() {
         max: 1.0,
         step: 0.01,
         name: 'corona extent',
+        trackBlackHolePreset: true,
         onChange: updateUniformsLive,
         help: 'Radial spread of the corona base emission. 0 = wide spread, 1 = tightly concentrated near the jet axis.'
     });
@@ -578,7 +673,15 @@ function setupGUI() {
     var jetPhysicalCtrls = [jetMagCtrl, jetKnotCtrl, jetCoronaCtrl, jetBaseWidthCtrl, jetCoronaExtentCtrl];
 
     applyBlackHolePreset = function(name) {
-        if (name === 'Custom') return;
+        if (name === 'Custom') {
+            restoreBlackHolePresetState(blackHoleCustomState);
+            updateDependentVisibility();
+            updateCamera();
+            updateShader();
+            refreshAllControllers();
+            blackHoleCustomState = captureBlackHolePresetState();
+            return;
+        }
         var preset = BH_PRESETS[name];
         if (!preset) return;
 
@@ -631,6 +734,7 @@ function setupGUI() {
     var spinFolder = gui.addFolder('Black hole');
     addControl(spinFolder, p.black_hole, 'spin_enabled', {
         name: 'rotation enabled',
+        trackBlackHolePreset: true,
         onChange: function() {
             updateDependentVisibility();
             updateUniformsLive();
@@ -642,6 +746,7 @@ function setupGUI() {
         max: 0.99,
         step: 0.01,
         name: 'a/M',
+        trackBlackHolePreset: true,
         onChange: updateUniformsLive,
         help: 'Dimensionless spin. Positive = prograde disk, negative = retrograde.'
     });
@@ -650,6 +755,7 @@ function setupGUI() {
         max: 1.4,
         step: 0.01,
         name: 'shadow squeeze',
+        trackBlackHolePreset: true,
         onChange: updateUniformsLive,
         help: 'Visual strength multiplier for rotation-induced asymmetry in the shadow.'
     });
@@ -659,6 +765,7 @@ function setupGUI() {
     addControl(lookFolder, p.look, 'tonemap_mode', {
         options: { 'ACES Filmic': 0, 'AGX (Black Hole)': 1, 'Scientific (Log)': 2 },
         name: 'tonemapper',
+        trackBlackHolePreset: true,
         onChange: updateUniformsLive,
         help: 'ACES: classic cinematic. AGX: better saturation handling for extreme HDR. Scientific: logarithmic false-color like EHT papers.'
     });
@@ -675,6 +782,7 @@ function setupGUI() {
         max: 4.0,
         step: 0.01,
         name: 'disk intensity',
+        trackBlackHolePreset: true,
         onChange: updateUniformsLive,
         help: 'Brightness multiplier applied to the accretion disk emission.'
     });
@@ -683,6 +791,7 @@ function setupGUI() {
         max: 2.0,
         step: 0.01,
         name: 'inner glow',
+        trackBlackHolePreset: true,
         onChange: updateUniformsLive,
         help: 'Extra bloom-like emphasis near the hotter inner disk region.'
     });
@@ -724,6 +833,7 @@ function setupGUI() {
     var ppFolder = gui.addFolder('Post-processing');
     addControl(ppFolder, p.bloom, 'enabled', {
         name: 'bloom',
+        trackBlackHolePreset: true,
         onChange: function() {
             updateDependentVisibility();
             shader.needsUpdate = true;
@@ -735,6 +845,7 @@ function setupGUI() {
         max: 2.0,
         step: 0.01,
         name: 'bloom strength',
+        trackBlackHolePreset: true,
         onChange: function() { shader.needsUpdate = true; },
         help: 'Overall intensity of the bloom glow added to the image.'
     });
@@ -743,6 +854,7 @@ function setupGUI() {
         max: 1.0,
         step: 0.01,
         name: 'bloom threshold',
+        trackBlackHolePreset: true,
         onChange: function() { shader.needsUpdate = true; },
         help: 'Minimum pixel brightness that contributes to bloom. Lower values bloom more of the disk.'
     });
@@ -751,6 +863,7 @@ function setupGUI() {
         max: 1.0,
         step: 0.01,
         name: 'bloom radius',
+        trackBlackHolePreset: true,
         onChange: function() { shader.needsUpdate = true; },
         help: 'Controls the width of the bloom halo. Higher values give wider, more diffuse glow matching real optical PSFs.'
     });
@@ -841,6 +954,7 @@ function setupGUI() {
     });
     addControl(folder, p, 'beaming', {
         name: 'beaming (intensity)',
+        trackBlackHolePreset: true,
         onChange: function() {
             updateDependentVisibility();
             updateShader();
@@ -849,6 +963,7 @@ function setupGUI() {
     });
     var physicalBeamingCtrl = addControl(folder, p, 'physical_beaming', {
         name: 'physical (D³ Liouville)',
+        trackBlackHolePreset: true,
         onChange: function() {
             updateDependentVisibility();
             updateShader();
@@ -857,6 +972,7 @@ function setupGUI() {
     });
     addControl(folder, p, 'doppler_shift', {
         name: 'doppler shift (color)',
+        trackBlackHolePreset: true,
         onChange: updateShader,
         help: 'Shifts observed spectrum by red/blue shift factors.'
     });

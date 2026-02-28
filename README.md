@@ -92,6 +92,7 @@ js/app/
 │   └── bloom.js                  # Multi-pass bloom post-processing
 └── ui/                           # User interface
     ├── presets.js                # Black hole presets library
+    ├── quality-presets.js        # Rendering quality presets library
     └── gui.js                    # dat.GUI panel setup
 ```
 
