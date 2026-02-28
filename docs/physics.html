@@ -986,7 +986,7 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     <em>a</em> = <em>M</em> / (<em>r</em>&sup2; &radic;(1 &minus; <em>r<sub>s</sub></em>/<em>r</em>))
 </div>
 <p>
-    so the simulation limits the minimum hover radius to <em>r</em> = 1.02 <em>r<sub>s</sub></em>.
+    so the simulation limits the minimum hover radius to <em>r</em> = 1.005 <em>r<sub>s</sub></em>.
 </p>
 
 <h4>Temperature and intensity shift</h4>
@@ -1000,21 +1000,29 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     The specific intensity transforms according to <strong>Liouville's theorem</strong>
     (<em>I</em><sub>&nu;</sub> / &nu;&sup3; = const along a ray),
     giving an intensity boost of <em>D</em>&sup3; where
-    <em>D</em> = <em>f</em><sub>obs</sub>/<em>f</em><sub>emit</sub> = 1/&radic;(1 &minus; 1/<em>r</em>):
+    <em>D</em> = <em>f</em><sub>obs</sub>/<em>f</em><sub>emit</sub> = 1/&radic;(1 &minus; 1/<em>r</em>).
 </p>
-<div class="eq">
-    <em>I</em><sub>obs</sub> = <em>D</em>&sup3; &times; <em>I</em><sub>emit</sub>
-    = <em>I</em><sub>emit</sub> / (1 &minus; 1/<em>r</em>)<sup>3/2</sup>
-</div>
+<p>
+    In principle, for a true Planck spectrum
+    <em>D</em>&sup3; &times; <em>B</em><sub>&nu;</sub>(<em>T</em>)
+    = <em>B</em><sub>&nu;</sub>(<em>D</em> &times; <em>T</em>),
+    so a temperature shift alone would capture both hue and brightness.
+    However, as discussed in the <a href="#sec-beaming">beaming section</a>,
+    the simulation's spectrum texture stores <strong>chromaticity</strong> (normalized colour),
+    not absolute Planck radiance.  The temperature lookup therefore only shifts the
+    <em>hue</em>; the <em>D</em>&sup3; intensity factor must be applied explicitly —
+    just as it is for the accretion disk emission.
+</p>
 
 <h4>Numerical examples</h4>
 <table>
-    <tr><th>Radius <em>r</em></th><th>Frequency boost</th><th>Intensity boost (<em>D</em>&sup3;)</th><th>Visual effect</th></tr>
+    <tr><th>Radius <em>r</em></th><th>Frequency boost <em>D</em></th><th>Intensity boost <em>D</em>&sup3;</th><th>Visual effect</th></tr>
     <tr><td>11 <em>r<sub>s</sub></em> (default orbit)</td><td>1.05&times;</td><td>1.15&times;</td><td>Barely perceptible</td></tr>
-    <tr><td>3.0 <em>r<sub>s</sub></em></td><td>1.22&times;</td><td>1.84&times;</td><td>Noticeable bluing; stars brighter</td></tr>
-    <tr><td>1.5 <em>r<sub>s</sub></em> (photon sphere)</td><td>1.73&times;</td><td>5.2&times;</td><td>Strong blue tint; sky significantly brighter</td></tr>
-    <tr><td>1.1 <em>r<sub>s</sub></em></td><td>3.32&times;</td><td>36.4&times;</td><td>White-blue sky; extreme brightness</td></tr>
-    <tr><td>1.02 <em>r<sub>s</sub></em> (min hover)</td><td>7.14&times;</td><td>364&times;</td><td>Visible light shifted to deep UV; sky blindingly bright</td></tr>
+    <tr><td>3.0 <em>r<sub>s</sub></em></td><td>1.22&times;</td><td>1.83&times;</td><td>Noticeable bluing; stars brighter</td></tr>
+    <tr><td>1.5 <em>r<sub>s</sub></em> (photon sphere)</td><td>1.73&times;</td><td>5.20&times;</td><td>Strong blue tint; sky significantly brighter</td></tr>
+    <tr><td>1.1 <em>r<sub>s</sub></em></td><td>3.32&times;</td><td>36.5&times;</td><td>White-blue sky; extreme brightness</td></tr>
+    <tr><td>1.02 <em>r<sub>s</sub></em></td><td>7.14&times;</td><td>364&times;</td><td>Deep UV shift; sky blindingly bright</td></tr>
+    <tr><td>1.005 <em>r<sub>s</sub></em> (min hover)</td><td>14.2&times;</td><td>2850&times;</td><td>Extreme blue/UV; visible sky in tight escape cone</td></tr>
 </table>
 
 <h3 id="sec-blueshift-freefall">14.2 Free-Falling Observer</h3>
@@ -1069,8 +1077,11 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     where <code>ray_doppler_factor</code> = &gamma;(1 + <strong>ray</strong> &middot; (&minus;<strong>v</strong><sub>obs</sub>))
     captures the kinematic Doppler from the observer's orbital or infall velocity.
     This combined factor is used to shift the effective blackbody temperature of background
-    stars and the Milky Way, and a <em>D</em>&sup3; intensity boost
-    (<em>D</em> = 1/grav_blueshift_factor) is applied via the Liouville invariant.
+    stars and the Milky Way.  Because the spectrum texture stores chromaticity
+    (see <a href="#sec-beaming">section 11</a>), not absolute Planck radiance, the
+    temperature shift only corrects the hue — the <em>D</em>&sup3; intensity boost
+    (<em>D</em> = 1/<em>bg_doppler</em>) is applied explicitly via <code>bg_boost</code>,
+    clamped to a maximum of 10&thinsp;000 to avoid numerical overflow in extreme cases.
 </p>
 
 <p>

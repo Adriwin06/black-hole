@@ -236,7 +236,7 @@ var hoverState = {
     startVelocity: new THREE.Vector3(0, 1, 0),
     prevMotionState: true,
     prevDistance: 11.0,
-    minR: 1.02  // Cannot hover at the horizon (infinite proper acceleration)
+    minR: 1.005  // Cannot hover at the horizon (infinite proper acceleration)
 };
 // ─────────────────────────────────────────────────────────────────────────────
 var effectLabels = {

@@ -677,9 +677,11 @@ vec4 trace_ray(vec3 ray) {
         // D = f_obs/f_emit = 1/bg_doppler is the TOTAL frequency ratio
         // from infinity to the observer, combining gravitational blueshift
         // with kinematic Doppler.  Intensity scales as D^3.
-        // For hovering (v=0): ray_doppler=1 so D = 1/grav_blueshift_factor.
-        // For freefall: the large kinematic redshift partially cancels the
-        // gravitational blueshift, keeping escape-cone stars properly dim.
+        // The spectrum texture stores chromaticity (normalized colour), not
+        // absolute Planck radiance, so the temperature shift alone only
+        // changes the hue.  The D^3 brightness factor must be applied
+        // explicitly.  Clamping prevents blow-ups for extreme D values
+        // (near-horizon freefall where T shifts far into UV anyway).
         float bg_D = 1.0 / max(bg_doppler, 0.01);
         float bg_boost = min(bg_D * bg_D * bg_D, 10000.0);
 
