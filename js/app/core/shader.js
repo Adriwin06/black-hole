@@ -103,7 +103,6 @@ function Shader(mustacheTemplate) {
 
         planetEnabled: function() {
             return this.planet.enabled &&
-                this.quality !== 'fast' &&
                 this.quality !== 'mobile';
         },
 

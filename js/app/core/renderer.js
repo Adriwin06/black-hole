@@ -4,7 +4,7 @@
 //       shards and textures have been fetched and are ready.
 
 "use strict";
-/*global THREE, Mustache, Stats, Detector, $, dat:false */
+/*global THREE, Mustache, Stats, Detector, $, dat:false, QUALITY_PRESETS, applyQualityPresetValues */
 /*global document, window, setTimeout, requestAnimationFrame:false */
 
 if ( ! Detector.webgl ) Detector.addGetWebGLMessage();
@@ -27,6 +27,193 @@ var lastTaaCameraMat = new THREE.Matrix4().identity();
 
 var applyRenderScaleFromSettings = function() {};
 var resetTemporalAAHistory = function() {};
+var QUALITY_BENCHMARK_STORAGE_KEY = 'black-hole-quality-benchmark-v3';
+var QUALITY_BENCHMARK_SCHEMA_VERSION = 3;
+var QUALITY_BENCHMARK_TARGET_FRAME_MS = 32.0;
+var QUALITY_BENCHMARK_HIGH_PROBE_GATE_MS = 18.5;
+var QUALITY_BENCHMARK_HIGH_PROBE_GATE_MS_ULTRA_CAPABLE = 24.0;
+var QUALITY_BENCHMARK_HIGH_TARGET_FRAME_MS_ULTRA_CAPABLE = 40.0;
+var qualityBenchmarkState = null;
+
+function getGpuRendererName() {
+    if (!renderer || typeof renderer.getContext !== 'function') return '';
+    try {
+        var gl = renderer.getContext();
+        if (!gl) return '';
+
+        var ext = gl.getExtension('WEBGL_debug_renderer_info');
+        if (ext && ext.UNMASKED_RENDERER_WEBGL) {
+            var unmasked = gl.getParameter(ext.UNMASKED_RENDERER_WEBGL);
+            if (typeof unmasked === 'string' && unmasked.length > 0) return unmasked;
+        }
+
+        var masked = gl.getParameter(gl.RENDERER);
+        return (typeof masked === 'string') ? masked : '';
+    } catch (err) {
+        return '';
+    }
+}
+
+function isUltraCapableGpu(rendererName) {
+    if (!rendererName) return false;
+    var gpu = rendererName.toLowerCase();
+    if (gpu.indexOf('swiftshader') !== -1) return false;
+    if (gpu.indexOf('nvidia') === -1 || gpu.indexOf('rtx') === -1) return false;
+
+    if (/rtx\s*4070\s*super/.test(gpu)) return true;
+    var match = gpu.match(/rtx\s*(\d{4})/);
+    if (!match) return false;
+
+    var model = parseInt(match[1], 10);
+    return isFinite(model) && model >= 4080;
+}
+
+function readStoredQualityPreset() {
+    var raw = null;
+    try {
+        raw = window.localStorage.getItem(QUALITY_BENCHMARK_STORAGE_KEY);
+    } catch (err) {
+        return null;
+    }
+    if (!raw) return null;
+
+    try {
+        var parsed = JSON.parse(raw);
+        if (!parsed || parsed.version !== QUALITY_BENCHMARK_SCHEMA_VERSION) return null;
+        var storedQuality = parsed.quality;
+        if (storedQuality === 'fast') storedQuality = 'mobile';
+        if (!storedQuality || !QUALITY_PRESETS[storedQuality]) return null;
+        return storedQuality;
+    } catch (err) {
+        return null;
+    }
+}
+
+function storeQualityPreset(qualityName, avgFrameMs) {
+    if (!qualityName || !QUALITY_PRESETS[qualityName]) return;
+
+    var roundedMs = null;
+    if (typeof avgFrameMs === 'number' && isFinite(avgFrameMs)) {
+        roundedMs = Math.round(avgFrameMs * 100) / 100;
+    }
+
+    var payload = {
+        version: QUALITY_BENCHMARK_SCHEMA_VERSION,
+        quality: qualityName,
+        avg_frame_ms: roundedMs,
+        timestamp: new Date().toISOString()
+    };
+
+    try {
+        window.localStorage.setItem(QUALITY_BENCHMARK_STORAGE_KEY, JSON.stringify(payload));
+    } catch (err) {
+        // localStorage may be blocked; in that case auto-benchmark simply reruns next visit.
+    }
+}
+
+function applyQualityPresetRuntime(qualityName) {
+    if (!shader || typeof applyQualityPresetValues !== 'function') return false;
+
+    var preset = applyQualityPresetValues(shader.parameters, qualityName);
+    if (!preset) return false;
+
+    if (preset.hide_planet_controls) {
+        $('.planet-controls').hide();
+    } else {
+        $('.planet-controls').show();
+    }
+
+    applyRenderScaleFromSettings();
+    if (scene && typeof scene.updateShader === 'function') {
+        scene.updateShader();
+    }
+    if (refreshAllControllersGlobal) {
+        refreshAllControllersGlobal();
+    }
+    return true;
+}
+
+function resetQualityBenchmarkCounters(state) {
+    state.frameCount = 0;
+    state.sampleCount = 0;
+    state.accumulatedDt = 0.0;
+}
+
+function finishQualityBenchmark(qualityName, avgFrameMs) {
+    applyQualityPresetRuntime(qualityName);
+    storeQualityPreset(qualityName, avgFrameMs);
+    qualityBenchmarkState = null;
+}
+
+function beginQualityBenchmarkIfNeeded() {
+    if (qualityBenchmarkState) return;
+    if (readStoredQualityPreset()) return;
+
+    qualityBenchmarkState = {
+        phase: 'optimal',
+        warmupFrames: 24,
+        sampleFrames: 72,
+        frameCount: 0,
+        sampleCount: 0,
+        accumulatedDt: 0.0,
+        optimalAvgMs: null,
+        highProbeGateMs: QUALITY_BENCHMARK_HIGH_PROBE_GATE_MS,
+        highTargetFrameMs: QUALITY_BENCHMARK_TARGET_FRAME_MS
+    };
+    var gpuRendererName = getGpuRendererName();
+    if (isUltraCapableGpu(gpuRendererName)) {
+        qualityBenchmarkState.highProbeGateMs = QUALITY_BENCHMARK_HIGH_PROBE_GATE_MS_ULTRA_CAPABLE;
+        qualityBenchmarkState.highTargetFrameMs = QUALITY_BENCHMARK_HIGH_TARGET_FRAME_MS_ULTRA_CAPABLE;
+    }
+    applyQualityPresetRuntime('optimal');
+}
+
+function advanceQualityBenchmark(frameDt) {
+    if (!qualityBenchmarkState) return;
+
+    qualityBenchmarkState.frameCount++;
+    if (qualityBenchmarkState.frameCount <= qualityBenchmarkState.warmupFrames) return;
+
+    qualityBenchmarkState.accumulatedDt += frameDt;
+    qualityBenchmarkState.sampleCount++;
+
+    if (qualityBenchmarkState.sampleCount < qualityBenchmarkState.sampleFrames) return;
+
+    var avgFrameMs = (qualityBenchmarkState.accumulatedDt / qualityBenchmarkState.sampleCount) * 1000.0;
+
+    if (qualityBenchmarkState.phase === 'optimal') {
+        if (avgFrameMs <= qualityBenchmarkState.highProbeGateMs) {
+            qualityBenchmarkState.phase = 'high';
+            qualityBenchmarkState.optimalAvgMs = avgFrameMs;
+            resetQualityBenchmarkCounters(qualityBenchmarkState);
+            applyQualityPresetRuntime('high');
+            return;
+        }
+
+        if (avgFrameMs <= QUALITY_BENCHMARK_TARGET_FRAME_MS) {
+            finishQualityBenchmark('optimal', avgFrameMs);
+            return;
+        }
+
+        qualityBenchmarkState.phase = 'mobile';
+        resetQualityBenchmarkCounters(qualityBenchmarkState);
+        applyQualityPresetRuntime('mobile');
+        return;
+    }
+
+    if (qualityBenchmarkState.phase === 'mobile') {
+        finishQualityBenchmark('mobile', avgFrameMs);
+        return;
+    }
+
+    if (qualityBenchmarkState.phase === 'high') {
+        if (avgFrameMs <= qualityBenchmarkState.highTargetFrameMs) {
+            finishQualityBenchmark('high', avgFrameMs);
+        } else {
+            finishQualityBenchmark('optimal', qualityBenchmarkState.optimalAvgMs);
+        }
+    }
+}
 
 function isLikelyMobileDevice() {
     var ua = (window.navigator && window.navigator.userAgent) || '';
@@ -266,8 +453,14 @@ function init(glslSource, textures) {
     shader = new Shader(glslSource);
     isMobileClient = isLikelyMobileDevice();
     if (isMobileClient) {
-        shader.parameters.quality = 'mobile';
         document.body.classList.add('mobile-ui');
+    }
+    var storedQualityPreset = readStoredQualityPreset();
+    var initialQualityPreset = storedQualityPreset || 'optimal';
+    if (typeof applyQualityPresetValues === 'function') {
+        applyQualityPresetValues(shader.parameters, initialQualityPreset);
+    } else {
+        shader.parameters.quality = initialQualityPreset;
     }
 
     container = document.createElement( 'div' );
@@ -518,6 +711,7 @@ function init(glslSource, textures) {
     window.addEventListener( 'resize', onWindowResize, false );
 
     setupGUI();
+    beginQualityBenchmarkIfNeeded();
 }
 
 // ─── Dive Animation Functions ───────────────────────────────────────────────
@@ -1120,6 +1314,7 @@ function animate() {
         observer.move(dt);
         if (shader.parameters.observer.motion) updateCamera();
     }
+    advanceQualityBenchmark(dt);
     // ─────────────────────────────────────────────────────────────────────────
 
     camera.updateMatrixWorld();

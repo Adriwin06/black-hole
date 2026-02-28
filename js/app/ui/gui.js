@@ -285,25 +285,34 @@ function setupGUI() {
         if (value === 'custom') {
             restoreQualityPresetState(qualityCustomState);
         } else {
-            var preset = QUALITY_PRESETS[value];
+            var preset = null;
+            if (typeof applyQualityPresetValues === 'function') {
+                preset = applyQualityPresetValues(p, value);
+            } else {
+                preset = QUALITY_PRESETS[value];
+                if (preset) {
+                    var isKerr = (p.kerr_mode === 'realtime_full_kerr_core');
+                    var modeValues = isKerr ? preset.kerr : preset.standard;
+                    if (modeValues) {
+                        p.quality = value;
+                        p.n_steps = modeValues.n_steps;
+                        p.sample_count = modeValues.sample_count;
+                        p.max_revolutions = modeValues.max_revolutions;
+                        p.rk4_integration = modeValues.rk4_integration;
+                        p.cinematic_tonemap = preset.cinematic_tonemap;
+                        p.resolution_scale = preset.resolution_scale;
+                        p.taa_enabled = preset.taa_enabled;
+                        p.taa.history_weight = preset.taa.history_weight;
+                        p.taa.clip_box = preset.taa.clip_box;
+                        p.taa.motion_rejection = preset.taa.motion_rejection;
+                        p.taa.max_camera_delta = preset.taa.max_camera_delta;
+                        p.taa.motion_clip_scale = preset.taa.motion_clip_scale;
+                    } else {
+                        preset = null;
+                    }
+                }
+            }
             if (!preset) return;
-
-            var isKerr = (p.kerr_mode === 'realtime_full_kerr_core');
-            var modeValues = isKerr ? preset.kerr : preset.standard;
-            if (!modeValues) return;
-
-            p.n_steps = modeValues.n_steps;
-            p.sample_count = modeValues.sample_count;
-            p.max_revolutions = modeValues.max_revolutions;
-            p.rk4_integration = modeValues.rk4_integration;
-            p.cinematic_tonemap = preset.cinematic_tonemap;
-            p.resolution_scale = preset.resolution_scale;
-            p.taa_enabled = preset.taa_enabled;
-            p.taa.history_weight = preset.taa.history_weight;
-            p.taa.clip_box = preset.taa.clip_box;
-            p.taa.motion_rejection = preset.taa.motion_rejection;
-            p.taa.max_camera_delta = preset.taa.max_camera_delta;
-            p.taa.motion_clip_scale = preset.taa.motion_clip_scale;
 
             if (preset.hide_planet_controls) {
                 $('.planet-controls').hide();

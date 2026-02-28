@@ -52,7 +52,7 @@ Open `http://localhost:8000` in a modern browser (Chrome or Firefox recommended)
 | **beaming mode** | Physical (D³ Liouville) or cinematic (softened) |
 | **jet model** | Off, simple, or physical (GRMHD-calibrated) |
 | **observer speed** | Orbital velocity around the black hole |
-| **quality** | Fast / Medium / High presets |
+| **quality** | Mobile (fastest) / Optimal (recommended) / High / Ultra presets |
 
 ## Project Structure
 
