@@ -183,6 +183,13 @@
         <li><a href="#sec-beaming">Relativistic Beaming &amp; Liouville's Theorem</a></li>
         <li><a href="#sec-aberration">Relativistic Aberration</a></li>
         <li><a href="#sec-observer">Observer Kinematics &amp; Time Dilation</a></li>
+        <li><a href="#sec-blueshift">Gravitational Blueshift &amp; Hovering Observer</a>
+            <ol>
+                <li><a href="#sec-blueshift-static">Static (Hovering) Observer</a></li>
+                <li><a href="#sec-blueshift-freefall">Free-Falling Observer</a></li>
+                <li><a href="#sec-blueshift-impl">Implementation</a></li>
+            </ol>
+        </li>
         <li><a href="#sec-jets">Relativistic Jets</a></li>
         <li><a href="#sec-volumetric">Volumetric Radiative Transfer</a></li>
         <li><a href="#sec-tonemap">Tone Mapping &amp; Color Science</a></li>
@@ -933,10 +940,166 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 </div>
 
 <!-- ============================================================ -->
-<!-- 14. RELATIVISTIC JETS -->
+<!-- 14. GRAVITATIONAL BLUESHIFT & HOVERING OBSERVER -->
 <!-- ============================================================ -->
 
-<h2 id="sec-jets">14. Relativistic Jets</h2>
+<h2 id="sec-blueshift">14. Gravitational Blueshift &amp; Hovering Observer</h2>
+
+<p>
+    One of the most vivid consequences of General Relativity is the <strong>gravitational blueshift</strong>
+    of light falling into a gravitational potential well.  When a photon travels from a weaker
+    gravitational field (far from the black hole) to a stronger one (near the horizon), it gains
+    energy.  Since light always travels at <em>c</em>, this energy gain manifests as an increase in
+    frequency — a blueshift toward the violet and beyond.
+</p>
+
+<p>
+    The strength of the effect depends critically on <em>how</em> the observer moves: a
+    <strong>hovering</strong> (stationary) observer sees the full gravitational blueshift, while a
+    <strong>free-falling</strong> observer's kinematic Doppler redshift cancels and overpowers the
+    gravitational contribution.
+</p>
+
+<h3 id="sec-blueshift-static">14.1 Static (Hovering) Observer</h3>
+
+<p>
+    A static observer at Schwarzschild radius <em>r</em> fires thrusters to remain at rest in the
+    gravitational field.  For a photon emitted at infinity and received at <em>r</em>, the
+    frequency ratio is given by the Schwarzschild metric time component:
+</p>
+<div class="eq">
+    <em>f</em><sub>obs</sub> / <em>f</em><sub>emit</sub> = 1 / &radic;(1 &minus; <em>r<sub>s</sub></em>/<em>r</em>)
+</div>
+<p>
+    In the simulation's units (<em>r<sub>s</sub></em> = 1):
+</p>
+<div class="eq">
+    <em>f</em><sub>obs</sub> / <em>f</em><sub>emit</sub> = 1 / &radic;(1 &minus; 1/<em>r</em>)
+</div>
+<p>
+    This diverges as <em>r</em> &rarr; <em>r<sub>s</sub></em>: a hovering observer infinitesimally close to the
+    event horizon would see all incoming radiation infinitely blueshifted — visible starlight would
+    be boosted past ultraviolet into X-rays and gamma rays.  In practice, hovering at the horizon
+    requires infinite proper acceleration:
+</p>
+<div class="eq">
+    <em>a</em> = <em>M</em> / (<em>r</em>&sup2; &radic;(1 &minus; <em>r<sub>s</sub></em>/<em>r</em>))
+</div>
+<p>
+    so the simulation limits the minimum hover radius to <em>r</em> = 1.02 <em>r<sub>s</sub></em>.
+</p>
+
+<h4>Temperature and intensity shift</h4>
+<p>
+    For black-body sources (stars in the background sky), the observed colour temperature is:
+</p>
+<div class="eq">
+    <em>T</em><sub>obs</sub> = <em>T</em><sub>emit</sub> / &radic;(1 &minus; 1/<em>r</em>)
+</div>
+<p>
+    The specific intensity transforms according to <strong>Liouville's theorem</strong>
+    (<em>I</em><sub>&nu;</sub> / &nu;&sup3; = const along a ray),
+    giving an intensity boost of <em>D</em>&sup3; where
+    <em>D</em> = <em>f</em><sub>obs</sub>/<em>f</em><sub>emit</sub> = 1/&radic;(1 &minus; 1/<em>r</em>):
+</p>
+<div class="eq">
+    <em>I</em><sub>obs</sub> = <em>D</em>&sup3; &times; <em>I</em><sub>emit</sub>
+    = <em>I</em><sub>emit</sub> / (1 &minus; 1/<em>r</em>)<sup>3/2</sup>
+</div>
+
+<h4>Numerical examples</h4>
+<table>
+    <tr><th>Radius <em>r</em></th><th>Frequency boost</th><th>Intensity boost (<em>D</em>&sup3;)</th><th>Visual effect</th></tr>
+    <tr><td>11 <em>r<sub>s</sub></em> (default orbit)</td><td>1.05&times;</td><td>1.15&times;</td><td>Barely perceptible</td></tr>
+    <tr><td>3.0 <em>r<sub>s</sub></em></td><td>1.22&times;</td><td>1.84&times;</td><td>Noticeable bluing; stars brighter</td></tr>
+    <tr><td>1.5 <em>r<sub>s</sub></em> (photon sphere)</td><td>1.73&times;</td><td>5.2&times;</td><td>Strong blue tint; sky significantly brighter</td></tr>
+    <tr><td>1.1 <em>r<sub>s</sub></em></td><td>3.32&times;</td><td>36.4&times;</td><td>White-blue sky; extreme brightness</td></tr>
+    <tr><td>1.02 <em>r<sub>s</sub></em> (min hover)</td><td>7.14&times;</td><td>364&times;</td><td>Visible light shifted to deep UV; sky blindingly bright</td></tr>
+</table>
+
+<h3 id="sec-blueshift-freefall">14.2 Free-Falling Observer</h3>
+
+<p>
+    A free-falling observer who has turned off their engines and plunges radially from rest at infinity
+    experiences a very different view.  Their infall velocity at radius <em>r</em> is
+    <em>v</em><sub>local</sub> = &radic;(<em>r<sub>s</sub></em>/<em>r</em>)
+    relative to a static frame.  For overhead light (the same direction as their motion), the
+    relativistic Doppler effect of this recession <strong>redshifts</strong> the incoming light:
+</p>
+<div class="eq">
+    <em>f</em><sub>fall</sub> = <em>f</em><sub>emit</sub> / (1 + 1/&radic;<em>r</em>)
+</div>
+<p>
+    This can be derived from the covariant frequency formula
+    &nu; = &minus;<em>k</em><sub>&mu;</sub> <em>u</em><sup>&mu;</sup>,
+    where <em>k</em><sup>&mu;</sup> is the photon four-momentum and
+    <em>u</em><sup>&mu;</sup> is the observer four-velocity for radial free-fall from infinity in
+    Schwarzschild coordinates.  The full calculation yields:
+</p>
+<div class="eq">
+    <em>f</em><sub>fall</sub> / <em>f</em><sub>emit</sub>
+    = 1 / (1 + &radic;(1/<em>r</em>))
+</div>
+<p>
+    This is always &lt; 1 for <em>r</em> &gt; 0 — the <strong>kinematic Doppler redshift overpowers the
+    gravitational blueshift</strong>.  The free-falling observer sees overhead stars grow dimmer and
+    redder as they descend, not brighter and bluer.
+</p>
+
+<div class="note">
+    <strong>Key insight:</strong> The gravitational blueshift is a property of <em>where</em> you are in the potential
+    well, while the Doppler shift depends on <em>how</em> you are moving.  For a free-falling observer,
+    the two effects act in opposite directions, with the kinematic redshift winning.  Only a
+    <em>hovering</em> observer — one who has zero velocity relative to the static Schwarzschild
+    frame — experiences the pure gravitational blueshift.
+</div>
+
+<h3 id="sec-blueshift-impl">14.3 Implementation</h3>
+
+<p>
+    The simulation computes a gravitational blueshift factor
+    <code>grav_blueshift_factor</code> = &radic;(1 &minus; 1/<em>r</em><sub>obs</sub>)
+    which is passed to the shader as a uniform.  In the background-sky section of the ray tracer,
+    the effective Doppler factor for incoming starlight and galaxy light is:
+</p>
+<div class="eq">
+    bg_doppler = ray_doppler_factor &times; grav_blueshift_factor
+</div>
+<p>
+    where <code>ray_doppler_factor</code> = &gamma;(1 + <strong>ray</strong> &middot; (&minus;<strong>v</strong><sub>obs</sub>))
+    captures the kinematic Doppler from the observer's orbital or infall velocity.
+    This combined factor is used to shift the effective blackbody temperature of background
+    stars and the Milky Way, and a <em>D</em>&sup3; intensity boost
+    (<em>D</em> = 1/grav_blueshift_factor) is applied via the Liouville invariant.
+</p>
+
+<p>
+    For the accretion disk, the gravitational shift between emission and observer positions is
+    already handled by the <code>gravitational_shift()</code> function, which computes
+    &radic;(|1 &minus; 1/<em>r</em><sub>emit</sub>| / |1 &minus; 1/<em>r</em><sub>obs</sub>|).
+    No double-application occurs.
+</p>
+
+<p>
+    Inside the event horizon (<em>r</em> &lt; <em>r<sub>s</sub></em>), the concept of a static observer
+    breaks down — the metric component <em>g<sub>tt</sub></em> changes sign — so the simulation
+    sets grav_blueshift_factor = 1.0 and defers to the existing interior rendering pipeline.
+</p>
+
+<div class="comparison">
+    <strong>Accuracy:</strong> The gravitational blueshift formula
+    1/&radic;(1 &minus; <em>r<sub>s</sub></em>/<em>r</em>) is <strong>exact</strong> for Schwarzschild spacetime.
+    The combined frequency formula for a free-falling observer
+    1/(1 + 1/&radic;<em>r</em>) is also exact, derivable from the covariant
+    inner product of the photon and observer four-velocities
+    <sup><a href="#ref-mtw">[1]</a></sup> <sup><a href="#ref-hamilton-falling">[29]</a></sup>.
+</div>
+
+<!-- ============================================================ -->
+<!-- 15. RELATIVISTIC JETS -->
+<!-- ============================================================ -->
+
+<h2 id="sec-jets">15. Relativistic Jets</h2>
 
 <p>
     The simulation offers bipolar relativistic jets along the black hole spin axis, with two models:
@@ -1032,10 +1195,10 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 </p>
 
 <!-- ============================================================ -->
-<!-- 15. VOLUMETRIC RT -->
+<!-- 16. VOLUMETRIC RT -->
 <!-- ============================================================ -->
 
-<h2 id="sec-volumetric">15. Volumetric Radiative Transfer</h2>
+<h2 id="sec-volumetric">16. Volumetric Radiative Transfer</h2>
 
 <p>
     The thick torus, slim disk, and jet models all use <strong>volumetric ray marching</strong> with the
@@ -1071,10 +1234,10 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 </p>
 
 <!-- ============================================================ -->
-<!-- 16. TONE MAPPING -->
+<!-- 17. TONE MAPPING -->
 <!-- ============================================================ -->
 
-<h2 id="sec-tonemap">16. Tone Mapping &amp; Color Science</h2>
+<h2 id="sec-tonemap">17. Tone Mapping &amp; Color Science</h2>
 
 <p>
     The simulation runs in linear HDR color space and applies a tonemapper to map to display range.
@@ -1109,10 +1272,10 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 </p>
 
 <!-- ============================================================ -->
-<!-- 17. PLANET -->
+<!-- 18. PLANET -->
 <!-- ============================================================ -->
 
-<h2 id="sec-planet">17. Planet Model</h2>
+<h2 id="sec-planet">18. Planet Model</h2>
 
 <p>
     A spherical test body orbits the black hole on a Keplerian circular orbit, demonstrating:
@@ -1151,10 +1314,10 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 </ul>
 
 <!-- ============================================================ -->
-<!-- 18. INTERIOR BLACK HOLE -->
+<!-- 19. INTERIOR BLACK HOLE -->
 <!-- ============================================================ -->
 
-<h2 id="sec-interior">18. Interior Black Hole &amp; Analytical Escape Classification</h2>
+<h2 id="sec-interior">19. Interior Black Hole &amp; Analytical Escape Classification</h2>
 
 <p>
     Once the observer crosses the event horizon (<em>r</em> &lt; <em>r<sub>s</sub></em>), the standard
@@ -1298,10 +1461,10 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 </div>
 
 <!-- ============================================================ -->
-<!-- 19. FREE-FALL DIVE -->
+<!-- 20. FREE-FALL DIVE -->
 <!-- ============================================================ -->
 
-<h2 id="sec-freefall">19. Free-Fall Dive &amp; Observer Frame</h2>
+<h2 id="sec-freefall">20. Free-Fall Dive &amp; Observer Frame</h2>
 
 <p>
     The simulation offers a <strong>"Dive"</strong> mode that drops the observer on a
@@ -1419,10 +1582,10 @@ newR = max(r + k2,  r_min)</code></pre>
 </div>
 
 <!-- ============================================================ -->
-<!-- 20. CINEMATIC SPEED -->
+<!-- 21. CINEMATIC SPEED -->
 <!-- ============================================================ -->
 
-<h2 id="sec-cinematic-speed">20. Cinematic Auto-Speed Envelope</h2>
+<h2 id="sec-cinematic-speed">21. Cinematic Auto-Speed Envelope</h2>
 
 <p>
     In a real free-fall, the observer accelerates continuously and crosses the most visually
@@ -1479,10 +1642,10 @@ newR = max(r + k2,  r_min)</code></pre>
 </div>
 
 <!-- ============================================================ -->
-<!-- 21. COMPARISON WITH REALITY -->
+<!-- 22. COMPARISON WITH REALITY -->
 <!-- ============================================================ -->
 
-<h2 id="sec-comparison">21. Comparison with Reality</h2>
+<h2 id="sec-comparison">22. Comparison with Reality</h2>
 
 <h3>What the simulation gets right</h3>
 
@@ -1521,6 +1684,12 @@ newR = max(r + k2,  r_min)</code></pre>
         <td>Gravitational redshift</td>
         <td>Exact Schwarzschild formula</td>
         <td>Confirmed experimentally (Pound-Rebka, GPS)</td>
+        <td><strong>Exact</strong></td>
+    </tr>
+    <tr>
+        <td>Gravitational blueshift (background sky)</td>
+        <td>1/&radic;(1 &minus; r<sub>s</sub>/r) for hovering observer; combined with kinematic Doppler for free-fall</td>
+        <td>Exact GR prediction; time-reverse of gravitational redshift</td>
         <td><strong>Exact</strong></td>
     </tr>
     <tr>
@@ -1697,10 +1866,10 @@ newR = max(r + k2,  r_min)</code></pre>
 </ul>
 
 <!-- ============================================================ -->
-<!-- 22. KNOWN LIMITATIONS -->
+<!-- 23. KNOWN LIMITATIONS -->
 <!-- ============================================================ -->
 
-<h2 id="sec-limitations">22. Known Limitations &amp; Approximations</h2>
+<h2 id="sec-limitations">23. Known Limitations &amp; Approximations</h2>
 
 <ul>
     <li><strong>No self-consistent Kerr geodesics:</strong> The frame-dragging is a perturbative addition to
@@ -1732,10 +1901,10 @@ newR = max(r + k2,  r_min)</code></pre>
 </ul>
 
 <!-- ============================================================ -->
-<!-- 23. REFERENCES -->
+<!-- 24. REFERENCES -->
 <!-- ============================================================ -->
 
-<h2 id="sec-references">23. References</h2>
+<h2 id="sec-references">24. References</h2>
 
 <ol class="references">
     <li id="ref-mtw">

@@ -97,6 +97,10 @@ function Shader(mustacheTemplate) {
             autoOrient: true
         },
 
+        hover: {
+            speed: 0.3
+        },
+
         planetEnabled: function() {
             return this.planet.enabled &&
                 this.quality !== 'fast' &&
@@ -114,7 +118,8 @@ function Shader(mustacheTemplate) {
         return this.parameters.accretion_disk ||
             this.parameters.jet.enabled ||
             this.parameters.planet.enabled || this.parameters.observer.motion ||
-            (typeof diveState !== 'undefined' && diveState.active && !diveState.paused);
+            (typeof diveState !== 'undefined' && diveState.active && !diveState.paused) ||
+            (typeof hoverState !== 'undefined' && hoverState.active && !hoverState.paused);
     };
 
     this.compile = function() {

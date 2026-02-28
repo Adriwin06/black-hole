@@ -64,6 +64,21 @@ function updateCamera( event ) {
         var diveFrame = (new THREE.Matrix4()).makeBasis(right, inward, up).linearPart();
         observer.orientation = diveFrame.multiply(orbitRot);
         shader.needsUpdate = true;
+    } else if (hoverState && hoverState.active) {
+        // Hover frame: same orientation logic as dive — look toward the BH.
+        // Observer is stationary (v=0) at each radius, so no kinematic Doppler.
+        var hoverOrbitRot = new THREE.Matrix3();
+        hoverOrbitRot.set(m[0], m[1], m[2], m[8], m[9], m[10], m[4], m[5], m[6]);
+
+        var hoverInward = hoverState.direction.clone().negate();
+        var hoverUpHint = Math.abs(hoverInward.z) < 0.99
+            ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(0, 1, 0);
+        var hoverRight = (new THREE.Vector3()).crossVectors(hoverInward, hoverUpHint).normalize();
+        var hoverUp = (new THREE.Vector3()).crossVectors(hoverRight, hoverInward).normalize();
+
+        var hoverFrame = (new THREE.Matrix4()).makeBasis(hoverRight, hoverInward, hoverUp).linearPart();
+        observer.orientation = hoverFrame.multiply(hoverOrbitRot);
+        shader.needsUpdate = true;
     } else {
 
         var p = new THREE.Vector3(

@@ -37,6 +37,13 @@ uniform vec2 taa_jitter;
 
 uniform float interior_mode; // 0.0 = exterior (capture at horizon), 1.0 = interior (trace past horizon)
 
+// Gravitational blueshift: sqrt(1 - r_s/r) for the observer position.
+// Light from infinity gains energy falling into the potential well.
+// For a hovering (static) observer: f_obs/f_emit = 1/grav_blueshift_factor.
+// Multiplied into the background Doppler factor so both gravitational and
+// kinematic Doppler are applied consistently.
+uniform float grav_blueshift_factor;
+
 uniform float planet_distance, planet_radius;
 uniform float disk_temperature;
 uniform float bh_spin, bh_spin_strength, bh_rotation_enabled;

@@ -166,18 +166,18 @@ a:hover {
         font-size: 16px;
     }
 
-    #dive-panel {
+    #anim-panel {
         left: 8px;
         right: auto !important;
         top: 8px;
         bottom: auto !important;
         width: min(46vw, 240px) !important;
-        max-height: 54vh;
+        max-height: 70vh;
         overflow-y: auto;
         z-index: 115;
     }
 
-    #dive-open-btn {
+    .anim-open-btn {
         top: 8px;
         left: 8px;
         right: auto;
@@ -218,17 +218,17 @@ a:hover {
     }
 }
 
-/* ─── Freefall Dive Panel ─────────────────────────────────────────────────── */
+/* ─── Animations Panel ────────────────────────────────────────────────────── */
 
-#dive-panel {
+#anim-panel {
     position: absolute;
     top: 2px;
     right: 370px;
-    width: 250px;
-    background: rgba(10, 10, 14, 0.92);
-    border: 1px solid #2a2a34;
+    width: 260px;
+    background: rgba(10, 10, 14, 0.93);
+    border: 1px solid #222230;
     border-radius: 6px;
-    padding: 14px 16px 12px;
+    padding: 14px 16px 10px;
     font-family: 'Lucida Grande', 'Segoe UI', sans-serif;
     font-size: 11px;
     color: #ccc;
@@ -238,14 +238,15 @@ a:hover {
     box-shadow: 0 4px 24px rgba(0,0,0,0.6);
 }
 
-.dive-header {
+.anim-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
+    margin-bottom: 4px;
 }
 
-.dive-title {
+.anim-title {
     font-size: 12px;
     font-weight: 700;
     letter-spacing: 2.5px;
@@ -254,12 +255,12 @@ a:hover {
     text-transform: uppercase;
 }
 
-.dive-close-btn {
+.anim-close-btn {
     width: 24px;
     height: 24px;
-    border: 1px solid #942727;
+    border: 1px solid #2f4f8a;
     border-radius: 4px;
-    background: rgba(150, 24, 24, 0.85);
+    background: rgba(20, 40, 80, 0.85);
     color: #fff;
     font-size: 18px;
     line-height: 1;
@@ -267,16 +268,12 @@ a:hover {
     padding: 0;
 }
 
-.dive-close-btn:hover {
-    background: rgba(190, 34, 34, 0.95);
-    border-color: #bb4444;
+.anim-close-btn:hover {
+    background: rgba(30, 65, 130, 0.95);
+    border-color: #4477bb;
 }
 
-.dive-body {
-    margin-top: 8px;
-}
-
-.dive-open-btn {
+.anim-open-btn {
     position: absolute;
     top: 56px;
     left: 10px;
@@ -295,14 +292,66 @@ a:hover {
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
 }
 
-.dive-open-btn:hover {
+.anim-open-btn:hover {
     background: rgba(15, 43, 94, 0.95);
     border-color: #4775c5;
 }
 
-#dive-panel.is-collapsed,
-.dive-open-btn.is-hidden {
+#anim-panel.is-collapsed,
+.anim-open-btn.is-hidden {
     display: none;
+}
+
+/* Collapsible sections inside the animations panel */
+.anim-section {
+    border-top: 1px solid #1e2030;
+    margin: 0 -2px;
+    padding: 0 2px;
+}
+
+.anim-section-toggle {
+    width: 100%;
+    background: none;
+    border: none;
+    color: #9aa0b8;
+    font-family: 'Lucida Grande', 'Segoe UI', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.8px;
+    text-transform: uppercase;
+    cursor: pointer;
+    padding: 10px 0;
+    text-align: left;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    outline: none;
+}
+
+.anim-section-toggle:hover {
+    color: #eeeeff;
+}
+
+.anim-section-arrow {
+    display: inline-block;
+    font-size: 8px;
+    transition: transform 0.18s;
+    color: #556;
+    flex-shrink: 0;
+}
+
+.anim-section.is-open > .anim-section-toggle .anim-section-arrow {
+    transform: rotate(90deg);
+    color: #7799bb;
+}
+
+.anim-section-body {
+    display: none;
+    padding-bottom: 6px;
+}
+
+.anim-section.is-open > .anim-section-body {
+    display: block;
 }
 
 .dive-desc {
@@ -501,6 +550,169 @@ a:hover {
     pointer-events: none;
     z-index: 90;
     transition: opacity 0.5s ease;
+}
+
+/* ─── Hover section styles (within Animations panel) ──────────────────────── */
+
+.hover-desc {
+    font-size: 10px;
+    color: #7799bb;
+    line-height: 1.4;
+    margin-bottom: 12px;
+}
+
+.hover-btn {
+    display: block;
+    width: 100%;
+    padding: 8px 0;
+    border: none;
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: background 0.18s, box-shadow 0.18s, opacity 0.18s;
+    outline: none;
+}
+
+.hover-btn:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+.hover-btn-start {
+    background: linear-gradient(135deg, #0066cc 0%, #003388 100%);
+    color: #d0eaff;
+    margin-bottom: 12px;
+    box-shadow: 0 2px 8px rgba(0, 102, 204, 0.25);
+}
+
+.hover-btn-start:hover:not(:disabled) {
+    background: linear-gradient(135deg, #1188ee 0%, #0055bb 100%);
+    box-shadow: 0 2px 14px rgba(0, 102, 204, 0.4);
+}
+
+.hover-btn-reset {
+    background: #1a2a3a;
+    color: #8ab4d8;
+    margin-top: 10px;
+}
+
+.hover-btn-reset:hover:not(:disabled) {
+    background: #2a3a4e;
+    color: #c0ddff;
+}
+
+.hover-control-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.hover-control-row label {
+    font-size: 10px;
+    color: #7799bb;
+    white-space: nowrap;
+    min-width: 78px;
+}
+
+.hover-control-row input[type="range"] {
+    flex: 1;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: #1a2a3a;
+    border-radius: 2px;
+    outline: none;
+}
+
+.hover-control-row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #44aaff;
+    cursor: pointer;
+}
+
+#hover-speed-val {
+    font-size: 10px;
+    color: #6699cc;
+    min-width: 28px;
+    text-align: right;
+}
+
+/* Hover horizon proximity bar */
+.hover-horizon-track {
+    position: relative;
+    height: 6px;
+    background: #0a1422;
+    border-radius: 3px;
+    margin-bottom: 8px;
+    overflow: hidden;
+    border: 1px solid #1a3366;
+    cursor: pointer;
+}
+
+.hover-horizon-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.12s ease-out, background 0.4s;
+    width: 0%;
+}
+
+.hover-horizon-fill.normal {
+    background: linear-gradient(90deg, #1a66cc, #44aaff);
+}
+
+.hover-horizon-fill.near {
+    background: linear-gradient(90deg, #44aaff, #88ddff, #ffffff);
+}
+
+.hover-horizon-label {
+    position: absolute;
+    top: -15px;
+    right: 0;
+    font-size: 9px;
+    color: #3366aa;
+    letter-spacing: 0.5px;
+}
+
+.hover-readout {
+    background: #060e1c;
+    border: 1px solid #1a3366;
+    border-radius: 4px;
+    padding: 8px 10px;
+    margin-bottom: 4px;
+}
+
+.hover-metric {
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    color: #88ccff;
+    line-height: 1.6;
+}
+
+.hover-status {
+    font-size: 11px;
+    font-weight: 600;
+    margin-top: 4px;
+    padding: 3px 0;
+    letter-spacing: 0.5px;
+}
+
+.hover-status.ready { color: #5588aa; }
+.hover-status.descending { color: #44aaff; }
+.hover-status.strong { color: #66ccff; animation: hover-pulse 1.2s infinite; }
+.hover-status.extreme { color: #aaeeff; animation: hover-pulse 0.6s infinite; }
+.hover-status.paused { color: #889aaa; }
+.hover-status.min-radius { color: #ffcc44; }
+
+@keyframes hover-pulse {
+    0%, 100% { opacity: 1.0; text-shadow: 0 0 6px rgba(100, 200, 255, 0.4); }
+    50% { opacity: 0.6; text-shadow: none; }
 }
 
 /* 3-D axes orientation gizmo */

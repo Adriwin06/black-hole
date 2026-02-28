@@ -1062,76 +1062,127 @@ function setupGUI() {
     };
     updateDependentVisibility();
 
-    // ─── Freefall Dive Panel ────────────────────────────────────────────────────
-    // Creates a separate animation panel positioned to the left of the dat.GUI
-    // controls.  The observer plunges radially from rest at infinity along a
-    // Schwarzschild geodesic.  Inside the event horizon the shader switches to
-    // interior coordinate mode: the Binet equation is integrated past u = 1
-    // (r < r_s) so backward-traced photons can exit the horizon and reveal the
-    // external universe as a shrinking, violently lensed window.
-    (function setupDivePanel() {
+    // ─── Animations Panel ───────────────────────────────────────────────────────
+    // Single panel that hosts both animation modes — Freefall Dive and Hover
+    // Approach — as collapsible sections.  Only one open-button is needed.
+    // Switching between modes is safe: startDive() aborts any active hover and
+    // startHover() aborts any active dive before saving state.
+    (function setupAnimationsPanel() {
         var panel = document.createElement('div');
-        panel.id = 'dive-panel';
+        panel.id = 'anim-panel';
         panel.innerHTML =
-            '<div class="dive-header">' +
-                '<div class="dive-title">FREEFALL DIVE</div>' +
-                '<button id="dive-close-btn" class="dive-close-btn" type="button" aria-label="Close Freefall Dive panel">&times;</button>' +
+            '<div class="anim-header">' +
+                '<div class="anim-title">ANIMATIONS</div>' +
+                '<button id="anim-close-btn" class="anim-close-btn" type="button" ' +
+                    'aria-label="Close Animations panel">&times;</button>' +
             '</div>' +
-            '<div class="dive-body">' +
-                '<div class="dive-desc">Radial plunge into the black hole interior. ' +
-                'Rays are traced through the event horizon with the full Schwarzschild ' +
-                'geodesic equation &mdash; no approximations.</div>' +
-                '<button id="dive-start-btn" class="dive-btn dive-btn-start">' +
-                    '\u25b6 START DIVE</button>' +
-                '<div class="dive-control-row">' +
-                    '<label>Fall speed</label>' +
-                    '<input type="range" id="dive-speed" min="0.01" max="5.0" ' +
-                        'step="0.01" value="1.0">' +
-                    '<span id="dive-speed-val">1.0\u00d7</span>' +
-                '</div>' +
-                '<div class="dive-control-row dive-cinematic-row">' +
-                    '<label for="dive-cinematic">Auto-speed</label>' +
-                    '<input type="checkbox" id="dive-cinematic">' +
-                    '<span class="dive-cinematic-hint">Slow near photon sphere &amp; horizon</span>' +
-                '</div>' +
-                '<div id="dive-horizon-track" class="dive-horizon-track">' +
-                    '<div id="dive-horizon-bar" class="dive-horizon-fill outside">' +
+            // ── Freefall Dive section ──────────────────────────────────────────
+            '<div class="anim-section" id="dive-section">' +
+                '<button class="anim-section-toggle" id="dive-section-toggle" ' +
+                    'type="button" aria-expanded="false" aria-controls="dive-section-body">' +
+                    '<span class="anim-section-arrow">&#9654;</span> FREEFALL DIVE' +
+                '</button>' +
+                '<div class="anim-section-body" id="dive-section-body">' +
+                    '<div class="dive-desc">Radial plunge into the black hole interior. ' +
+                    'Rays are traced through the event horizon with the full Schwarzschild ' +
+                    'geodesic equation &mdash; no approximations.</div>' +
+                    '<button id="dive-start-btn" class="dive-btn dive-btn-start">' +
+                        '\u25b6 START DIVE</button>' +
+                    '<div class="dive-control-row">' +
+                        '<label>Fall speed</label>' +
+                        '<input type="range" id="dive-speed" min="0.01" max="5.0" ' +
+                            'step="0.01" value="1.0">' +
+                        '<span id="dive-speed-val">1.0\u00d7</span>' +
                     '</div>' +
-                    '<div class="dive-horizon-label">Event Horizon</div>' +
+                    '<div class="dive-control-row dive-cinematic-row">' +
+                        '<label for="dive-cinematic">Auto-speed</label>' +
+                        '<input type="checkbox" id="dive-cinematic">' +
+                        '<span class="dive-cinematic-hint">Slow near photon sphere &amp; horizon</span>' +
+                    '</div>' +
+                    '<div id="dive-horizon-track" class="dive-horizon-track">' +
+                        '<div id="dive-horizon-bar" class="dive-horizon-fill outside"></div>' +
+                        '<div class="dive-horizon-label">Event Horizon</div>' +
+                    '</div>' +
+                    '<div class="dive-readout">' +
+                        '<div id="dive-radius" class="dive-metric">' +
+                            'r = ' + p.observer.distance.toFixed(2) + ' r<sub>s</sub></div>' +
+                        '<div id="dive-velocity" class="dive-metric">v = 0.000 c</div>' +
+                        '<div id="dive-status" class="dive-status ready">Ready</div>' +
+                    '</div>' +
+                    '<button id="dive-reset-btn" class="dive-btn dive-btn-reset" ' +
+                        'disabled>\u21ba RESET</button>' +
                 '</div>' +
-                '<div class="dive-readout">' +
-                    '<div id="dive-radius" class="dive-metric">' +
-                        'r = ' + p.observer.distance.toFixed(2) +
-                        ' r<sub>s</sub></div>' +
-                    '<div id="dive-velocity" class="dive-metric">v = 0.000 c</div>' +
-                    '<div id="dive-status" class="dive-status ready">Ready</div>' +
+            '</div>' +
+            // ── Hover Approach section ─────────────────────────────────────────
+            '<div class="anim-section" id="hover-section">' +
+                '<button class="anim-section-toggle" id="hover-section-toggle" ' +
+                    'type="button" aria-expanded="false" aria-controls="hover-section-body">' +
+                    '<span class="anim-section-arrow">&#9654;</span> HOVER APPROACH' +
+                '</button>' +
+                '<div class="anim-section-body" id="hover-section-body">' +
+                    '<div class="hover-desc">Stationary observer firing thrusters to hover ' +
+                    'at a fixed radius. Zero velocity &mdash; pure gravitational blueshift. ' +
+                    'Light from infinity gains energy falling into the potential well: ' +
+                    'f<sub>obs</sub>/f<sub>emit</sub>&nbsp;=&nbsp;1/&radic;(1&minus;r<sub>s</sub>/r).' +
+                    '</div>' +
+                    '<button id="hover-start-btn" class="hover-btn hover-btn-start">' +
+                        '\u25b6 START HOVER</button>' +
+                    '<div class="hover-control-row">' +
+                        '<label>Descent speed</label>' +
+                        '<input type="range" id="hover-speed" min="0.01" max="2.0" ' +
+                            'step="0.01" value="0.3">' +
+                        '<span id="hover-speed-val">0.3\u00d7</span>' +
+                    '</div>' +
+                    '<div id="hover-horizon-track" class="hover-horizon-track">' +
+                        '<div id="hover-horizon-bar" class="hover-horizon-fill normal"></div>' +
+                        '<div class="hover-horizon-label">Event Horizon</div>' +
+                    '</div>' +
+                    '<div class="hover-readout">' +
+                        '<div id="hover-radius" class="hover-metric">' +
+                            'r = ' + p.observer.distance.toFixed(2) + ' r<sub>s</sub></div>' +
+                        '<div id="hover-blueshift" class="hover-metric">' +
+                            'z<sub>grav</sub> = 1.00\u00d7</div>' +
+                        '<div id="hover-accel" class="hover-metric">' +
+                            'a = 0.00 c\u00b2/r<sub>s</sub></div>' +
+                        '<div id="hover-status" class="hover-status ready">Ready</div>' +
+                    '</div>' +
+                    '<button id="hover-reset-btn" class="hover-btn hover-btn-reset" ' +
+                        'disabled>\u21ba RESET</button>' +
                 '</div>' +
-                '<button id="dive-reset-btn" class="dive-btn dive-btn-reset" ' +
-                    'disabled>\u21ba RESET</button>' +
             '</div>';
         document.body.appendChild(panel);
 
         var openBtn = document.createElement('button');
-        openBtn.id = 'dive-open-btn';
-        openBtn.className = 'dive-open-btn';
+        openBtn.id = 'anim-open-btn';
+        openBtn.className = 'anim-open-btn';
         openBtn.type = 'button';
-        openBtn.textContent = 'FREEFALL DIVE';
-        openBtn.setAttribute('aria-label', 'Open Freefall Dive panel');
+        openBtn.textContent = 'ANIMATIONS';
+        openBtn.setAttribute('aria-label', 'Open Animations panel');
         document.body.appendChild(openBtn);
 
-        function setDivePanelOpen(isOpen) {
+        function setAnimPanelOpen(isOpen) {
             panel.classList.toggle('is-collapsed', !isOpen);
             openBtn.classList.toggle('is-hidden', isOpen);
         }
+        setAnimPanelOpen(false);
 
-        setDivePanelOpen(false);
+        openBtn.addEventListener('click', function() { setAnimPanelOpen(true); });
+        document.getElementById('anim-close-btn').addEventListener('click',
+            function() { setAnimPanelOpen(false); });
 
-        openBtn.addEventListener('click', function() {
-            setDivePanelOpen(true);
-        });
-        document.getElementById('dive-close-btn').addEventListener('click',
-            function() { setDivePanelOpen(false); });
+        // ── Collapsible section toggles ────────────────────────────────
+        function setupSectionToggle(sectionId) {
+            var section = document.getElementById(sectionId);
+            var toggle = section.querySelector('.anim-section-toggle');
+            toggle.addEventListener('click', function() {
+                var isOpen = section.classList.toggle('is-open');
+                toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+            });
+        }
+        setupSectionToggle('dive-section');
+        setupSectionToggle('hover-section');
 
+        // ── Dive events ────────────────────────────────────────────────
         document.getElementById('dive-start-btn').addEventListener('click',
             function() { startDive(); });
         document.getElementById('dive-reset-btn').addEventListener('click',
@@ -1143,16 +1194,14 @@ function setupGUI() {
                 document.getElementById('dive-speed-val').textContent =
                     (v < 0.1 ? v.toFixed(2) : v.toFixed(1)) + '\u00d7';
             });
-
         document.getElementById('dive-cinematic').addEventListener('change',
             function() { diveState.cinematic = this.checked; });
 
-        // ── Clickable / draggable progress bar ──────────────────────────
-        var track = document.getElementById('dive-horizon-track');
-        var dragging = false;
-        function handleTrackSeek(e) {
+        var diveTrack = document.getElementById('dive-horizon-track');
+        var diveDragging = false;
+        function handleDiveTrackSeek(e) {
             if (!diveState.active && !diveState.reachedSingularity) return;
-            var rect = track.getBoundingClientRect();
+            var rect = diveTrack.getBoundingClientRect();
             var clientX = e.touches ? e.touches[0].clientX : e.clientX;
             var x = Math.max(0, Math.min(clientX - rect.left, rect.width));
             var progress = x / rect.width;
@@ -1160,19 +1209,61 @@ function setupGUI() {
             var targetR = startR * (1.0 - progress);
             seekDive(targetR);
         }
-        track.addEventListener('mousedown', function(e) {
-            dragging = true; handleTrackSeek(e); e.preventDefault();
+        diveTrack.addEventListener('mousedown', function(e) {
+            diveDragging = true; handleDiveTrackSeek(e); e.preventDefault();
         });
         document.addEventListener('mousemove', function(e) {
-            if (dragging) handleTrackSeek(e);
+            if (diveDragging) handleDiveTrackSeek(e);
         });
-        document.addEventListener('mouseup', function() { dragging = false; });
-        track.addEventListener('touchstart', function(e) {
-            handleTrackSeek(e); e.preventDefault();
+        document.addEventListener('mouseup', function() { diveDragging = false; });
+        diveTrack.addEventListener('touchstart', function(e) {
+            handleDiveTrackSeek(e); e.preventDefault();
         });
-        track.addEventListener('touchmove', function(e) {
-            handleTrackSeek(e); e.preventDefault();
+        diveTrack.addEventListener('touchmove', function(e) {
+            handleDiveTrackSeek(e); e.preventDefault();
         });
+
+        // ── Hover events ───────────────────────────────────────────────
+        document.getElementById('hover-start-btn').addEventListener('click',
+            function() { startHover(); });
+        document.getElementById('hover-reset-btn').addEventListener('click',
+            function() { resetHover(); });
+        document.getElementById('hover-speed').addEventListener('input',
+            function() {
+                hoverState.speed = parseFloat(this.value);
+                var v = hoverState.speed;
+                document.getElementById('hover-speed-val').textContent =
+                    (v < 0.1 ? v.toFixed(2) : v.toFixed(1)) + '\u00d7';
+            });
+
+        var hoverTrack = document.getElementById('hover-horizon-track');
+        var hoverDragging = false;
+        function handleHoverTrackSeek(e) {
+            if (!hoverState.active) return;
+            var rect = hoverTrack.getBoundingClientRect();
+            var clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            var x = Math.max(0, Math.min(clientX - rect.left, rect.width));
+            var progress = x / rect.width;
+            var startR = Math.max(hoverState.prevDistance, 1);
+            var targetR = startR * (1.0 - progress);
+            targetR = Math.max(hoverState.minR, targetR);
+            seekHover(targetR);
+        }
+        hoverTrack.addEventListener('mousedown', function(e) {
+            hoverDragging = true; handleHoverTrackSeek(e); e.preventDefault();
+        });
+        document.addEventListener('mousemove', function(e) {
+            if (hoverDragging) handleHoverTrackSeek(e);
+        });
+        document.addEventListener('mouseup', function() { hoverDragging = false; });
+        hoverTrack.addEventListener('touchstart', function(e) {
+            handleHoverTrackSeek(e); e.preventDefault();
+        });
+        hoverTrack.addEventListener('touchmove', function(e) {
+            handleHoverTrackSeek(e); e.preventDefault();
+        });
+    })();
+    // ─────────────────────────────────────────────────────────────────────────────
 
         // ── 3-D axes orientation gizmo ──────────────────────────────────
         var gizmo = document.createElement('div');
@@ -1343,7 +1434,5 @@ function setupGUI() {
             updateObserverWidget();
             setOrbitMenuOpen(true);
         });
-    })();
-    // ─────────────────────────────────────────────────────────────────────────────
 
 }

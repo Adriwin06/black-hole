@@ -217,6 +217,27 @@ var diveState = {
     prevDistance: 11.0,
     reachedSingularity: false
 };
+
+// ─── Hover Approach State ─────────────────────────────────────────────────────
+// Tracks the hovering animation where a static observer slowly descends toward
+// the event horizon under powered flight.  Unlike the freefall dive, the
+// observer has ZERO velocity at every radius (they fire thrusters to hover).
+// This produces the pure gravitational blueshift described by GR: background
+// light from infinity gains energy falling into the potential well.
+// At radius r the frequency boost is 1/sqrt(1 - r_s/r), which diverges at
+// the horizon — you cannot hover at r = r_s (infinite acceleration needed).
+var hoverState = {
+    active: false,
+    paused: false,
+    speed: 0.3,
+    currentR: 11.0,
+    direction: new THREE.Vector3(1, 0, 0),
+    startPosition: new THREE.Vector3(10, 0, 0),
+    startVelocity: new THREE.Vector3(0, 1, 0),
+    prevMotionState: true,
+    prevDistance: 11.0,
+    minR: 1.02  // Cannot hover at the horizon (infinite proper acceleration)
+};
 // ─────────────────────────────────────────────────────────────────────────────
 var effectLabels = {
     spin: null,
@@ -304,6 +325,8 @@ function init(glslSource, textures) {
         jet_corona_brightness: { type: "f", value: 1.5 },
         jet_base_width: { type: "f", value: 0.4 },
         jet_corona_extent: { type: "f", value: 0.5 },
+
+        grav_blueshift_factor: { type: "f", value: 1.0 },
 
         star_texture: { type: "t", value: textures.stars },
         galaxy_texture: { type: "t", value: textures.galaxy },
@@ -403,6 +426,19 @@ function init(glslSource, textures) {
         // because the escape classifier assumes u0 > 1.
         var obsR = observer.position.length();
         uniforms.interior_mode.value = (obsR < 1.0) ? 1.0 : 0.0;
+
+        // Gravitational blueshift factor for background sky:
+        // sqrt(1 - r_s/r) = sqrt(1 - 1/r).  Light from infinity has its
+        // frequency boosted by 1/grav_blueshift_factor when received by a
+        // hovering observer at radius r.  Inside the horizon the concept of
+        // a static observer doesn't apply, so we set the factor to 1.0 and
+        // let the existing interior_boost shader code handle that regime.
+        if (obsR > 1.0) {
+            uniforms.grav_blueshift_factor.value =
+                Math.sqrt(Math.max(1.0 - 1.0 / obsR, 0.001));
+        } else {
+            uniforms.grav_blueshift_factor.value = 1.0;
+        }
 
         updateEffectLabels();
     };
@@ -509,6 +545,12 @@ function startDive() {
         diveState.paused = false;
         updateDiveUI();
         return;
+    }
+
+    // Abort any active hover first — restores observer to pre-hover state so
+    // diveState saves the correct original position/velocity below.
+    if (hoverState.active) {
+        resetHover();
     }
 
     // Save current observer state for reset
@@ -730,6 +772,212 @@ function updateDiveFade() {
     // as the escape window shrinks toward the singularity.
 }
 
+// ─── Hover Approach Animation Functions ─────────────────────────────────────
+// Physics: Powered hovering at each radius in Schwarzschild geometry.
+// The observer is STATIONARY (v = 0) at every point — thrusters fire to
+// counteract gravity.  Required proper acceleration:
+//   a = M / (r² √(1 - r_s/r)) = 0.5 / (r² √(1 - 1/r))
+// which diverges at r → r_s.  The pure gravitational blueshift of
+// background light is f_obs/f_emit = 1/√(1 - r_s/r).
+//
+// Unlike the freefall dive, the observer has zero kinematic Doppler, so the
+// full gravitational blueshift is visible: the sky progressively shifts toward
+// blue/UV with an intensity boost of D³ (Liouville invariant) as the observer
+// descends.  The approaching motion itself is an instantaneous quasi-static
+// sequence of hovering positions (not a free-fall trajectory).
+// ─────────────────────────────────────────────────────────────────────────────
+
+function startHover() {
+    // Toggle pause if already active
+    if (hoverState.active && !hoverState.paused) {
+        hoverState.paused = true;
+        updateHoverUI();
+        return;
+    }
+    if (hoverState.paused) {
+        hoverState.paused = false;
+        updateHoverUI();
+        return;
+    }
+
+    // Abort any active dive first
+    if (diveState.active || diveState.reachedSingularity) {
+        resetDive();
+    }
+
+    // Save current observer state for reset
+    hoverState.prevMotionState = shader.parameters.observer.motion;
+    hoverState.prevDistance = shader.parameters.observer.distance;
+    hoverState.startPosition = observer.position.clone();
+    hoverState.startVelocity = observer.velocity.clone();
+
+    // Disable orbital motion — hover controls the observer now
+    shader.parameters.observer.motion = false;
+
+    // Hover direction = radially inward from current position
+    hoverState.direction = observer.position.clone().normalize();
+    hoverState.currentR = observer.position.length();
+    hoverState.active = true;
+    hoverState.paused = false;
+
+    // Set observer as stationary (hovering)
+    observer.velocity.set(0, 0, 0);
+
+    scene.updateShader();
+    updateCamera();
+    updateHoverUI();
+    if (refreshAllControllersGlobal) refreshAllControllersGlobal();
+}
+
+function resetHover() {
+    hoverState.active = false;
+    hoverState.paused = false;
+
+    // Restore pre-hover observer state
+    shader.parameters.observer.motion = hoverState.prevMotionState;
+    shader.parameters.observer.distance = hoverState.prevDistance;
+    hoverState.currentR = hoverState.prevDistance;
+
+    observer.position.copy(hoverState.startPosition);
+    observer.velocity.copy(hoverState.startVelocity);
+
+    scene.updateShader();
+    updateCamera();
+    shader.needsUpdate = true;
+    updateHoverUI();
+    if (refreshAllControllersGlobal) refreshAllControllersGlobal();
+}
+
+function seekHover(targetR) {
+    if (!hoverState.active) return;
+    targetR = Math.max(hoverState.minR, Math.min(hoverState.prevDistance, targetR));
+
+    hoverState.currentR = targetR;
+    hoverState.paused = true;
+
+    // Update observer position (stationary, zero velocity)
+    observer.position.copy(hoverState.direction.clone().multiplyScalar(targetR));
+    observer.velocity.set(0, 0, 0);  // Hovering = stationary
+    shader.parameters.observer.distance = targetR;
+
+    shader.needsUpdate = true;
+    updateCamera();
+    updateHoverUI();
+}
+
+function updateHover(dt) {
+    if (!hoverState.active || hoverState.paused) return;
+
+    var r = hoverState.currentR;
+    if (r <= hoverState.minR) {
+        hoverState.paused = true;
+        updateHoverUI();
+        return;
+    }
+
+    // Controlled quasi-static descent: the approach rate scales as
+    // (r - minR) so the observer naturally decelerates as they
+    // approach the minimum hoverable radius.
+    var approachRate = hoverState.speed *
+        Math.max(r - hoverState.minR, 0.001) *
+        shader.parameters.time_scale;
+    var newR = Math.max(r - approachRate * dt, hoverState.minR);
+
+    hoverState.currentR = newR;
+
+    // Update observer position (stationary, zero velocity)
+    observer.position.copy(hoverState.direction.clone().multiplyScalar(newR));
+    observer.velocity.set(0, 0, 0);
+
+    shader.parameters.observer.distance = newR;
+
+    // Advance observer time with gravitational time dilation.
+    // For a hovering observer: dτ/dt = √(1 - r_s/r) = √(1 - 1/r)
+    var timeDilation = Math.sqrt(Math.max(1.0 - 1.0 / newR, 0.001));
+    observer.time += dt * shader.parameters.time_scale / timeDilation;
+
+    shader.needsUpdate = true;
+    updateHoverUI();
+}
+
+function updateHoverUI() {
+    var radiusEl = document.getElementById('hover-radius');
+    var blueshiftEl = document.getElementById('hover-blueshift');
+    var accelEl = document.getElementById('hover-accel');
+    var statusEl = document.getElementById('hover-status');
+    var btnEl = document.getElementById('hover-start-btn');
+    var resetBtn = document.getElementById('hover-reset-btn');
+    var horizonBar = document.getElementById('hover-horizon-bar');
+
+    if (!radiusEl) return;
+
+    var r = hoverState.currentR;
+
+    // Gravitational blueshift factor: f_obs/f_emit = 1/√(1 - 1/r)
+    var gravFactor = Math.sqrt(Math.max(1.0 - 1.0 / r, 0.001));
+    var blueshift = 1.0 / gravFactor;
+
+    // Required proper acceleration to hover: a = M/(r²√(1 - r_s/r))
+    // In units where M = 0.5, r_s = 1:
+    var properAccel = 0.5 / (r * r * gravFactor);
+
+    radiusEl.innerHTML = 'r = ' + r.toFixed(3) + ' r<sub>s</sub>';
+    blueshiftEl.innerHTML = 'z<sub>grav</sub> = ' + blueshift.toFixed(2) + '\u00d7';
+    accelEl.innerHTML = 'a = ' + (properAccel < 100 ? properAccel.toFixed(2) : properAccel.toFixed(0)) +
+        ' c\u00b2/r<sub>s</sub>';
+
+    // Update horizon proximity bar
+    if (horizonBar) {
+        var progress = Math.max(0, Math.min(100,
+            (1.0 - r / Math.max(hoverState.prevDistance, 1)) * 100));
+        horizonBar.style.width = progress + '%';
+        if (r < 1.5) {
+            horizonBar.className = 'hover-horizon-fill near';
+        } else {
+            horizonBar.className = 'hover-horizon-fill normal';
+        }
+    }
+
+    // Show effective speed
+    var speedEl = document.getElementById('hover-speed-val');
+    if (speedEl && hoverState.active) {
+        var effSpd = hoverState.speed;
+        speedEl.textContent = (effSpd < 0.1 ? effSpd.toFixed(2) : effSpd.toFixed(1)) + '\u00d7';
+    }
+
+    if (!hoverState.active) {
+        statusEl.textContent = 'Ready';
+        statusEl.className = 'hover-status ready';
+        btnEl.textContent = '\u25b6 START HOVER';
+        btnEl.disabled = false;
+    } else if (hoverState.paused && r <= hoverState.minR + 0.01) {
+        statusEl.textContent = '\u26a0 Minimum hover radius';
+        statusEl.className = 'hover-status min-radius';
+        btnEl.textContent = '\u25b6 START HOVER';
+        btnEl.disabled = true;
+    } else if (hoverState.paused) {
+        statusEl.textContent = '\u23f8 Hovering at r = ' + r.toFixed(2);
+        statusEl.className = 'hover-status paused';
+        btnEl.textContent = '\u25b6 RESUME';
+    } else if (r > 3.0) {
+        statusEl.textContent = '\u2193 Descending — mild blueshift';
+        statusEl.className = 'hover-status descending';
+        btnEl.textContent = '\u23f8 PAUSE';
+    } else if (r > 1.5) {
+        statusEl.textContent = '\u26a1 Strong blueshift zone';
+        statusEl.className = 'hover-status strong';
+        btnEl.textContent = '\u23f8 PAUSE';
+    } else {
+        statusEl.textContent = '\ud83d\udca0 Extreme blueshift!';
+        statusEl.className = 'hover-status extreme';
+        btnEl.textContent = '\u23f8 PAUSE';
+    }
+
+    if (resetBtn) {
+        resetBtn.disabled = !hoverState.active;
+    }
+}
+
 function updateAxesGizmo() {
     var canvas = document.getElementById('axes-gizmo');
     if (!canvas) return;
@@ -864,6 +1112,9 @@ function animate() {
     var dt = getFrameDuration();
     if (diveState.active && !diveState.paused && !diveState.reachedSingularity) {
         updateDive(dt);
+        updateCamera();
+    } else if (hoverState.active && !hoverState.paused) {
+        updateHover(dt);
         updateCamera();
     } else {
         observer.move(dt);

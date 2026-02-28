@@ -666,16 +666,33 @@ vec4 trace_ray(vec3 ray) {
             interior_boost = min(interior_boost, 4.0);
         }
 
+        // Gravitational blueshift for background sky: light from infinity
+        // gains energy falling into the gravitational potential well.
+        // For a static (hovering) observer at r:
+        //   f_obs/f_emit = 1/sqrt(1 - r_s/r) = 1/grav_blueshift_factor
+        // Combined with kinematic Doppler from observer orbital/dive motion.
+        float bg_doppler = ray_doppler_factor * grav_blueshift_factor;
+
+        // Liouville invariant (I_nu / nu^3 = const along a ray):
+        // D = f_obs/f_emit = 1/bg_doppler is the TOTAL frequency ratio
+        // from infinity to the observer, combining gravitational blueshift
+        // with kinematic Doppler.  Intensity scales as D^3.
+        // For hovering (v=0): ray_doppler=1 so D = 1/grav_blueshift_factor.
+        // For freefall: the large kinematic redshift partially cancels the
+        // gravitational blueshift, keeping escape-cone stars properly dim.
+        float bg_D = 1.0 / max(bg_doppler, 0.01);
+        float bg_boost = min(bg_D * bg_D * bg_D, 10000.0);
+
         vec4 star_color = texture2D(star_texture, tex_coord);
         if (star_color.r > 0.0) {
             t_coord = (STAR_MIN_TEMPERATURE +
                 (STAR_MAX_TEMPERATURE-STAR_MIN_TEMPERATURE) * star_color.g)
-                 / ray_doppler_factor;
+                 / bg_doppler;
 
-            color += BLACK_BODY_COLOR(t_coord) * star_color.r * STAR_BRIGHTNESS * look_star_gain * vol_transmittance * interior_boost;
+            color += BLACK_BODY_COLOR(t_coord) * star_color.r * STAR_BRIGHTNESS * look_star_gain * vol_transmittance * interior_boost * bg_boost;
         }
 
-        color += galaxy_color(tex_coord, ray_doppler_factor) * GALAXY_BRIGHTNESS * look_galaxy_gain * vol_transmittance * interior_boost;
+        color += galaxy_color(tex_coord, bg_doppler) * GALAXY_BRIGHTNESS * look_galaxy_gain * vol_transmittance * interior_boost * bg_boost;
     }
 
     return color*ray_intensity;
