@@ -13,9 +13,9 @@
  * The Milky Way image `img/milkyway.jpg` is from [Stellarium](http://www.stellarium.org/wiki/index.php/Textures) and "based on Nick Risinger's [Photopic Sky Survey](http://skysurvey.org/) image under [CC-BY-NC 2.0](http://creativecommons.org/licenses/by-nc/2.0/)."
  * All other files in this repository, https://github.com/oseiskar/black-hole, are hereby licensed under the MIT license:
 
-      Copyright (c) 2015 Otto Seiskari
-      Copyright (c) 2026 Adriwin
-      This fork is maintained and substantially extended by Adriwin (https://github.com/Adriwin), based on the original work by Otto Seiskari (https://github.com/oseiskar).
+        Copyright (c) 2015 Otto Seiskari
+        Copyright (c) 2026 Adriwin
+        This fork is maintained and substantially extended by Adriwin (https://github.com/Adriwin), based on the original work by Otto Seiskari (https://github.com/oseiskar).
 
        Permission is hereby granted, free of charge, to any person obtaining a copy
        of this software and associated documentation files (the "Software"), to deal
