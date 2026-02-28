@@ -47,8 +47,9 @@ body {
 
 #effect-readout {
     position: absolute;
-    left: 56px;
-    bottom: 72px;
+    left: 42px;
+    top: 128px;
+    bottom: auto;
     color: #f3f3f3;
     font-family: "Times New Roman", serif;
     font-style: italic;
@@ -57,9 +58,9 @@ body {
 }
 
 #effect-readout > div {
-    font-size: 62px;
+    font-size: 50px;
     font-weight: normal;
-    line-height: 1.1;
+    line-height: 1.04;
 }
 
 #spin-label.is-disabled {
@@ -85,12 +86,13 @@ a:hover {
     }
 
     #effect-readout {
-        left: 16px;
-        bottom: 54px;
+        left: 12px;
+        top: 86px;
+        bottom: auto;
     }
 
     #effect-readout > div {
-        font-size: 30px;
+        font-size: 24px;
     }
 }
 
@@ -171,10 +173,26 @@ a:hover {
     }
 
     #axes-gizmo-container {
-        left: 8px;
-        bottom: 8px;
-        transform: scale(0.9);
-        transform-origin: left bottom;
+        left: auto !important;
+        right: 8px !important;
+        top: 8px !important;
+        bottom: auto !important;
+        transform: scale(0.9) !important;
+        transform-origin: right top !important;
+        z-index: 145 !important;
+        pointer-events: auto !important;
+    }
+
+    #observer-orbit-shell {
+        pointer-events: auto !important;
+    }
+}
+
+@media screen and (max-width: 520px) {
+    #axes-gizmo-container {
+        right: 4px !important;
+        top: 4px !important;
+        transform: scale(0.84) !important;
     }
 }
 
@@ -468,13 +486,253 @@ a:hover {
     position: fixed;
     bottom: 8px;
     left: 10px;
-    width: 80px;
-    height: 80px;
+    top: auto;
+    right: auto;
+    width: 170px;
+    height: 170px;
     z-index: 50;
     pointer-events: none;
 }
 
+#observer-orbit-shell {
+    position: relative;
+    width: 170px;
+    height: 170px;
+    pointer-events: none;
+}
+
+#observer-orbit-shell::before {
+    content: 'Observer controls';
+    position: absolute;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 3px 9px;
+    border: 1px solid rgba(134, 184, 255, 0.75);
+    border-radius: 10px;
+    background: rgba(8, 24, 56, 0.84);
+    color: #cfe2ff;
+    font-family: 'Lucida Grande', 'Segoe UI', sans-serif;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.15px;
+    line-height: 1.15;
+    white-space: nowrap;
+    text-shadow: 0 0 3px rgba(105, 153, 233, 0.55);
+    box-shadow: 0 0 10px rgba(22, 52, 102, 0.5);
+    pointer-events: none;
+    opacity: 0.92;
+    transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+#observer-orbit-shell::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 94px;
+    height: 94px;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    border: 1px dashed rgba(132, 182, 255, 0.68);
+    pointer-events: none;
+    opacity: 0.6;
+}
+
+#observer-orbit-shell:not(.is-open)::before {
+    opacity: 0.92;
+}
+
+#observer-orbit-shell:not(.is-open)::after {
+    opacity: 0.6;
+}
+
+#observer-orbit-shell.is-open::before,
+#observer-orbit-shell.is-open::after {
+    opacity: 0;
+    animation: none;
+}
+
+#observer-orbit-shell.is-open::before {
+    transform: translateX(-50%) translateY(-5px);
+}
+
+#observer-orbit-shell.is-open::after {
+    transform: translate(-50%, -50%) scale(0.9);
+}
+
 #axes-gizmo {
+    position: absolute;
+    left: 50%;
+    top: 50%;
     width: 80px;
     height: 80px;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    pointer-events: auto;
+    cursor: pointer;
+    filter: drop-shadow(0 0 8px rgba(120, 176, 255, 0.35));
+    transition: filter 0.16s ease;
+}
+
+#axes-gizmo:hover {
+    filter: drop-shadow(0 0 14px rgba(120, 176, 255, 0.62));
+}
+
+.observer-distance-arc {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transform: scale(0.94);
+    transform-origin: 50% 50%;
+    transition: opacity 0.16s ease, transform 0.16s ease;
+    pointer-events: none;
+}
+
+#observer-orbit-shell.is-open .observer-distance-arc {
+    opacity: 1;
+    transform: scale(1.0);
+    pointer-events: auto;
+}
+
+.observer-distance-track,
+.observer-distance-fill,
+.observer-distance-hit {
+    fill: none;
+    stroke-linecap: round;
+}
+
+.observer-distance-track {
+    stroke: rgba(110, 140, 200, 0.34);
+    stroke-width: 8;
+}
+
+.observer-distance-fill {
+    stroke: #7fb6ff;
+    stroke-width: 8;
+    filter: drop-shadow(0 0 5px rgba(125, 180, 255, 0.6));
+}
+
+.observer-distance-hit {
+    stroke: rgba(0, 0, 0, 0);
+    stroke-width: 20;
+    pointer-events: stroke;
+    cursor: pointer;
+}
+
+.observer-distance-knob {
+    fill: #dfeaff;
+    stroke: #5f96e3;
+    stroke-width: 2;
+    filter: drop-shadow(0 0 6px rgba(140, 189, 255, 0.8));
+    pointer-events: none;
+}
+
+.observer-orbit-btn {
+    position: absolute;
+    min-width: 58px;
+    padding: 5px 8px;
+    border: 1px solid #3968b2;
+    border-radius: 14px;
+    background: rgba(11, 32, 74, 0.92);
+    color: #dbe8ff;
+    font-family: 'Lucida Grande', 'Segoe UI', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    text-align: center;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.45);
+    cursor: pointer;
+    opacity: 0;
+    transform: scale(0.84);
+    transition: opacity 0.16s ease, transform 0.16s ease, background 0.14s ease;
+    pointer-events: none;
+}
+
+#observer-orbit-shell.is-open .observer-orbit-btn {
+    opacity: 1;
+    transform: scale(1.0);
+    pointer-events: auto;
+}
+
+.observer-orbit-btn-motion {
+    top: 16px;
+    left: 2px;
+}
+
+.observer-orbit-btn-motion.is-active {
+    background: rgba(20, 73, 34, 0.94);
+    border-color: #43a05a;
+    color: #dcffe7;
+}
+
+.observer-orbit-btn-reset {
+    top: 16px;
+    right: 2px;
+    border-color: #813535;
+    background: rgba(86, 22, 22, 0.92);
+    color: #ffe6e6;
+}
+
+.observer-orbit-btn:hover {
+    background: rgba(18, 50, 106, 0.98);
+}
+
+.observer-orbit-btn-reset:hover {
+    background: rgba(113, 33, 33, 0.96);
+}
+
+.observer-orbit-distance {
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 3px 8px;
+    border-radius: 10px;
+    background: rgba(10, 29, 67, 0.9);
+    color: #dce9ff;
+    font-family: 'Lucida Grande', 'Segoe UI', sans-serif;
+    font-size: 10px;
+    letter-spacing: 0.4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+    opacity: 0;
+    transition: opacity 0.16s ease;
+}
+
+.observer-orbit-help {
+    position: absolute;
+    top: 52px;
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    color: #b8cff8;
+    font-family: 'Lucida Grande', 'Segoe UI', sans-serif;
+    font-size: 9px;
+    letter-spacing: 0.2px;
+    opacity: 0;
+    transition: opacity 0.16s ease;
+}
+
+#observer-orbit-shell.is-open .observer-orbit-distance,
+#observer-orbit-shell.is-open .observer-orbit-help {
+    opacity: 1;
+}
+
+.observer-orbit-tag {
+    position: absolute;
+    left: 50%;
+    bottom: -6px;
+    transform: translateX(-50%);
+    color: #9ab8ee;
+    font-family: 'Lucida Grande', 'Segoe UI', sans-serif;
+    font-size: 9px;
+    letter-spacing: 1.2px;
+    text-shadow: 0 0 6px rgba(82, 128, 202, 0.55);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.16s ease;
+}
+
+#observer-orbit-shell.is-open + .observer-orbit-tag {
+    opacity: 1;
 }

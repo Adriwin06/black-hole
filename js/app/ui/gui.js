@@ -19,10 +19,35 @@ function setupGUI() {
         shader.needsUpdate = true;
     }
 
+    function observerControlHelp(prefix) {
+        var lead = prefix ? (prefix + ' ') : '';
+        return lead + 'Left drag: orbit, Right drag: pan, Left+Right drag: roll.';
+    }
+
+    function showObserverControlHint(prefix) {
+        hint.text(observerControlHelp(prefix));
+        hint.stop(true, true).fadeIn(120).delay(1400).fadeOut(360);
+    }
+
+    function resetObserverCamera() {
+        if (cameraControls) {
+            cameraControls.reset();
+            cameraControls.target.set(0, 0, 0);
+        }
+        if (cameraPan) {
+            cameraPan.set(0, 0);
+        }
+        updateCamera();
+        shader.needsUpdate = true;
+        hint.text('Camera reset. ' + observerControlHelp(''));
+        hint.stop(true, true).fadeIn(120).delay(900).fadeOut(360);
+    }
+
     var gui = new dat.GUI({ width: 360 });
     if (window.matchMedia && window.matchMedia('(max-width: 960px)').matches) {
         gui.close();
     }
+    var syncObserverWidgetControls = null;
 
     // Recursively update all dat.GUI controllers to reflect programmatic changes.
     // dat.GUI does NOT auto-sync the displayed value when the bound property
@@ -37,6 +62,7 @@ function setupGUI() {
             }
         }
         recurse(gui);
+        if (syncObserverWidgetControls) syncObserverWidgetControls();
     }
     refreshAllControllersGlobal = refreshAllControllers;
 
@@ -872,54 +898,7 @@ function setupGUI() {
     });
     ppFolder.open();
 
-    var folder = gui.addFolder('Observer');
-    addControl(folder, p.observer, 'motion', {
-        name: 'orbital motion',
-        help: 'When enabled, the observer follows a circular orbit around the black hole.',
-        onChange: function(motion) {
-        updateCamera();
-        updateShader();
-        if (motion) {
-            hint.text('Moving observer; drag to rotate camera');
-        } else {
-            hint.text('Stationary observer; drag to orbit around');
-        }
-        hint.fadeIn();
-        }
-    });
-    distanceController = addControl(folder, p.observer, 'distance', {
-        min: 1.5,
-        max: 30,
-        step: 0.1,
-        name: 'distance',
-        onChange: function() {
-            updateCamera();
-            shader.needsUpdate = true;
-        },
-        help: 'Observer distance from the black hole center in Schwarzschild-radius units.'
-    });
-    var observerActions = {
-        reset_camera: function() {
-            if (cameraControls) {
-                cameraControls.reset();
-                cameraControls.target.set(0, 0, 0);
-            }
-            if (cameraPan) {
-                cameraPan.set(0, 0);
-            }
-            updateCamera();
-            shader.needsUpdate = true;
-            hint.text('Camera reset');
-            hint.stop(true, true).fadeIn(120).delay(700).fadeOut(320);
-        }
-    };
-    addControl(folder, observerActions, 'reset_camera', {
-        name: 'reset camera',
-        help: 'Reset camera pan, tilt/roll, and orbit orientation.'
-    });
-    folder.open();
-
-    folder = gui.addFolder('Planet');
+    var folder = gui.addFolder('Planet');
     addControl(folder, p.planet, 'enabled', {
         name: 'enabled',
         help: 'Adds an orbiting planet used as a reference object.',
@@ -1170,8 +1149,172 @@ function setupGUI() {
         // ── 3-D axes orientation gizmo ──────────────────────────────────
         var gizmo = document.createElement('div');
         gizmo.id = 'axes-gizmo-container';
-        gizmo.innerHTML = '<canvas id="axes-gizmo" width="80" height="80"></canvas>';
+        gizmo.innerHTML =
+            '<div id="observer-orbit-shell" class="observer-orbit-shell">' +
+                '<svg id="observer-distance-arc" class="observer-distance-arc" viewBox="0 0 140 140" aria-label="Observer distance dial">' +
+                    '<path id="observer-distance-track" class="observer-distance-track"></path>' +
+                    '<path id="observer-distance-fill" class="observer-distance-fill"></path>' +
+                    '<path id="observer-distance-hit" class="observer-distance-hit"></path>' +
+                    '<circle id="observer-distance-knob" class="observer-distance-knob" r="6"></circle>' +
+                '</svg>' +
+                '<button id="observer-orbit-motion" type="button" class="observer-orbit-btn observer-orbit-btn-motion" aria-pressed="false">MOTION</button>' +
+                '<button id="observer-orbit-reset" type="button" class="observer-orbit-btn observer-orbit-btn-reset">RESET</button>' +
+                '<div id="observer-orbit-distance" class="observer-orbit-distance">11.0 r_s</div>' +
+                '<div class="observer-orbit-help">L orbit | R pan | L+R roll</div>' +
+                '<canvas id="axes-gizmo" width="80" height="80" aria-label="XYZ orientation indicator"></canvas>' +
+            '</div>' +
+            '<div class="observer-orbit-tag">OBSERVER</div>';
         document.body.appendChild(gizmo);
+
+        var orbitShell = document.getElementById('observer-orbit-shell');
+        var axesCanvas = document.getElementById('axes-gizmo');
+        var motionBtn = document.getElementById('observer-orbit-motion');
+        var resetBtn = document.getElementById('observer-orbit-reset');
+        var distanceReadout = document.getElementById('observer-orbit-distance');
+        var distanceArcSvg = document.getElementById('observer-distance-arc');
+        var distanceTrack = document.getElementById('observer-distance-track');
+        var distanceFill = document.getElementById('observer-distance-fill');
+        var distanceHit = document.getElementById('observer-distance-hit');
+        var distanceKnob = document.getElementById('observer-distance-knob');
+
+        var ARC = { cx: 70, cy: 70, radius: 56, startDeg: 60, endDeg: 300 };
+        var draggingDistance = false;
+
+        function clamp(value, minValue, maxValue) {
+            return Math.max(minValue, Math.min(maxValue, value));
+        }
+
+        function setOrbitMenuOpen(isOpen) {
+            orbitShell.classList.toggle('is-open', !!isOpen);
+        }
+
+        function distanceToProgress(distance) {
+            return (distance - 1.5) / (30.0 - 1.5);
+        }
+
+        function progressToDistance(progress) {
+            return 1.5 + clamp(progress, 0.0, 1.0) * (30.0 - 1.5);
+        }
+
+        function arcPoint(angleDeg) {
+            var radians = (angleDeg - 90.0) * Math.PI / 180.0;
+            return {
+                x: ARC.cx + ARC.radius * Math.cos(radians),
+                y: ARC.cy + ARC.radius * Math.sin(radians)
+            };
+        }
+
+        function describeArc(startDeg, endDeg) {
+            var start = arcPoint(startDeg);
+            var end = arcPoint(endDeg);
+            var largeArcFlag = Math.abs(endDeg - startDeg) > 180 ? 1 : 0;
+            var sweepFlag = endDeg >= startDeg ? 1 : 0;
+            return 'M ' + start.x.toFixed(3) + ' ' + start.y.toFixed(3) +
+                ' A ' + ARC.radius + ' ' + ARC.radius + ' 0 ' + largeArcFlag + ' ' + sweepFlag +
+                ' ' + end.x.toFixed(3) + ' ' + end.y.toFixed(3);
+        }
+
+        function updateDistanceArc(distance) {
+            var progress = clamp(distanceToProgress(distance), 0.0, 1.0);
+            var angle = ARC.startDeg + progress * (ARC.endDeg - ARC.startDeg);
+            var fillEnd = angle;
+            if (Math.abs(fillEnd - ARC.startDeg) < 0.001) fillEnd += 0.001;
+
+            distanceTrack.setAttribute('d', describeArc(ARC.startDeg, ARC.endDeg));
+            distanceFill.setAttribute('d', describeArc(ARC.startDeg, fillEnd));
+            distanceHit.setAttribute('d', describeArc(ARC.startDeg, ARC.endDeg));
+
+            var knobPos = arcPoint(angle);
+            distanceKnob.setAttribute('cx', knobPos.x.toFixed(3));
+            distanceKnob.setAttribute('cy', knobPos.y.toFixed(3));
+        }
+
+        function setDistanceFromPointerEvent(event) {
+            var rect = distanceArcSvg.getBoundingClientRect();
+            if (!rect.width || !rect.height) return;
+
+            var px = (event.clientX - rect.left) * (140.0 / rect.width);
+            var py = (event.clientY - rect.top) * (140.0 / rect.height);
+            var angle = (Math.atan2(py - ARC.cy, px - ARC.cx) * 180.0 / Math.PI + 90.0 + 360.0) % 360.0;
+            angle = clamp(angle, ARC.startDeg, ARC.endDeg);
+
+            var progress = (angle - ARC.startDeg) / (ARC.endDeg - ARC.startDeg);
+            p.observer.distance = progressToDistance(progress);
+            updateCamera();
+            shader.needsUpdate = true;
+            updateObserverWidget();
+        }
+
+        function updateObserverWidget() {
+            if (!motionBtn || !distanceReadout) return;
+            var motionEnabled = !!p.observer.motion;
+            motionBtn.classList.toggle('is-active', motionEnabled);
+            motionBtn.setAttribute('aria-pressed', motionEnabled ? 'true' : 'false');
+            distanceReadout.textContent = p.observer.distance.toFixed(1) + ' r_s';
+            updateDistanceArc(p.observer.distance);
+        }
+
+        syncObserverWidgetControls = updateObserverWidget;
+        distanceController = { updateDisplay: updateObserverWidget };
+        updateObserverWidget();
+
+        function toggleOrbitMenuFromEvent(event) {
+            if (event) {
+                event.stopPropagation();
+                if (event.preventDefault) event.preventDefault();
+            }
+            setOrbitMenuOpen(!orbitShell.classList.contains('is-open'));
+        }
+
+        if (window.PointerEvent) {
+            axesCanvas.addEventListener('pointerdown', toggleOrbitMenuFromEvent);
+        } else {
+            axesCanvas.addEventListener('touchstart', toggleOrbitMenuFromEvent, { passive: false });
+            axesCanvas.addEventListener('click', toggleOrbitMenuFromEvent);
+        }
+
+        orbitShell.addEventListener('pointerdown', function(event) {
+            event.stopPropagation();
+        });
+
+        document.addEventListener('pointerdown', function(event) {
+            if (!orbitShell.contains(event.target)) setOrbitMenuOpen(false);
+        });
+
+        motionBtn.addEventListener('click', function() {
+            p.observer.motion = !p.observer.motion;
+            updateCamera();
+            updateShader();
+            showObserverControlHint(p.observer.motion ? 'Moving observer.' : 'Stationary observer.');
+            updateObserverWidget();
+            setOrbitMenuOpen(true);
+        });
+
+        distanceHit.addEventListener('pointerdown', function(event) {
+            draggingDistance = true;
+            setOrbitMenuOpen(true);
+            setDistanceFromPointerEvent(event);
+            if (distanceHit.setPointerCapture) distanceHit.setPointerCapture(event.pointerId);
+            event.preventDefault();
+        });
+        distanceHit.addEventListener('pointermove', function(event) {
+            if (!draggingDistance) return;
+            setDistanceFromPointerEvent(event);
+            event.preventDefault();
+        });
+        distanceHit.addEventListener('pointerup', function(event) {
+            draggingDistance = false;
+            if (distanceHit.releasePointerCapture) distanceHit.releasePointerCapture(event.pointerId);
+        });
+        distanceHit.addEventListener('pointercancel', function() {
+            draggingDistance = false;
+        });
+
+        resetBtn.addEventListener('click', function() {
+            resetObserverCamera();
+            updateObserverWidget();
+            setOrbitMenuOpen(true);
+        });
     })();
     // ─────────────────────────────────────────────────────────────────────────────
 
