@@ -351,7 +351,7 @@ function setupGUI() {
             updateDependentVisibility();
             shader.needsUpdate = true;
         },
-        help: 'Temporal anti-aliasing with aggressive history clamping to avoid ghosting.'
+        help: 'Temporal anti-aliasing with aggressive history clamping to avoid ghosting/details loss.'
     });
     var taaHistoryWeightCtrl = addControl(renderFolder, p.taa, 'history_weight', {
         min: 0.0,
