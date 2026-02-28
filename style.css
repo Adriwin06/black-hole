@@ -69,6 +69,45 @@ a:hover {
     z-index: 120 !important;
 }
 
+#mobile-gui-toggle {
+    display: block;
+    position: fixed;
+    left: auto;
+    right: 15px;
+    bottom: 8px;
+    width: min(360px, calc(100vw - 16px));
+    height: 28px;
+    border: 1px solid #2f4f8a;
+    border-radius: 6px;
+    background: rgba(6, 18, 42, 0.92);
+    color: #dbe8ff;
+    font-family: 'Lucida Grande', 'Segoe UI', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.35px;
+    z-index: 132;
+    pointer-events: auto;
+}
+
+.dg.main .close-button {
+    display: none !important;
+}
+
+@media screen and (min-width: 961px) {
+    /* Keep the desktop panel above the custom toggle button. */
+    .dg.main {
+        max-height: calc(100vh - 44px) !important;
+        overflow-y: auto;
+        box-sizing: border-box;
+        padding-bottom: 0;
+    }
+
+    .dg.main > ul {
+        max-height: calc(100vh - 44px) !important;
+        overflow-y: auto;
+    }
+}
+
 @media screen and (max-width: 960px) {
     .dg.ac {
         z-index: 130 !important;
@@ -94,27 +133,33 @@ a:hover {
         left: 8px;
         right: 8px;
         top: auto !important;
-        bottom: 8px;
+        bottom: 68px;
         width: auto !important;
-        height: 56vh;
+        height: auto;
         max-height: 56vh;
-        overflow: hidden;
+        overflow: visible;
     }
 
     .dg.main > ul {
-        height: calc(56vh - 22px);
+        height: auto;
         max-height: calc(56vh - 22px);
         overflow-y: auto;
         overflow-x: hidden;
     }
 
-    .dg.main .close-button {
-        position: absolute;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        width: 100% !important;
-        z-index: 1;
+    /* When dat.GUI is closed, don't leave an invisible touch-blocking area. */
+    .dg.main > ul.closed {
+        height: 0 !important;
+        max-height: 0 !important;
+        overflow: hidden !important;
+        pointer-events: none;
+    }
+
+    #mobile-gui-toggle {
+        left: 8px;
+        right: 8px;
+        width: auto;
+        bottom: 34px;
     }
 
     .dg .cr.number input[type=text] {
@@ -162,6 +207,14 @@ a:hover {
         right: 4px !important;
         top: 4px !important;
         transform: scale(0.84) !important;
+    }
+
+    #mobile-gui-toggle {
+        left: 6px;
+        right: 6px;
+        bottom: 30px;
+        height: 26px;
+        font-size: 11px;
     }
 }
 

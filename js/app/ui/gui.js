@@ -44,9 +44,38 @@ function setupGUI() {
     }
 
     var gui = new dat.GUI({ width: 360 });
+    var mobileGuiToggleBtn = null;
+
+    function isMobileGuiViewport() {
+        return !!(window.matchMedia && window.matchMedia('(max-width: 960px)').matches);
+    }
+
+    function updateMobileGuiToggleLabel() {
+        if (!mobileGuiToggleBtn) return;
+        mobileGuiToggleBtn.textContent = gui.closed ? 'Open Controls' : 'Close Controls';
+    }
+
+    function ensureMobileGuiToggleButton() {
+        if (mobileGuiToggleBtn) return;
+        mobileGuiToggleBtn = document.createElement('button');
+        mobileGuiToggleBtn.id = 'mobile-gui-toggle';
+        mobileGuiToggleBtn.type = 'button';
+        mobileGuiToggleBtn.setAttribute('aria-label', 'Toggle settings controls');
+        mobileGuiToggleBtn.addEventListener('click', function(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            gui.closed = !gui.closed;
+            updateMobileGuiToggleLabel();
+        });
+        document.body.appendChild(mobileGuiToggleBtn);
+        updateMobileGuiToggleLabel();
+    }
+
     if (window.matchMedia && window.matchMedia('(max-width: 960px)').matches) {
         gui.close();
     }
+    ensureMobileGuiToggleButton();
+    window.addEventListener('resize', updateMobileGuiToggleLabel);
     var syncObserverWidgetControls = null;
 
     // Recursively update all dat.GUI controllers to reflect programmatic changes.
