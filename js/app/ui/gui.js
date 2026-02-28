@@ -739,7 +739,6 @@ function setupGUI() {
         p.jet.corona_brightness      = preset.jet.corona_brightness;
         p.jet.base_width             = preset.jet.base_width;
         p.jet.corona_extent          = preset.jet.corona_extent;
-        p.observer.distance          = preset.observer.distance;
         p.beaming                    = preset.beaming;
         p.physical_beaming           = preset.physical_beaming;
         p.doppler_shift              = preset.doppler_shift;

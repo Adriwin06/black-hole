@@ -45,28 +45,6 @@ body {
     color: #cccccc;
 }
 
-#effect-readout {
-    position: absolute;
-    left: 42px;
-    top: 128px;
-    bottom: auto;
-    color: #f3f3f3;
-    font-family: "Times New Roman", serif;
-    font-style: italic;
-    text-shadow: 0 0 14px rgba(0, 0, 0, 0.75);
-    pointer-events: none;
-}
-
-#effect-readout > div {
-    font-size: 50px;
-    font-weight: normal;
-    line-height: 1.04;
-}
-
-#spin-label.is-disabled {
-    opacity: 0.35;
-}
-
 a {
     color: white;
     text-decoration: none;
@@ -85,15 +63,6 @@ a:hover {
         visibility: hidden;
     }
 
-    #effect-readout {
-        left: 12px;
-        top: 86px;
-        bottom: auto;
-    }
-
-    #effect-readout > div {
-        font-size: 24px;
-    }
 }
 
 .dg.main {
