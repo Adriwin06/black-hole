@@ -92,12 +92,68 @@ a:hover {
     #effect-readout > div {
         font-size: 30px;
     }
+}
+
+.dg.main {
+    z-index: 120 !important;
+}
+
+@media screen and (max-width: 960px) {
+    #hint-text {
+        top: 6px;
+        padding: 0 8px;
+        font-size: 11px;
+        box-sizing: border-box;
+    }
+
+    .link-bar {
+        bottom: 6px;
+        font-size: 11px;
+        line-height: 1.45;
+        padding: 0 8px;
+        box-sizing: border-box;
+    }
+
+    .dg.main {
+        position: fixed !important;
+        left: 8px;
+        right: 8px;
+        top: auto !important;
+        bottom: 8px;
+        width: auto !important;
+        max-height: 56vh;
+    }
+
+    .dg.main > ul {
+        max-height: calc(56vh - 22px);
+        overflow-y: auto;
+        overflow-x: hidden;
+    }
+
+    .dg.main .close-button {
+        width: 100% !important;
+    }
+
+    .dg .cr.number input[type=text] {
+        font-size: 16px;
+    }
 
     #dive-panel {
-        right: 4px !important;
-        top: auto !important;
-        bottom: 4px;
-        width: 200px !important;
+        left: 8px;
+        right: auto !important;
+        top: 8px;
+        bottom: auto !important;
+        width: min(46vw, 240px) !important;
+        max-height: 54vh;
+        overflow-y: auto;
+        z-index: 110;
+    }
+
+    #axes-gizmo-container {
+        left: 8px;
+        bottom: 170px;
+        transform: scale(0.9);
+        transform-origin: left bottom;
     }
 }
 

@@ -366,6 +366,7 @@
 		// Mouse buttons
 		this.mouseButtons = { ORBIT: THREE.MOUSE.LEFT, ZOOM: THREE.MOUSE.MIDDLE, PAN: THREE.MOUSE.RIGHT };
 		this.panCallback = null;
+		this.zoomCallback = null;
 
 		////////////
 		// internals
@@ -387,6 +388,9 @@
 		var dollyStart = new THREE.Vector2();
 		var dollyEnd = new THREE.Vector2();
 		var dollyDelta = new THREE.Vector2();
+		var dollyCenterStart = new THREE.Vector2();
+		var dollyCenterEnd = new THREE.Vector2();
+		var dollyCenterDelta = new THREE.Vector2();
 
 		var STATE = { NONE : - 1, ROTATE : 0, DOLLY : 1, PAN : 2, ROLL : 3, TOUCH_ROTATE : 4, TOUCH_DOLLY : 5, TOUCH_PAN : 6 };
 
@@ -747,14 +751,16 @@
 
 				case 2:	// two-fingered touch: dolly
 
-					if ( scope.enableZoom === false ) return;
-
 					state = STATE.TOUCH_DOLLY;
 
 					var dx = event.touches[ 0 ].pageX - event.touches[ 1 ].pageX;
 					var dy = event.touches[ 0 ].pageY - event.touches[ 1 ].pageY;
 					var distance = Math.sqrt( dx * dx + dy * dy );
 					dollyStart.set( 0, distance );
+					dollyCenterStart.set(
+						0.5 * ( event.touches[ 0 ].pageX + event.touches[ 1 ].pageX ),
+						0.5 * ( event.touches[ 0 ].pageY + event.touches[ 1 ].pageY )
+					);
 					break;
 
 				case 3: // three-fingered touch: pan
@@ -807,7 +813,6 @@
 
 				case 2: // two-fingered touch: dolly
 
-					if ( scope.enableZoom === false ) return;
 					if ( state !== STATE.TOUCH_DOLLY ) return;
 
 					var dx = event.touches[ 0 ].pageX - event.touches[ 1 ].pageX;
@@ -817,17 +822,39 @@
 					dollyEnd.set( 0, distance );
 					dollyDelta.subVectors( dollyEnd, dollyStart );
 
-					if ( dollyDelta.y > 0 ) {
+					dollyCenterEnd.set(
+						0.5 * ( event.touches[ 0 ].pageX + event.touches[ 1 ].pageX ),
+						0.5 * ( event.touches[ 0 ].pageY + event.touches[ 1 ].pageY )
+					);
+					dollyCenterDelta.subVectors( dollyCenterEnd, dollyCenterStart );
 
-						constraint.dollyOut( getZoomScale() );
+					if ( scope.panCallback ) {
+						var consumedPan = scope.panCallback(
+							dollyCenterDelta.x, dollyCenterDelta.y, element.clientWidth, element.clientHeight
+						) === true;
+						if ( ! consumedPan ) {
+							pan( dollyCenterDelta.x, dollyCenterDelta.y );
+						}
+					} else {
+						pan( dollyCenterDelta.x, dollyCenterDelta.y );
+					}
 
-					} else if ( dollyDelta.y < 0 ) {
+					if ( scope.zoomCallback ) {
+						scope.zoomCallback( dollyDelta.y );
+					} else if ( scope.enableZoom !== false ) {
+						if ( dollyDelta.y > 0 ) {
 
-						constraint.dollyIn( getZoomScale() );
+							constraint.dollyOut( getZoomScale() );
 
+						} else if ( dollyDelta.y < 0 ) {
+
+							constraint.dollyIn( getZoomScale() );
+
+						}
 					}
 
 					dollyStart.copy( dollyEnd );
+					dollyCenterStart.copy( dollyCenterEnd );
 
 					scope.update();
 					break;

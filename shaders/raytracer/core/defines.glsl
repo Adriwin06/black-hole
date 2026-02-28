@@ -33,6 +33,7 @@ uniform vec3 cam_y;
 uniform vec3 cam_z;
 uniform vec3 cam_vel;
 uniform vec2 cam_pan;
+uniform vec2 taa_jitter;
 
 uniform float interior_mode; // 0.0 = exterior (capture at horizon), 1.0 = interior (trace past horizon)
 

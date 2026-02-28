@@ -19,6 +19,186 @@ var cameraPan = new THREE.Vector2(0, 0);
 var distanceController = null;
 var refreshAllControllersGlobal = null; // Will be set in setupGUI
 var bloomPass = null;
+var taaPass = null;
+var shaderUniforms = null;
+var baseDevicePixelRatio = Math.max(window.devicePixelRatio || 1.0, 1.0);
+var isMobileClient = false;
+var lastTaaCameraMat = new THREE.Matrix4().identity();
+
+var applyRenderScaleFromSettings = function() {};
+var resetTemporalAAHistory = function() {};
+
+function isLikelyMobileDevice() {
+    var ua = (window.navigator && window.navigator.userAgent) || '';
+    var uaMobile = /(Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile)/i.test(ua);
+    var coarsePointer = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+    var smallViewport = Math.min(window.innerWidth || 0, window.innerHeight || 0) <= 900;
+    return uaMobile || (coarsePointer && smallViewport);
+}
+
+function clampResolutionScale(value) {
+    return Math.max(0.35, Math.min(2.0, value || 1.0));
+}
+
+function halton(index, base) {
+    var f = 1.0;
+    var r = 0.0;
+    var i = index;
+    while (i > 0) {
+        f /= base;
+        r += f * (i % base);
+        i = Math.floor(i / base);
+    }
+    return r;
+}
+
+function setupTemporalAA() {
+    var ppVertexShader = [
+        'varying vec2 vUv;',
+        'void main() {',
+        '    vUv = uv;',
+        '    gl_Position = vec4(position, 1.0);',
+        '}'
+    ].join('\n');
+
+    var blendFS = [
+        'uniform sampler2D tCurrent;',
+        'uniform sampler2D tHistory;',
+        'uniform float historyWeight;',
+        'uniform float historyValid;',
+        'uniform float clipBox;',
+        'varying vec2 vUv;',
+        'void main() {',
+        '    vec3 current = texture2D(tCurrent, vUv).rgb;',
+        '    vec3 history = texture2D(tHistory, vUv).rgb;',
+        '    history = clamp(history, current - vec3(clipBox), current + vec3(clipBox));',
+        '    float lumaCurrent = dot(current, vec3(0.299, 0.587, 0.114));',
+        '    float lumaHistory = dot(history, vec3(0.299, 0.587, 0.114));',
+        '    float reactive = clamp(1.0 - abs(lumaCurrent - lumaHistory) * 5.0, 0.0, 1.0);',
+        '    float w = historyWeight * historyValid * reactive;',
+        '    gl_FragColor = vec4(mix(current, history, w), 1.0);',
+        '}'
+    ].join('\n');
+
+    var copyFS = [
+        'uniform sampler2D tDiffuse;',
+        'varying vec2 vUv;',
+        'void main() {',
+        '    gl_FragColor = texture2D(tDiffuse, vUv);',
+        '}'
+    ].join('\n');
+
+    var rtParams = {
+        minFilter: THREE.LinearFilter,
+        magFilter: THREE.LinearFilter,
+        format: THREE.RGBAFormat
+    };
+
+    function createTarget(w, h) {
+        return new THREE.WebGLRenderTarget(Math.max(1, w), Math.max(1, h), rtParams);
+    }
+
+    var ppScene = new THREE.Scene();
+    var ppCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    var ppMesh = new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2));
+    ppScene.add(ppMesh);
+
+    var blendMat = new THREE.ShaderMaterial({
+        uniforms: {
+            tCurrent: { type: 't', value: null },
+            tHistory: { type: 't', value: null },
+            historyWeight: { type: 'f', value: 0.0 },
+            historyValid: { type: 'f', value: 0.0 },
+            clipBox: { type: 'f', value: 0.08 }
+        },
+        vertexShader: ppVertexShader,
+        fragmentShader: blendFS,
+        depthWrite: false,
+        depthTest: false
+    });
+
+    var copyMat = new THREE.ShaderMaterial({
+        uniforms: {
+            tDiffuse: { type: 't', value: null }
+        },
+        vertexShader: ppVertexShader,
+        fragmentShader: copyFS,
+        depthWrite: false,
+        depthTest: false
+    });
+
+    var pass = {
+        ppScene: ppScene,
+        ppCamera: ppCamera,
+        ppMesh: ppMesh,
+        blendMat: blendMat,
+        copyMat: copyMat,
+        currentRT: createTarget(1, 1),
+        historyRT: createTarget(1, 1),
+        outputRT: createTarget(1, 1),
+        historyValid: false,
+        frameIndex: 0,
+        jitter: new THREE.Vector2(0, 0),
+
+        reset: function() {
+            this.historyValid = false;
+            this.frameIndex = 0;
+        },
+
+        resize: function(w, h) {
+            this.currentRT.dispose();
+            this.historyRT.dispose();
+            this.outputRT.dispose();
+            this.currentRT = createTarget(w, h);
+            this.historyRT = createTarget(w, h);
+            this.outputRT = createTarget(w, h);
+            this.reset();
+        },
+
+        nextJitter: function() {
+            var idx = (this.frameIndex % 8) + 1;
+            this.jitter.set(halton(idx, 2) - 0.5, halton(idx, 3) - 0.5);
+            this.frameIndex++;
+            return this.jitter;
+        },
+
+        render: function(rdr, currentTarget, cameraDelta, taaSettings) {
+            var settings = taaSettings || {};
+            var baseHistoryWeight = Math.max(0.0, Math.min(0.98,
+                settings.history_weight !== undefined ? settings.history_weight : 0.88));
+            var baseClip = Math.max(0.01, Math.min(0.5,
+                settings.clip_box !== undefined ? settings.clip_box : 0.06));
+            var motionRejection = Math.max(0.0, Math.min(20.0,
+                settings.motion_rejection !== undefined ? settings.motion_rejection : 8.0));
+            var maxCameraDelta = Math.max(0.005, Math.min(0.5,
+                settings.max_camera_delta !== undefined ? settings.max_camera_delta : 0.08));
+            var motionClipScale = Math.max(0.0, Math.min(2.0,
+                settings.motion_clip_scale !== undefined ? settings.motion_clip_scale : 0.6));
+
+            var useHistory = this.historyValid && cameraDelta < maxCameraDelta;
+            var motionAttenuation = Math.max(0.0, 1.0 - cameraDelta * motionRejection);
+            var historyWeight = useHistory ? baseHistoryWeight * motionAttenuation : 0.0;
+            var clip = baseClip + Math.min(cameraDelta * motionClipScale, 0.5);
+
+            this.blendMat.uniforms.tCurrent.value = currentTarget;
+            this.blendMat.uniforms.tHistory.value = this.historyRT;
+            this.blendMat.uniforms.historyWeight.value = historyWeight;
+            this.blendMat.uniforms.historyValid.value = useHistory ? 1.0 : 0.0;
+            this.blendMat.uniforms.clipBox.value = clip;
+            this.ppMesh.material = this.blendMat;
+            rdr.render(this.ppScene, this.ppCamera, this.outputRT, true);
+
+            this.copyMat.uniforms.tDiffuse.value = this.outputRT;
+            this.ppMesh.material = this.copyMat;
+            rdr.render(this.ppScene, this.ppCamera);
+
+            rdr.render(this.ppScene, this.ppCamera, this.historyRT, true);
+            this.historyValid = true;
+        }
+    };
+
+    return pass;
+}
 
 // ─── Freefall Dive State ──────────────────────────────────────────────────────
 // Tracks the dive animation that plunges the observer through the event horizon
@@ -63,6 +243,11 @@ var updateUniforms;
 function init(glslSource, textures) {
 
     shader = new Shader(glslSource);
+    isMobileClient = isLikelyMobileDevice();
+    if (isMobileClient) {
+        shader.parameters.quality = 'mobile';
+        document.body.classList.add('mobile-ui');
+    }
 
     container = document.createElement( 'div' );
     document.body.appendChild( container );
@@ -80,6 +265,7 @@ function init(glslSource, textures) {
         cam_z: { type: "v3", value: new THREE.Vector3() },
         cam_vel: { type: "v3", value: new THREE.Vector3() },
         cam_pan: { type: "v2", value: new THREE.Vector2() },
+        taa_jitter: { type: "v2", value: new THREE.Vector2() },
 
         interior_mode: { type: "f", value: 0.0 },
 
@@ -124,6 +310,7 @@ function init(glslSource, textures) {
         planet_texture: { type: "t", value: textures.moon },
         spectrum_texture: { type: "t", value: textures.spectra }
     };
+    shaderUniforms = uniforms;
 
     // Calculate ISCO radius using Bardeen-Press-Teukolsky formula
     // chi is dimensionless spin parameter (-1 to 1)
@@ -229,6 +416,7 @@ function init(glslSource, textures) {
         material.fragmentShader = shader.compile();
         material.needsUpdate = true;
         shader.needsUpdate = true;
+        resetTemporalAAHistory();
     };
 
     scene.updateShader();
@@ -240,12 +428,13 @@ function init(glslSource, textures) {
         antialias: true,
         powerPreference: 'high-performance'
     });
-    renderer.setPixelRatio( window.devicePixelRatio );
+    renderer.domElement.style.touchAction = 'none';
     container.appendChild( renderer.domElement );
 
     // ============== BLOOM POST-PROCESSING ==============
     bloomPass = setupBloom();
     // ============== END BLOOM ==============
+    taaPass = setupTemporalAA();
 
     stats = new Stats();
     stats.domElement.style.position = 'absolute';
@@ -274,10 +463,21 @@ function init(glslSource, textures) {
         shader.needsUpdate = true;
         return true;
     };
+    cameraControls.zoomCallback = function(dollyDeltaY) {
+        // Pinch out (positive delta) zooms in; pinch in zooms out.
+        var zoomFactor = dollyDeltaY > 0 ? 0.93 : 1.08;
+        var newDist = shader.parameters.observer.distance * zoomFactor;
+        newDist = Math.max(1.5, Math.min(30, newDist));
+        shader.parameters.observer.distance = newDist;
+        updateCamera();
+        shader.needsUpdate = true;
+        if (distanceController) distanceController.updateDisplay();
+        return true;
+    };
     cameraControls.addEventListener( 'change', updateCamera );
     updateCamera();
 
-    onWindowResize();
+    applyRenderScaleFromSettings();
 
     window.addEventListener( 'resize', onWindowResize, false );
 
@@ -582,11 +782,40 @@ function updateAxesGizmo() {
     }
 }
 
-function onWindowResize( event ) {
-    renderer.setSize( window.innerWidth, window.innerHeight );
-    if (bloomPass) {
-        bloomPass.resize(renderer.domElement.width, renderer.domElement.height);
+function resizeRendererAndPasses() {
+    if (!renderer || !shader) return;
+
+    var scale = clampResolutionScale(shader.parameters.resolution_scale);
+    shader.parameters.resolution_scale = scale;
+
+    renderer.setPixelRatio(baseDevicePixelRatio * scale);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+
+    var w = renderer.domElement.width;
+    var h = renderer.domElement.height;
+
+    if (bloomPass) bloomPass.resize(w, h);
+    if (taaPass) taaPass.resize(w, h);
+}
+
+applyRenderScaleFromSettings = function() {
+    resizeRendererAndPasses();
+    resetTemporalAAHistory();
+    if (updateUniforms) updateUniforms();
+    if (shader) shader.needsUpdate = true;
+};
+
+resetTemporalAAHistory = function() {
+    if (taaPass) taaPass.reset();
+    if (shaderUniforms && shaderUniforms.taa_jitter) {
+        shaderUniforms.taa_jitter.value.set(0, 0);
     }
+    lastTaaCameraMat.identity();
+};
+
+function onWindowResize( event ) {
+    resizeRendererAndPasses();
+    resetTemporalAAHistory();
     updateUniforms();
 }
 
@@ -655,14 +884,43 @@ function animate() {
     stats.update();
 }
 
+function renderSceneToTarget(target) {
+    if (shader.parameters.bloom.enabled && bloomPass) {
+        bloomPass.render(renderer, scene, camera, shader.parameters.bloom, target);
+    } else if (target) {
+        renderer.render(scene, camera, target, true);
+    } else {
+        renderer.render(scene, camera);
+    }
+}
+
 function render() {
+    var taaEnabled = !!shader.parameters.taa_enabled && !!taaPass;
+    if (shaderUniforms && shaderUniforms.taa_jitter) {
+        if (taaEnabled) {
+            var jitter = taaPass.nextJitter();
+            shaderUniforms.taa_jitter.value.set(jitter.x, jitter.y);
+        } else {
+            shaderUniforms.taa_jitter.value.set(0, 0);
+        }
+    }
+
     // Time advancement has already been done in animate(); render() only draws.
     updateUniforms();
 
-    if (shader.parameters.bloom.enabled && bloomPass) {
-        bloomPass.render(renderer, scene, camera, shader.parameters.bloom);
+    if (taaEnabled) {
+        renderSceneToTarget(taaPass.currentRT);
+        taaPass.render(
+            renderer,
+            taaPass.currentRT,
+            frobeniusDistance(camera.matrixWorldInverse, lastTaaCameraMat),
+            shader.parameters.taa
+        );
+        lastTaaCameraMat.copy(camera.matrixWorldInverse);
     } else {
-        renderer.render( scene, camera );
+        renderSceneToTarget(null);
+        if (taaPass && taaPass.historyValid) taaPass.reset();
+        lastTaaCameraMat.copy(camera.matrixWorldInverse);
     }
     updateAxesGizmo();
 }

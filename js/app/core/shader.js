@@ -10,6 +10,15 @@ function Shader(mustacheTemplate) {
     this.parameters = {
         n_steps: 100,
         sample_count: 1,
+        resolution_scale: 1.0,
+        taa_enabled: false,
+        taa: {
+            history_weight: 0.88,
+            clip_box: 0.06,
+            motion_rejection: 8.0,
+            max_camera_delta: 0.08,
+            motion_clip_scale: 0.6
+        },
         max_revolutions: 2.0,
         rk4_integration: false,
         cinematic_tonemap: true,
@@ -89,7 +98,9 @@ function Shader(mustacheTemplate) {
         },
 
         planetEnabled: function() {
-            return this.planet.enabled && this.quality !== 'fast';
+            return this.planet.enabled &&
+                this.quality !== 'fast' &&
+                this.quality !== 'mobile';
         },
 
         observerMotion: function() {

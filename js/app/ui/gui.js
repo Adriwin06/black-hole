@@ -109,6 +109,13 @@ function setupGUI() {
             }
             p.cinematic_tonemap = true;
             $('.planet-controls').hide();
+            p.resolution_scale = 1.0;
+            p.taa_enabled = false;
+            p.taa.history_weight = 0.88;
+            p.taa.clip_box = 0.06;
+            p.taa.motion_rejection = 8.0;
+            p.taa.max_camera_delta = 0.08;
+            p.taa.motion_clip_scale = 0.6;
             break;
         case 'medium':
             if (isKerr) {
@@ -123,6 +130,13 @@ function setupGUI() {
                 p.rk4_integration = false;
             }
             p.cinematic_tonemap = true;
+            p.resolution_scale = 1.0;
+            p.taa_enabled = false;
+            p.taa.history_weight = 0.88;
+            p.taa.clip_box = 0.06;
+            p.taa.motion_rejection = 8.0;
+            p.taa.max_camera_delta = 0.08;
+            p.taa.motion_clip_scale = 0.6;
             break;
         case 'high':
             if (isKerr) {
@@ -137,9 +151,45 @@ function setupGUI() {
                 p.rk4_integration = true;
             }
             p.cinematic_tonemap = true;
+            p.resolution_scale = 1.0;
+            p.taa_enabled = false;
+            p.taa.history_weight = 0.88;
+            p.taa.clip_box = 0.06;
+            p.taa.motion_rejection = 8.0;
+            p.taa.max_camera_delta = 0.08;
+            p.taa.motion_clip_scale = 0.6;
+            break;
+        case 'mobile':
+            if (isKerr) {
+                p.n_steps = 120;
+                p.sample_count = 1;
+                p.max_revolutions = 2.0;
+                p.rk4_integration = false;
+            } else {
+                p.n_steps = 28;
+                p.sample_count = 1;
+                p.max_revolutions = 1.4;
+                p.rk4_integration = false;
+            }
+            p.cinematic_tonemap = true;
+            p.resolution_scale = 0.55;
+            p.taa_enabled = true;
+            p.taa.history_weight = 0.82;
+            p.taa.clip_box = 0.08;
+            p.taa.motion_rejection = 10.0;
+            p.taa.max_camera_delta = 0.07;
+            p.taa.motion_clip_scale = 0.8;
+            $('.planet-controls').hide();
             break;
         }
 
+        if (typeof applyRenderScaleFromSettings === 'function') {
+            applyRenderScaleFromSettings();
+        }
+        if (typeof resetTemporalAAHistory === 'function') {
+            resetTemporalAAHistory();
+        }
+        updateDependentVisibility();
         updateShader();
         refreshAllControllers();
     }
@@ -151,7 +201,8 @@ function setupGUI() {
     var qualityLabels = {
         'Fast (preview)': 'fast',
         'Medium': 'medium',
-        'High': 'high'
+        'High': 'high',
+        'Mobile (low power)': 'mobile'
     };
 
     var kerrModeLabels = {
@@ -210,6 +261,97 @@ function setupGUI() {
         name: 'max orbit turns',
         onChange: updateShader,
         help: 'How many wrapped photon turns are traced before escape/capture cutoff.'
+    });
+    addControl(renderFolder, p, 'resolution_scale', {
+        min: 0.35,
+        max: 2.0,
+        step: 0.05,
+        name: 'resolution scale',
+        onChange: function() {
+            if (typeof applyRenderScaleFromSettings === 'function') {
+                applyRenderScaleFromSettings();
+            }
+            if (typeof resetTemporalAAHistory === 'function') {
+                resetTemporalAAHistory();
+            }
+        },
+        help: 'Internal rendering resolution multiplier. <1 lowers cost, >1 supersamples for sharper output.'
+    });
+    var taaEnabledCtrl = addControl(renderFolder, p, 'taa_enabled', {
+        name: 'TAA (stable)',
+        onChange: function() {
+            if (typeof resetTemporalAAHistory === 'function') {
+                resetTemporalAAHistory();
+            }
+            updateDependentVisibility();
+            shader.needsUpdate = true;
+        },
+        help: 'Temporal anti-aliasing with aggressive history clamping to avoid ghosting.'
+    });
+    var taaHistoryWeightCtrl = addControl(renderFolder, p.taa, 'history_weight', {
+        min: 0.0,
+        max: 0.98,
+        step: 0.01,
+        name: 'taa history weight',
+        onChange: function() {
+            if (typeof resetTemporalAAHistory === 'function') {
+                resetTemporalAAHistory();
+            }
+            shader.needsUpdate = true;
+        },
+        help: 'Higher = steadier image but more trailing risk. Lower = cleaner motion.'
+    });
+    var taaClipBoxCtrl = addControl(renderFolder, p.taa, 'clip_box', {
+        min: 0.01,
+        max: 0.5,
+        step: 0.01,
+        name: 'taa clip box',
+        onChange: function() {
+            if (typeof resetTemporalAAHistory === 'function') {
+                resetTemporalAAHistory();
+            }
+            shader.needsUpdate = true;
+        },
+        help: 'History clamp size. Lower values reject stale history more aggressively.'
+    });
+    var taaMotionRejectCtrl = addControl(renderFolder, p.taa, 'motion_rejection', {
+        min: 0.0,
+        max: 20.0,
+        step: 0.1,
+        name: 'taa motion reject',
+        onChange: function() {
+            if (typeof resetTemporalAAHistory === 'function') {
+                resetTemporalAAHistory();
+            }
+            shader.needsUpdate = true;
+        },
+        help: 'How quickly history influence drops as camera motion increases.'
+    });
+    var taaMaxDeltaCtrl = addControl(renderFolder, p.taa, 'max_camera_delta', {
+        min: 0.005,
+        max: 0.5,
+        step: 0.005,
+        name: 'taa max cam delta',
+        onChange: function() {
+            if (typeof resetTemporalAAHistory === 'function') {
+                resetTemporalAAHistory();
+            }
+            shader.needsUpdate = true;
+        },
+        help: 'Hard camera-motion cutoff where TAA history is fully discarded.'
+    });
+    var taaMotionClipCtrl = addControl(renderFolder, p.taa, 'motion_clip_scale', {
+        min: 0.0,
+        max: 2.0,
+        step: 0.01,
+        name: 'taa motion clip',
+        onChange: function() {
+            if (typeof resetTemporalAAHistory === 'function') {
+                resetTemporalAAHistory();
+            }
+            shader.needsUpdate = true;
+        },
+        help: 'Extra clamp expansion with motion. Higher values reduce ghosting further in movement.'
     });
     addControl(renderFolder, p, 'rk4_integration', {
         name: 'RK4 integration',
@@ -784,6 +926,13 @@ function setupGUI() {
         var planetEnabled = !!p.planet.enabled;
         setControlsVisible([planetDistanceCtrl, planetRadiusCtrl], planetEnabled);
         setControlVisible(lorentzContractionCtrl, planetEnabled);
+
+        var taaEnabled = !!p.taa_enabled;
+        setControlVisible(taaEnabledCtrl, true);
+        setControlsVisible(
+            [taaHistoryWeightCtrl, taaClipBoxCtrl, taaMotionRejectCtrl, taaMaxDeltaCtrl, taaMotionClipCtrl],
+            taaEnabled
+        );
     };
     updateDependentVisibility();
 

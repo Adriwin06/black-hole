@@ -186,7 +186,7 @@ function setupBloom() {
             this.bloomTemp = t.temps;
         },
 
-        render: function(rdr, mainScene, mainCamera, params) {
+        render: function(rdr, mainScene, mainCamera, params, outputTarget) {
             var bp = this;
 
             // 1. Render main scene → full-res render target
@@ -232,7 +232,11 @@ function setupBloom() {
             bp.compositeMat.uniforms.bloomStrength.value = params.strength;
             bp.compositeMat.uniforms.bloomRadius.value = params.radius;
             bp.ppMesh.material = bp.compositeMat;
-            rdr.render(bp.ppScene, bp.ppCamera);
+            if (outputTarget) {
+                rdr.render(bp.ppScene, bp.ppCamera, outputTarget, true);
+            } else {
+                rdr.render(bp.ppScene, bp.ppCamera);
+            }
         }
     };
 

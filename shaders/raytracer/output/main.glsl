@@ -33,7 +33,7 @@ void main() {
 
     for (int sample_index = 0; sample_index < SAMPLE_COUNT; sample_index++) {
         vec2 jitter = sample_offset(sample_index, gl_FragCoord.xy);
-        vec2 p = -1.0 + 2.0 * (gl_FragCoord.xy + jitter) / resolution.xy;
+        vec2 p = -1.0 + 2.0 * (gl_FragCoord.xy + jitter + taa_jitter) / resolution.xy;
         p.y *= resolution.y / resolution.x;
         vec2 p_cam = p + cam_pan;
 
