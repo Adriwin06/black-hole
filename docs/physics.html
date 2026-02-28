@@ -1340,7 +1340,7 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     Binet conserved energy to decide each ray's fate <em>before</em> entering the integration loop.
 </p>
 
-<h3 id="sec-binet-energy">18.1. Binet Conserved Energy</h3>
+<h3 id="sec-binet-energy">19.1. Binet Conserved Energy</h3>
 
 <p>
     The first-order Binet equation for photons in Schwarzschild spacetime is
@@ -1372,7 +1372,7 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     <sup><a href="#ref-mtw">[1]</a></sup> <sup><a href="#ref-chandrasekhar">[28]</a></sup>.
 </p>
 
-<h3 id="sec-escape-class">18.2. Escape vs. Capture Classification</h3>
+<h3 id="sec-escape-class">19.2. Escape vs. Capture Classification</h3>
 
 <p>
     For each ray launched from the interior observer (at <em>u</em><sub>obs</sub> &gt; 1,
@@ -1424,7 +1424,7 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     improving performance inside the black hole.
 </div>
 
-<h3 id="sec-analytical-exit">18.3. Analytical Exit Direction</h3>
+<h3 id="sec-analytical-exit">19.3. Analytical Exit Direction</h3>
 
 <p>
     For rays that escape, the simulation needs to determine where they hit the background sky.
@@ -1484,7 +1484,7 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     with zero initial velocity.
 </p>
 
-<h3 id="sec-radial-freefall">19.1. Radial Free-Fall Trajectory</h3>
+<h3 id="sec-radial-freefall">20.1. Radial Free-Fall Trajectory</h3>
 
 <p>
     For a massive test particle falling radially from rest at infinity in Schwarzschild spacetime,
@@ -1532,7 +1532,7 @@ newR = max(r + k2,  r_min)</code></pre>
     like M87* (6.5 &times; 10<sup>9</sup> <em>M</em><sub>☉</sub>).
 </div>
 
-<h3 id="sec-dive-frame">19.2. Locally Inertial Dive Frame</h3>
+<h3 id="sec-dive-frame">20.2. Locally Inertial Dive Frame</h3>
 
 <p>
     A free-falling observer carries a <strong>locally inertial reference frame</strong>
@@ -1555,7 +1555,7 @@ newR = max(r + k2,  r_min)</code></pre>
     pixel coordinates to 3D ray directions.
 </p>
 
-<h3 id="sec-interior-rendering">19.3. Interior Rendering Pipeline</h3>
+<h3 id="sec-interior-rendering">20.3. Interior Rendering Pipeline</h3>
 
 <p>
     When the observer is inside the horizon (<em>r</em> &lt; <em>r<sub>s</sub></em>), the shader
@@ -1565,9 +1565,11 @@ newR = max(r + k2,  r_min)</code></pre>
     <li><strong>Analytical pre-classification</strong> (Section 18.2) eliminates the numerical
         integration loop for most rays, which would otherwise waste the step budget on
         captured trajectories.</li>
-    <li><strong>Adaptive stepping</strong> is relaxed: the photon-sphere refinement factor is
-        reduced by 3&times;, and the step size is scaled by a depth-dependent factor
-        <code>1 + 0.5 &middot; max(u &minus; 1, 0)</code> to handle the rapidly changing curvature deep inside.</li>
+    <li><strong>Adaptive stepping</strong> is relaxed: the maximum allowed relative <em>u</em>-change
+        is multiplied by a combined depth-dependent factor
+        <code>3 + 2 &middot; max(u &minus; 1, 0)</code>.
+        At the horizon (<em>u</em> = 1) this gives a 3&times; relaxation; deeper inside,
+        the allowance grows linearly with <em>u</em> to handle the rapidly changing curvature.</li>
     <li><strong>Frame-drag clamping:</strong> The <em>u</em>&sup3; frame-drag term (Section 5)
         uses <code>min(<em>u</em>, 1.2)</code> instead of raw <em>u</em> to prevent the
         spin correction from diverging at small <em>r</em>.</li>
@@ -1575,8 +1577,9 @@ newR = max(r + k2,  r_min)</code></pre>
         <code>abs(1 &minus; 1/<em>r</em>)</code> to avoid taking the square root of a
         negative number inside the horizon.</li>
     <li><strong>Shadow capture condition:</strong> In the exterior, capture is <em>u</em> &ge; 1;
-        in the interior, it is <em>u</em> &lt; 0 (the ray has somehow reversed — a numerical
-        safety net).</li>
+        in the interior, two conditions apply: <em>u</em> &lt; 0 (non-physical reversal &mdash; a
+        numerical safety net) and <em>u</em> &ge; 20 (corresponding to <em>r</em> &le; 0.05 <em>r<sub>s</sub></em>,
+        effectively the singularity cutoff where further integration is pointless).</li>
 </ol>
 
 <div class="comparison">
