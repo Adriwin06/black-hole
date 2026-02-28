@@ -20,6 +20,9 @@ function setupGUI() {
     }
 
     var gui = new dat.GUI({ width: 360 });
+    if (window.matchMedia && window.matchMedia('(max-width: 960px)').matches) {
+        gui.close();
+    }
 
     // Recursively update all dat.GUI controllers to reflect programmatic changes.
     // dat.GUI does NOT auto-sync the displayed value when the bound property
@@ -1063,38 +1066,64 @@ function setupGUI() {
         var panel = document.createElement('div');
         panel.id = 'dive-panel';
         panel.innerHTML =
-            '<div class="dive-title">FREEFALL DIVE</div>' +
-            '<div class="dive-desc">Radial plunge into the black hole interior. ' +
-            'Rays are traced through the event horizon with the full Schwarzschild ' +
-            'geodesic equation &mdash; no approximations.</div>' +
-            '<button id="dive-start-btn" class="dive-btn dive-btn-start">' +
-                '\u25b6 START DIVE</button>' +
-            '<div class="dive-control-row">' +
-                '<label>Fall speed</label>' +
-                '<input type="range" id="dive-speed" min="0.01" max="5.0" ' +
-                    'step="0.01" value="1.0">' +
-                '<span id="dive-speed-val">1.0\u00d7</span>' +
+            '<div class="dive-header">' +
+                '<div class="dive-title">FREEFALL DIVE</div>' +
+                '<button id="dive-close-btn" class="dive-close-btn" type="button" aria-label="Close Freefall Dive panel">&times;</button>' +
             '</div>' +
-            '<div class="dive-control-row dive-cinematic-row">' +
-                '<label for="dive-cinematic">Auto-speed</label>' +
-                '<input type="checkbox" id="dive-cinematic">' +
-                '<span class="dive-cinematic-hint">Slow near photon sphere &amp; horizon</span>' +
-            '</div>' +
-            '<div id="dive-horizon-track" class="dive-horizon-track">' +
-                '<div id="dive-horizon-bar" class="dive-horizon-fill outside">' +
+            '<div class="dive-body">' +
+                '<div class="dive-desc">Radial plunge into the black hole interior. ' +
+                'Rays are traced through the event horizon with the full Schwarzschild ' +
+                'geodesic equation &mdash; no approximations.</div>' +
+                '<button id="dive-start-btn" class="dive-btn dive-btn-start">' +
+                    '\u25b6 START DIVE</button>' +
+                '<div class="dive-control-row">' +
+                    '<label>Fall speed</label>' +
+                    '<input type="range" id="dive-speed" min="0.01" max="5.0" ' +
+                        'step="0.01" value="1.0">' +
+                    '<span id="dive-speed-val">1.0\u00d7</span>' +
                 '</div>' +
-                '<div class="dive-horizon-label">Event Horizon</div>' +
-            '</div>' +
-            '<div class="dive-readout">' +
-                '<div id="dive-radius" class="dive-metric">' +
-                    'r = ' + p.observer.distance.toFixed(2) +
-                    ' r<sub>s</sub></div>' +
-                '<div id="dive-velocity" class="dive-metric">v = 0.000 c</div>' +
-                '<div id="dive-status" class="dive-status ready">Ready</div>' +
-            '</div>' +
-            '<button id="dive-reset-btn" class="dive-btn dive-btn-reset" ' +
-                'disabled>\u21ba RESET</button>';
+                '<div class="dive-control-row dive-cinematic-row">' +
+                    '<label for="dive-cinematic">Auto-speed</label>' +
+                    '<input type="checkbox" id="dive-cinematic">' +
+                    '<span class="dive-cinematic-hint">Slow near photon sphere &amp; horizon</span>' +
+                '</div>' +
+                '<div id="dive-horizon-track" class="dive-horizon-track">' +
+                    '<div id="dive-horizon-bar" class="dive-horizon-fill outside">' +
+                    '</div>' +
+                    '<div class="dive-horizon-label">Event Horizon</div>' +
+                '</div>' +
+                '<div class="dive-readout">' +
+                    '<div id="dive-radius" class="dive-metric">' +
+                        'r = ' + p.observer.distance.toFixed(2) +
+                        ' r<sub>s</sub></div>' +
+                    '<div id="dive-velocity" class="dive-metric">v = 0.000 c</div>' +
+                    '<div id="dive-status" class="dive-status ready">Ready</div>' +
+                '</div>' +
+                '<button id="dive-reset-btn" class="dive-btn dive-btn-reset" ' +
+                    'disabled>\u21ba RESET</button>' +
+            '</div>';
         document.body.appendChild(panel);
+
+        var openBtn = document.createElement('button');
+        openBtn.id = 'dive-open-btn';
+        openBtn.className = 'dive-open-btn';
+        openBtn.type = 'button';
+        openBtn.textContent = 'FREEFALL DIVE';
+        openBtn.setAttribute('aria-label', 'Open Freefall Dive panel');
+        document.body.appendChild(openBtn);
+
+        function setDivePanelOpen(isOpen) {
+            panel.classList.toggle('is-collapsed', !isOpen);
+            openBtn.classList.toggle('is-hidden', isOpen);
+        }
+
+        setDivePanelOpen(false);
+
+        openBtn.addEventListener('click', function() {
+            setDivePanelOpen(true);
+        });
+        document.getElementById('dive-close-btn').addEventListener('click',
+            function() { setDivePanelOpen(false); });
 
         document.getElementById('dive-start-btn').addEventListener('click',
             function() { startDive(); });
