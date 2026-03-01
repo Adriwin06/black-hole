@@ -89,6 +89,27 @@ vec4 trace_ray(vec3 ray) {
 
     vec3 old_pos = pos;
 
+    // ── Kerr state variables (reserved for future true Kerr geodesics) ──
+    // The true Carter (1968) Mino-time integration is disabled for now.
+    // The Binet approximation with frame-drag term is used instead, which
+    // is exact for Schwarzschild and gives qualitatively reasonable results
+    // for moderate spin.  The D-shaped Kerr shadow requires the full
+    // separated equations; a proper implementation is future work.
+    float kerr_a_phys = kerr_spin_a();
+    bool use_kerr = false; // Disabled: Kerr geodesics have numerical issues
+    float kerr_r = 0.0, kerr_cth = 0.0, kerr_phi = 0.0;
+    float kerr_pr = 0.0, kerr_pcth = 0.0;
+    float kerr_xi = 0.0, kerr_eta = 0.0;
+    float kerr_r_horizon = 1.0;
+
+    if (use_kerr) {
+        kerr_init(pos, ray, kerr_a_phys,
+            kerr_xi, kerr_eta,
+            kerr_r, kerr_cth, kerr_phi,
+            kerr_pr, kerr_pcth);
+        kerr_r_horizon = kerr_horizon_radius(kerr_a_phys);
+    }
+
     // ── Interior mode: analytical escape classification ─────────────────
     // The Binet conserved energy E = (du/dφ)² + u² − u³ determines escape.
     // Potential barrier maximum at u = 2/3 (photon sphere): E_crit = 4/27.
@@ -111,15 +132,54 @@ vec4 trace_ray(vec3 ray) {
 
     for (int j=0; j < NSTEPS; j++) {
         if (shadow_capture) break;  // pre-classified capture → skip loop
-        {{#kerr_fast_mode}}
+
+        if (use_kerr) {
+        // ── True Kerr geodesic integration ─────────────────────────────
+        step = MAX_REVOLUTIONS * 2.0*M_PI / float(NSTEPS);
+
+        // Adaptive refinement near photon sphere region (r ≈ 0.5–2.0)
+        float ps_dist = kerr_r - 1.5;
+        step *= 1.0 - 0.7 * exp(-6.0*ps_dist*ps_dist);
+        // Refine near the Kerr horizon
+        float h_dist = kerr_r - kerr_r_horizon;
+        step *= 1.0 - 0.6 * exp(-8.0*h_dist*h_dist);
+        // Limit by rate of change: max 30% change in r per step
+        float dr_per_step = abs(kerr_pr) * step;
+        if (dr_per_step > kerr_r * 0.3 && abs(kerr_pr) > 0.001) {
+            step = kerr_r * 0.3 / abs(kerr_pr);
+        }
+        step = max(step, 0.5*M_PI / float(NSTEPS));
+
+        old_u = u;
+        old_pos = pos;
+
+        integrate_kerr_step(kerr_r, kerr_cth, kerr_phi,
+            kerr_pr, kerr_pcth,
+            step, kerr_a_phys, kerr_xi, kerr_eta);
+
+        // Capture: photon reached the event horizon
+        if (kerr_r <= kerr_r_horizon + 0.005 || kerr_r < 0.01) {
+            shadow_capture = true;
+            break;
+        }
+        // Escape: photon has moved well past the observer
+        if (kerr_r > 3.0 * length(cam_pos) + 50.0) {
+            break;
+        }
+
+        // Reconstruct 3D Cartesian position from Boyer-Lindquist (r, θ, φ)
+        float sth_k = sqrt(max(1.0 - kerr_cth*kerr_cth, 0.0));
+        pos = vec3(kerr_r * sth_k * cos(kerr_phi),
+                   kerr_r * sth_k * sin(kerr_phi),
+                   kerr_r * kerr_cth);
+        u = 1.0 / max(kerr_r, 0.001);
+
+        } else {
+        // ── Schwarzschild Binet integration (a ≈ 0 or interior) ────────
         step = MAX_REVOLUTIONS * 2.0*M_PI / float(NSTEPS);
 
         // adaptive step size based on rate of change
         float max_rel_u_change = max(1.0-log(max(u, 0.0001)), 0.05)*10.0 / float(NSTEPS);
-        // Interior mode: always apply adaptive stepping (the exterior
-        // condition u0/u<5 breaks down when u0>>1).  Also scale the
-        // allowed change with depth so rays can traverse the large
-        // u-range without exhausting the step budget.
         if (interior_mode > 0.5) {
             max_rel_u_change *= 3.0 + 2.0 * max(u - 1.0, 0.0);
             if (abs(du) > abs(max_rel_u_change*u) / step) {
@@ -131,16 +191,13 @@ vec4 trace_ray(vec3 ray) {
             }
         }
 
-        // Additional step refinement near photon sphere (u ≈ 0.667 for r = 1.5)
         float u_photon_sphere = 0.667;
         float photon_sphere_proximity = exp(-12.0 * (u - u_photon_sphere) * (u - u_photon_sphere));
         step *= 1.0 - 0.7 * photon_sphere_proximity;
 
-        // Interior mode: refine steps crossing the horizon (u ≈ 1) for stability
         if (interior_mode > 0.5) {
             float horizon_proximity = exp(-8.0 * (u - 1.0) * (u - 1.0));
             step *= 1.0 - 0.6 * horizon_proximity;
-            // Floor: prevent step from becoming too tiny
             step = max(step, 0.5 * M_PI / float(NSTEPS));
         }
 
@@ -154,13 +211,10 @@ vec4 trace_ray(vec3 ray) {
 
         integrate_geodesic_step(u, du, step, spin_alignment);
 
-        // u < 0 is non-physical.  In exterior it means the ray escaped;
-        // in interior it is a numerical artefact → treat as black.
         if (u < 0.0) {
             if (interior_mode > 0.5) shadow_capture = true;
             break;
         }
-        // Interior mode: trace past horizon, stop only at singularity
         if (interior_mode < 0.5) {
             if (u >= 1.0) {
                 shadow_capture = true;
@@ -184,83 +238,7 @@ vec4 trace_ray(vec3 ray) {
         frame_drag_phase += frame_drag_step;
 
         pos = rotate_about_z(planar_pos, frame_drag_phase);
-        {{/kerr_fast_mode}}
-
-        {{#kerr_full_core}}
-        // Realtime Kerr: Binet equation with frame-drag approximation
-        // Same geodesic integration as fast mode, with full Kerr disk kinematics
-        step = MAX_REVOLUTIONS * 2.0*M_PI / float(NSTEPS);
-
-        // adaptive step size based on rate of change
-        float max_rel_u_change_fc = max(1.0-log(max(u, 0.0001)), 0.05)*10.0 / float(NSTEPS);
-        if (interior_mode > 0.5) {
-            max_rel_u_change_fc *= 3.0 + 2.0 * max(u - 1.0, 0.0);
-            if (abs(du) > abs(max_rel_u_change_fc*u) / step) {
-                step = max_rel_u_change_fc*u/abs(du);
-            }
-        } else {
-            if ((du > 0.0 || (du0 < 0.0 && u0/u < 5.0)) && abs(du) > abs(max_rel_u_change_fc*u) / step) {
-                step = max_rel_u_change_fc*u/abs(du);
-            }
-        }
-
-        // Additional step refinement near photon sphere (u ≈ 0.667 for r = 1.5)
-        float u_photon_sphere_fc = 0.667;
-        float photon_sphere_proximity_fc = exp(-12.0 * (u - u_photon_sphere_fc) * (u - u_photon_sphere_fc));
-        step *= 1.0 - 0.7 * photon_sphere_proximity_fc;
-
-        // Interior mode: refine steps crossing the horizon (u ≈ 1)
-        if (interior_mode > 0.5) {
-            float horizon_proximity_fc = exp(-8.0 * (u - 1.0) * (u - 1.0));
-            step *= 1.0 - 0.6 * horizon_proximity_fc;
-            step = max(step, 0.5 * M_PI / float(NSTEPS));
-        }
-
-        old_u = u;
-
-        {{#light_travel_time}}
-        {{#gravitational_time_dilation}}
-        dt = sqrt(max(du*du + u*u*(1.0-u), 0.0001))/max(abs(u*u*(1.0-u)), 0.0001)*step;
-        {{/gravitational_time_dilation}}
-        {{/light_travel_time}}
-
-        integrate_geodesic_step(u, du, step, spin_alignment);
-
-        if (u < 0.0) {
-            if (interior_mode > 0.5) shadow_capture = true;
-            break;
-        }
-        // Interior mode: trace past horizon, stop only at singularity
-        if (interior_mode < 0.5) {
-            if (u >= 1.0) {
-                shadow_capture = true;
-                break;
-            }
-        } else {
-            if (u >= 20.0) {
-                shadow_capture = true;
-                break;
-            }
-        }
-
-        phi += step;
-
-        old_pos = pos;
-        vec3 planar_pos_fc = (cos(phi)*normal_vec + sin(phi)*tangent_vec)/u;
-
-        float drag_u_fc = clamp(u, 0.0, 1.15);
-        float frame_drag_step_fc = bh_rotation_enabled * bh_spin * bh_spin_strength *
-            spin_alignment * step * 0.85 * drag_u_fc*drag_u_fc*drag_u_fc;
-        frame_drag_phase += frame_drag_step_fc;
-
-        pos = rotate_about_z(planar_pos_fc, frame_drag_phase);
-
-        {{#light_travel_time}}
-        {{^gravitational_time_dilation}}
-        dt = length(pos - old_pos);
-        {{/gravitational_time_dilation}}
-        {{/light_travel_time}}
-        {{/kerr_full_core}}
+        } // end if (use_kerr) / else
 
         ray = pos-old_pos;
         float solid_isec_t = 2.0;
@@ -302,12 +280,27 @@ vec4 trace_ray(vec3 ray) {
         {{/planetEnabled}}
 
         {{#accretion_thin_disk}}
-        if (old_pos.z * pos.z < 0.0) {
-            // crossed plane z=0
-
-            float acc_isec_t = -old_pos.z / ray.z;
+        // Disk crossing detection with sub-step refinement.
+        // Near the photon sphere (r ≈ 1.5 r_s) photon paths wind tightly
+        // and a single step can skip over the z=0 plane.  When the step
+        // subtends a large angle and we are close to the photon sphere,
+        // subdivide the segment and test each sub-segment for a crossing
+        // to reliably capture secondary and tertiary Einstein rings.
+        int disk_sub_steps = 1;
+        if (abs(u - 0.667) < 0.15 && step > 0.12) {
+            disk_sub_steps = 4;  // 4 sub-checks near photon sphere
+        }
+        {
+            vec3 sub_old = old_pos;
+            vec3 sub_step_vec = (pos - old_pos) / float(disk_sub_steps);
+            for (int ds = 0; ds < 4; ds++) {
+                if (ds >= disk_sub_steps) break;
+                vec3 sub_new = old_pos + sub_step_vec * float(ds + 1);
+                if (sub_old.z * sub_new.z < 0.0) {
+            vec3 sub_ray = sub_new - sub_old;
+            float acc_isec_t = -sub_old.z / sub_ray.z;
             if (acc_isec_t < solid_isec_t) {
-                vec3 isec = old_pos + ray*acc_isec_t;
+                vec3 isec = sub_old + sub_ray*acc_isec_t;
 
                 float r = length(isec);
                 if (r > ACCRETION_MIN_R && r < ACCRETION_MIN_R + ACCRETION_WIDTH) {
@@ -318,6 +311,12 @@ vec4 trace_ray(vec3 ray) {
                     float inner_glow = exp(-8.0 * (r - ACCRETION_MIN_R));
                     float accretion_intensity = ACCRETION_BRIGHTNESS * accretion_flux_profile(r) *
                         turbulence * (1.0 + 0.7*inner_glow);
+
+                    // Limb darkening: Eddington approximation for an optically
+                    // thick disk.  I(μ) = I(1)·(2/5 + 3/5·μ) where μ = cos(θ)
+                    // is the angle between the photon and the disk normal (z-axis).
+                    float cos_emission_angle = abs(ray.z) / max(ray_l, 1e-6);
+                    accretion_intensity *= 0.4 + 0.6 * cos_emission_angle;
 
                     vec3 accretion_v;
                     {{#kerr_fast_mode}}
@@ -361,6 +360,9 @@ vec4 trace_ray(vec3 ray) {
                     color += vec4(thermal_color.rgb * accretion_intensity, 1.0);
                 }
             }
+                }
+                sub_old = sub_new;
+            }
         }
         {{/accretion_thin_disk}}
 
@@ -375,7 +377,7 @@ vec4 trace_ray(vec3 ray) {
                 float cyl_r_t = max(length(pos.xy), 1e-4);
                 float angle_t = atan(pos.x, pos.y);
 
-                float temperature_t = torus_temperature(r3d) * gravitational_shift(r3d);
+                float temperature_t = torus_temperature(r3d) * gravitational_shift_static(r3d);
                 float turbulence_t = accretion_turbulence(cyl_r_t, angle_t, t);
 
                 // Emission coefficient: optically thin ADAF has low emissivity
@@ -442,7 +444,7 @@ vec4 trace_ray(vec3 ray) {
                 float r3d_s = max(length(pos), 1.001);
                 float angle_s = atan(pos.x, pos.y);
 
-                float temperature_s = slim_disk_temperature(cyl_r_s) * gravitational_shift(r3d_s);
+                float temperature_s = slim_disk_temperature(cyl_r_s) * gravitational_shift_static(r3d_s);
                 float turbulence_s = accretion_turbulence(cyl_r_s, angle_s, t);
 
                 // Emission coefficient: slim disk is bright (super-Eddington luminosity)
@@ -549,7 +551,7 @@ vec4 trace_ray(vec3 ray) {
                     {{#jet_simple}}
                     // Simple mode: single-temperature blackbody approximation
                     float r_jet = max(length(pos), 1.001);
-                    float g_shift_j = gravitational_shift(r_jet);
+                    float g_shift_j = gravitational_shift_static(r_jet);
                     float jet_T = 18000.0 * g_shift_j;
                     {{#doppler_shift}}
                     jet_T /= max(doppler_jet, 0.05);
@@ -571,7 +573,7 @@ vec4 trace_ray(vec3 ray) {
                     // Physical mode: GRMHD-calibrated emission
                     float r_jet_p = max(length(pos), 1.001);
                     float z_abs = abs(pos.z * sign_z);
-                    float g_shift_j = gravitational_shift(r_jet_p);
+                    float g_shift_j = gravitational_shift_static(r_jet_p);
                     float sigma = magnetization(z_abs);
 
                     // Effective temperature with synchrotron aging
@@ -611,6 +613,7 @@ vec4 trace_ray(vec3 ray) {
 
         if (solid_isec_t <= 1.0) u = 100.0; // break (exceeds both exterior and interior thresholds)
 
+        if (!use_kerr) {
         {{#kerr_fast_mode}}
         if (interior_mode < 0.5) {
             float capture_u = 1.0 + bh_rotation_enabled * bh_spin * bh_spin_strength *
@@ -632,6 +635,7 @@ vec4 trace_ray(vec3 ray) {
             break;
         }
         {{/kerr_full_core}}
+        } // end if (!use_kerr)
     }
 
     // Background sky: show for rays that escaped to far field.

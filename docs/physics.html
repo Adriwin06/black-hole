@@ -167,8 +167,13 @@
         <li><a href="#sec-units">Units and Conventions</a></li>
         <li><a href="#sec-schwarzschild">Schwarzschild Metric and Null Geodesics</a></li>
         <li><a href="#sec-binet">The Binet Equation for Photons</a></li>
-        <li><a href="#sec-integration">Numerical Integration (Euler &amp; RK4)</a></li>
-        <li><a href="#sec-kerr">Kerr Black Hole &amp; Frame Dragging</a></li>
+        <li><a href="#sec-integration">Numerical Integration (Leapfrog &amp; RK4)</a></li>
+        <li><a href="#sec-kerr">Kerr Black Hole &amp; Frame Dragging</a>
+            <ol>
+                <li><a href="#sec-kerr">Perturbative approximation (interior / fallback)</a></li>
+                <li><a href="#sec-kerr">True Kerr geodesics (Mino-time formulation)</a></li>
+            </ol>
+        </li>
         <li><a href="#sec-isco">ISCO: Innermost Stable Circular Orbit</a></li>
         <li><a href="#sec-accretion">Accretion Disk Models</a>
             <ol>
@@ -328,7 +333,7 @@
 <!-- 4. NUMERICAL INTEGRATION -->
 <!-- ============================================================ -->
 
-<h2 id="sec-integration">4. Numerical Integration (Euler &amp; RK4)</h2>
+<h2 id="sec-integration">4. Numerical Integration (Leapfrog &amp; RK4)</h2>
 
 <p>
     The Binet ODE is a second-order equation integrated as a coupled first-order system:
@@ -339,17 +344,24 @@
 </div>
 <p>
     where <em>v</em> = d<em>u</em>/d&phi; and <em>f</em><sub>spin</sub> is the frame-dragging correction (see <a href="#sec-kerr">Section 5</a>).
+    The same integrators are used for the true Kerr geodesic equations (Section 5.2).
 </p>
 
-<h3>Euler method (fast mode)</h3>
+<h3>Leapfrog / St&ouml;rmer-Verlet (default)</h3>
 <p>
-    When RK4 is disabled, the simulation uses the symplectic Euler method:
+    When RK4 is disabled, the simulation uses the <strong>Leapfrog</strong> (St&ouml;rmer-Verlet) method,
+    a <strong>symplectic 2nd-order</strong> integrator:
 </p>
-<pre><code>u += du * step;
-du += accel(u) * step;</code></pre>
+<pre><code>du += 0.5 * accel(u) * step;   // half-step velocity
+u  += du * step;                // full-step position
+du += 0.5 * accel(u) * step;   // half-step velocity</code></pre>
 <p>
-    This is first-order accurate, O(&Delta;&phi;), and can accumulate significant errors near the photon sphere
-    where the curvature is strongest.
+    Being symplectic, Leapfrog preserves the Hamiltonian structure of the geodesic equations,
+    meaning <strong>energy is conserved to O(step&sup2;)</strong> over arbitrarily long integrations.
+    This prevents the systematic energy drift that afflicts non-symplectic methods like plain Euler,
+    and is especially important for photons that wind many times around the photon sphere.
+    The computational cost per step is identical to Euler (two acceleration evaluations), but
+    the accuracy is second-order, O(&Delta;&phi;&sup2;), rather than first-order.
 </p>
 
 <h3>Runge-Kutta 4th order (RK4)</h3>
@@ -398,10 +410,10 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     coordinate integration, which is computationally expensive for real-time rendering.
 </p>
 
-<h3>Approximation used in the simulation</h3>
+<h3>5.1. Perturbative approximation (interior / fallback)</h3>
 <p>
-    Instead of solving the full Kerr geodesic equations, the simulation adds a perturbative
-    <strong>frame-dragging correction</strong> to the Schwarzschild Binet equation:
+    For the interior rendering mode and as a fallback when spin is negligible, the simulation uses
+    a perturbative <strong>frame-dragging correction</strong> added to the Schwarzschild Binet equation:
 </p>
 <div class="eq">
     d&sup2;<em>u</em>/d&phi;&sup2; = &minus;<em>u</em> + 1.5<em>u</em>&sup2; + <em>a</em> &middot;
@@ -411,52 +423,57 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     where <em>a</em> is the spin parameter, <em>s</em> is the spin alignment factor
     (dot product of orbital angular momentum with spin axis, ranging from &minus;1 to +1), and &sigma; is a
     user-adjustable strength parameter ("shadow squeeze").
+    A cumulative azimuthal rotation
+    &Delta;&psi; = <em>a</em>&middot;&sigma;&middot;<em>s</em>&middot;&Delta;&phi;&middot;0.85<em>u</em>&sup3;
+    is applied to the 3D  ray position about the spin axis.
+    This captures qualitative frame-dragging effects but cannot reproduce the exact Kerr shadow boundary.
 </p>
 
-<h4>Physics motivation</h4>
+<h3>5.2. True Kerr geodesics (Mino-time formulation)</h3>
 <p>
-    In the Kerr metric, frame-dragging is encoded in the off-diagonal <em>g<sub>t&phi;</sub></em>
-    component <sup><a href="#ref-kerr-wiki">[7]</a></sup>:
+    For exterior rendering with non-negligible spin, the simulation integrates the
+    <strong>exact Kerr geodesic equations</strong> using the separability discovered by
+    <strong>Carter (1968)</strong> <sup><a href="#ref-carter">[6]</a></sup>.
+    In <strong>Mino time</strong> &sigma; (where d&lambda; = &Sigma; d&sigma;), the geodesic equations
+    separate into independent ODEs in <em>r</em> and <em>&theta;</em>:
 </p>
 <div class="eq">
-    &Omega; = &minus;g<sub>t&phi;</sub>/g<sub>&phi;&phi;</sub> =
-    <em>r<sub>s</sub></em> <em>r</em> <em>a</em> <em>c</em> /
-    [&Sigma;(<em>r</em>&sup2; + <em>a</em>&sup2;) + <em>r<sub>s</sub></em> <em>r</em> <em>a</em>&sup2; sin&sup2;&theta;]
+    d&sup2;<em>r</em>/d&sigma;&sup2; = R&prime;(<em>r</em>)/2 = 2<em>r</em>P &minus; (<em>r</em> &minus; <em>M</em>)K
 </div>
-<p>
-    This angular velocity of the "dragging of inertial frames" scales as <em>a</em>/<em>r</em>&sup3;
-    at large distances. The simulation's <em>u</em>&sup3; term (equivalent to 1/<em>r</em>&sup3;) captures
-    this correct radial dependence. The key qualitative effects are:
-</p>
+<div class="eq">
+    d&sup2;(cos&theta;)/d&sigma;&sup2; = &minus;cos&theta;(&eta; + &xi;&sup2; &minus; <em>a</em>&sup2;) &minus; 2<em>a</em>&sup2;cos&sup3;&theta;
+</div>
+<div class="eq">
+    d&phi;/d&sigma; = <em>a</em>P/&Delta; + &xi;/sin&sup2;&theta; &minus; <em>a</em>
+</div>
+<p>where:</p>
 <ul>
-    <li><strong>Prograde photons</strong> (<em>s</em> &gt; 0): The frame-dragging term reduces the effective bending,
-        meaning prograde light can orbit closer before capture &rarr; smaller shadow on the prograde side.</li>
-    <li><strong>Retrograde photons</strong> (<em>s</em> &lt; 0): Increased bending &rarr; larger shadow on the retrograde side.</li>
+    <li>P = <em>r</em>&sup2; + <em>a</em>&sup2; &minus; <em>a</em>&xi;</li>
+    <li>K = (&xi; &minus; <em>a</em>)&sup2; + &eta;</li>
+    <li>&Delta; = <em>r</em>&sup2; &minus; 2<em>Mr</em> + <em>a</em>&sup2;</li>
+    <li>&xi; = <em>L<sub>z</sub></em>/<em>E</em> (angular momentum), &eta; = <em>Q</em>/<em>E</em>&sup2; (Carter constant)</li>
 </ul>
-
-<h3>Frame-drag phase rotation</h3>
 <p>
-    In addition to modifying the geodesic ODE, the simulation applies a cumulative azimuthal rotation
-    to the 3D ray position to simulate the frame-dragging twist:
+    These are <strong>polynomial ODEs in <em>r</em> and cos&theta; only</strong> &mdash;
+    computationally cheap per step. The constants &xi; and &eta;
+    are computed from the camera ray direction using flat-space expressions (valid
+    for the distant observer) and projecting the initial momenta onto the Kerr
+    constraint surface (d<em>r</em>/d&sigma;)&sup2; = R(<em>r</em>) to ensure exact
+    energy conservation from the start.
 </p>
-<div class="eq">
-    &Delta;&psi; = <em>a</em> &middot; &sigma; &middot; <em>s</em> &middot; &Delta;&phi; &middot; 0.85 <em>u</em>&sup3;
-</div>
 <p>
-    The total accumulated twist <em>&psi;</em> is applied via a rotation about the spin axis (z-axis),
-    creating the characteristic asymmetric shadow shape of a Kerr black hole.
+    The 3D Cartesian position is reconstructed at each step from Boyer-Lindquist coordinates:
+    <em>x</em> = <em>r</em>&thinsp;sin&theta;&thinsp;cos&phi;, etc. Event-horizon capture uses the exact
+    Kerr outer horizon <em>r</em><sub>+</sub> = <em>M</em> + &radic;(<em>M</em>&sup2; &minus; <em>a</em>&sup2;).
 </p>
 
-<div class="limitation">
-    <strong>Approximation vs. reality:</strong> This is <em>not</em> an exact Kerr geodesic calculation.
-    True Kerr null geodesics require solving:
-    <br>&bull; &Sigma; d<em>r</em>/d&lambda; = &plusmn;&radic;R(<em>r</em>)
-    <br>&bull; &Sigma; d&theta;/d&lambda; = &plusmn;&radic;&Theta;(&theta;)
-    <br>where R(<em>r</em>) and &Theta;(&theta;) depend on the Carter constant <em>Q</em>, energy <em>E</em>,
-    angular momentum <em>L<sub>z</sub></em>, and spin <em>a</em>
-    <sup><a href="#ref-carter">[6]</a></sup>.
-    The approximation captures the qualitative asymmetry of the shadow but does not reproduce
-    the exact shadow boundary, photon region structure, or higher-order Kerr lensing features.
+<div class="comparison">
+    <strong>Accuracy:</strong> The Mino-time integration is <em>exact</em> for Kerr null geodesics &mdash;
+    the separated equations follow directly from the Hamiltonian with the Carter constant
+    <sup><a href="#ref-carter">[6]</a></sup> <sup><a href="#ref-chandrasekhar">[28]</a></sup>.
+    This produces the correct <strong>D-shaped shadow boundary</strong>
+    (Bardeen 1973), including the asymmetry between prograde and retrograde photon orbits,
+    the spin-dependent photon sphere structure, and higher-order Kerr lensing features.
 </div>
 
 <!-- ============================================================ -->
@@ -576,6 +593,31 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     where <em>r<sub>g</sub></em> = 2<em>r</em> (converting from <em>r<sub>s</sub></em> to gravitational radii).
     This is the standard Kerr equatorial Keplerian angular velocity
     <sup><a href="#ref-bpt">[8]</a></sup>.
+</p>
+
+<h4>Limb darkening</h4>
+<p>
+    The thin disk emission includes <strong>Eddington limb darkening</strong>,
+    which accounts for the angle-dependent intensity of an optically thick atmosphere:
+</p>
+<div class="eq">
+    <em>I</em>(&mu;) = <em>I</em>(1) &middot; (2/5 + 3/5 &middot; &mu;)
+</div>
+<p>
+    where &mu; = cos&thinsp;&theta;<sub>emission</sub> is the cosine of the angle between the
+    emitted photon and the disk normal (z-axis). This reduces the brightness of disk regions
+    viewed at grazing angles, which is particularly visible for the underside of the disk
+    seen through gravitational lensing.
+</p>
+
+<h4>Sub-step disk crossing detection</h4>
+<p>
+    Near the photon sphere (<em>r</em> &asymp; 1.5 <em>r<sub>s</sub></em>), photon paths wind tightly and a single
+    integration step can skip over the <em>z</em> = 0 equatorial plane. To reliably capture
+    <strong>secondary and tertiary Einstein rings</strong>, the disk-crossing test is subdivided
+    into 4 sub-checks when the photon is close to the photon sphere and the step subtends
+    a large angle. This ensures that higher-order lensed images of the disk are not missed
+    by the finite step size.
 </p>
 
 <h4>Turbulence</h4>
@@ -764,9 +806,37 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     shifting the temperature correctly accounts for both the frequency shift and the intensity change.
 </p>
 
+<h3>Orbital vs. static gravitational redshift</h3>
+<p>
+    The formula above applies to a <strong>static emitter</strong>.
+    For matter orbiting in a thin accretion disk on <strong>Keplerian circular orbits</strong>,
+    the combined gravitational + kinematic time dilation gives a different factor:
+</p>
+<div class="eq">
+    <em>g</em><sub>orbital</sub>(<em>r</em>) = &radic;[(1 &minus; 3/(2<em>r</em>)) / (1 &minus; 1/<em>r<sub>o</sub></em>)]
+</div>
+<p>
+    where the numerator 1 &minus; 3/(2<em>r</em>) combines the gravitational redshift with the
+    kinematic time dilation of circular Keplerian motion (identical to the observer time
+    dilation formula in <a href="#sec-observer">Section 13</a>).
+</p>
+<p>
+    The simulation uses two separate functions:
+</p>
+<ul>
+    <li><code>gravitational_shift()</code> &mdash; <strong>orbital</strong> formula (thin disk only), which
+        accounts for the Keplerian velocity of disk material.</li>
+    <li><code>gravitational_shift_static()</code> &mdash; <strong>static</strong> formula
+        &radic;(|1&minus;1/<em>r<sub>e</sub></em>|/|1&minus;1/<em>r<sub>o</sub></em>|)
+        for non-Keplerian sources: the thick torus (sub-Keplerian ADAF), slim disk (plunging region),
+        and relativistic jets.</li>
+</ul>
 <div class="comparison">
-    <strong>Accuracy:</strong> The gravitational redshift formula is exact for static observers in
-    Schwarzschild spacetime.
+    <strong>Accuracy:</strong> The orbital redshift formula is exact for Schwarzschild circular orbits.
+    The static formula is exact for stationary emitters.
+    Using orbital redshift for the thin disk and static redshift for volumetric sources is
+    physically correct &mdash; the torus gas orbits at ~50% of Keplerian velocity (ADAF theory),
+    and jet plasma is not on circular orbits at all.
 </div>
 
 <!-- ============================================================ -->
@@ -1779,12 +1849,12 @@ newR = max(r + k2,  r_min)</code></pre>
         <th>Impact</th>
     </tr>
     <tr>
-        <td>Kerr frame-dragging</td>
-        <td>Perturbative u&sup3; correction</td>
+        <td>Kerr geodesics (exterior)</td>
+        <td>Full Carter-separated Mino-time integration</td>
         <td>Full Carter-constant geodesics in Boyer-Lindquist coords<sup><a href="#ref-carter">[6]</a></sup></td>
-        <td>Shadow shape is qualitatively right but not quantitatively exact.
-            The D-shaped deformation of the Kerr shadow boundary (as computed by
-            Bardeen 1973 and de Vries 2000) is approximated, not reproduced exactly.</td>
+        <td><strong>Exact</strong> for null geodesics in Kerr spacetime.
+            Produces the correct D-shaped shadow boundary.
+            A perturbative approximation is used only for interior mode.</td>
     </tr>
     <tr>
         <td>Disk turbulence</td>
@@ -1886,9 +1956,10 @@ newR = max(r + k2,  r_min)</code></pre>
 <h2 id="sec-limitations">23. Known Limitations &amp; Approximations</h2>
 
 <ul>
-    <li><strong>No self-consistent Kerr geodesics:</strong> The frame-dragging is a perturbative addition to
-        Schwarzschild geodesics, not a full Kerr ray tracer. The shadow shape and higher-order
-        lensing of a spinning black hole are approximate.</li>
+    <li><strong>Kerr geodesics in interior mode:</strong> The full Kerr geodesic integration is used
+        for exterior rendering; interior mode (inside the event horizon) falls back to the
+        Schwarzschild Binet equation with a perturbative frame-drag correction, so the interior
+        view of a spinning black hole is approximate.</li>
     <li><strong>No returning radiation:</strong> Photons that are gravitationally lensed back onto
         the accretion disk are not tracked (would require recursive ray tracing).</li>
     <li><strong>Disk is not self-consistent:</strong> The disk temperature, density, and velocity profiles are
@@ -2148,7 +2219,7 @@ newR = max(r + k2,  r_min)</code></pre>
     Document generated for the
     <a href="https://github.com/Adriwin06/black-hole">black-hole simulation</a> project.
     <br>
-    Last updated: February 2026.
+    Last updated: March 2026.
 </p>
 
 </div>

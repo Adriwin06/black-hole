@@ -379,7 +379,12 @@ function setupTemporalAA() {
             this.ppMesh.material = this.copyMat;
             rdr.render(this.ppScene, this.ppCamera);
 
-            rdr.render(this.ppScene, this.ppCamera, this.historyRT, true);
+            // Ping-pong: swap output ↔ history targets instead of a
+            // full-screen copy pass.  Next frame reads this frame's
+            // blended output as its history buffer.
+            var tmp = this.historyRT;
+            this.historyRT = this.outputRT;
+            this.outputRT = tmp;
             this.historyValid = true;
         }
     };
@@ -694,7 +699,9 @@ function init(glslSource, textures) {
     };
     cameraControls.zoomCallback = function(dollyDeltaY) {
         // Pinch out (positive delta) zooms in; pinch in zooms out.
-        var zoomFactor = dollyDeltaY > 0 ? 0.93 : 1.08;
+        // Symmetric factor so zoom-in then zoom-out returns to the same distance.
+        var zoomBase = 1.08;
+        var zoomFactor = dollyDeltaY > 0 ? (1.0 / zoomBase) : zoomBase;
         var newDist = shader.parameters.observer.distance * zoomFactor;
         newDist = Math.max(1.5, Math.min(30, newDist));
         shader.parameters.observer.distance = newDist;

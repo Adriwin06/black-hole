@@ -46,17 +46,35 @@ float accretion_temperature(float radius) {
         pow(1.0 / x, 0.75) * pow(inner_edge, 0.25);
 }
 
-float gravitational_shift(float emission_radius) {
-    // For an observer inside the event horizon (free-falling), the Schwarzschild
-    // metric component (1 - r_s/r) is negative.  Rather than the divergent
-    // static-frame formula, use the Doppler factor a Painlevé observer would
-    // measure: g_eff ≈ sqrt(|1 - r_s/r_emit|) / max(sqrt(|1 - r_s/r_obs|), cap).
-    // The cam_vel aberration (applied elsewhere) already accounts for the
-    // dominant kinematic blueshift of the free-falling frame.
+// Observer metric factor shared by both shift functions.
+// Uses the static Schwarzschild factor because the observer's own
+// kinematic Doppler is applied separately via cam_vel aberration.
+float _observer_metric_factor() {
     float r_obs = max(length(cam_pos), 0.05);
-    float observer_term = max(abs(1.0 - 1.0 / r_obs), 0.001);
-    float emission_term = max(abs(1.0 - 1.0 / max(emission_radius, 1.0001)), 0.0001);
-    return sqrt(emission_term / observer_term);
+    return max(abs(1.0 - 1.0 / r_obs), 0.001);
+}
+
+float gravitational_shift(float emission_radius) {
+    // Combined gravitational + orbital redshift for matter on a circular
+    // Keplerian orbit in Schwarzschild geometry.  The emitter redshift is:
+    //   g_emit = sqrt(1 - 3M/r) = sqrt(1 - 3/(2r))   (r_s = 1, M = 0.5)
+    // This accounts for BOTH the gravitational time dilation AND the
+    // transverse Doppler effect of the orbiting disk material.
+    // Below the photon sphere (r < 1.5 r_s) the quantity goes negative
+    // (no stable circular orbits) — clamp with a small positive floor.
+    float r_emit = max(emission_radius, 1.0001);
+    float emission_term = max(1.0 - 1.5 / r_emit, 0.0001);
+    return sqrt(emission_term / _observer_metric_factor());
+}
+
+float gravitational_shift_static(float emission_radius) {
+    // Gravitational redshift only — for emitters that are NOT on circular
+    // Keplerian orbits (ADAF torus, slim-disk plunging region, jets).
+    // Uses the static Schwarzschild metric component sqrt(|1 - r_s/r|).
+    // The emitter's kinematic Doppler is computed separately in trace_ray.
+    float r_emit = max(emission_radius, 1.0001);
+    float emission_term = max(abs(1.0 - 1.0 / r_emit), 0.0001);
+    return sqrt(emission_term / _observer_metric_factor());
 }
 
 {{#accretion_thick_torus}}
@@ -178,12 +196,12 @@ float planet_irradiation_temperature() {
 
     {{#accretion_thick_torus}}
     float r_t = max(torus_r0 * 1.25, ACCRETION_MIN_R + 0.5);
-    return torus_temperature(r_t) * gravitational_shift(r_t);
+    return torus_temperature(r_t) * gravitational_shift_static(r_t);
     {{/accretion_thick_torus}}
 
     {{#accretion_slim_disk}}
     float r_s = ACCRETION_MIN_R * 1.6;
-    return slim_disk_temperature(r_s) * gravitational_shift(r_s);
+    return slim_disk_temperature(r_s) * gravitational_shift_static(r_s);
     {{/accretion_slim_disk}}
 
     return disk_temperature;

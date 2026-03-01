@@ -6,6 +6,9 @@
 #define DEG_TO_RAD (M_PI/180.0)
 #define SQ(x) ((x)*(x))
 
+// Note: despite the name, this is NOT a pure Y-axis rotation. It swaps the
+// XY axes and applies a rotation by angle `a` in the YZ plane. Used only for
+// background and planet texture coordinate transforms.
 #define ROT_Y(a) mat3(0, cos(a), sin(a), 1, 0, 0, 0, sin(a), -cos(a))
 
 
@@ -74,8 +77,10 @@ const float ACCRETION_WIDTH = 12.0;
 #define ACCRETION_MIN_R accretion_inner_r
 const float ACCRETION_BRIGHTNESS = 0.95;
 
-const float STAR_MIN_TEMPERATURE = 4000.0;
-const float STAR_MAX_TEMPERATURE = 15000.0;
+// Widened range covers L/T-type brown dwarfs (~2500 K) through O-type
+// stars (~40000 K) for more diverse and physically realistic star colours.
+const float STAR_MIN_TEMPERATURE = 2500.0;
+const float STAR_MAX_TEMPERATURE = 40000.0;
 
 const float STAR_BRIGHTNESS = 0.52;
 const float GALAXY_BRIGHTNESS = 0.14;
