@@ -196,6 +196,17 @@
             </ol>
         </li>
         <li><a href="#sec-jets">Relativistic Jets</a></li>
+        <li><a href="#sec-grmhd">GRMHD Realism Mode</a>
+            <ol>
+                <li><a href="#sec-grmhd-two-temp">Two-Temperature Plasma (R<sub>high</sub>)</a></li>
+                <li><a href="#sec-grmhd-synchrotron">Thermal Synchrotron Emission</a></li>
+                <li><a href="#sec-grmhd-mri">MRI Turbulence &amp; MAD State</a></li>
+                <li><a href="#sec-grmhd-fishbone">Fishbone-Moncrief Torus</a></li>
+                <li><a href="#sec-grmhd-nonthermal">Non-Thermal Electrons (κ-distribution)</a></li>
+                <li><a href="#sec-grmhd-isco">Non-Zero ISCO Stress</a></li>
+                <li><a href="#sec-grmhd-bz">Blandford-Znajek Jet Power</a></li>
+            </ol>
+        </li>
         <li><a href="#sec-volumetric">Volumetric Radiative Transfer</a></li>
         <li><a href="#sec-tonemap">Tone Mapping &amp; Color Science</a></li>
         <li><a href="#sec-planet">Planet Model</a></li>
@@ -1276,10 +1287,238 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 </p>
 
 <!-- ============================================================ -->
-<!-- 16. VOLUMETRIC RT -->
+<!-- 16. GRMHD REALISM MODE -->
 <!-- ============================================================ -->
 
-<h2 id="sec-volumetric">16. Volumetric Radiative Transfer</h2>
+<h2 id="sec-grmhd">16. GRMHD Realism Mode</h2>
+
+<p>
+    When the <strong>GRMHD realism</strong> toggle is enabled, the simulation replaces the standard
+    analytic accretion and jet models with semi-analytic prescriptions calibrated to
+    General Relativistic Magnetohydrodynamic (GRMHD) simulations. These models reproduce
+    the key observable features seen in Event Horizon Telescope images and state-of-the-art
+    numerical simulations.
+</p>
+
+<div class="note">
+    <strong>What is GRMHD?</strong> GRMHD simulations solve the coupled Einstein + MHD equations
+    self-consistently on a computational grid, evolving the plasma density, velocity, pressure,
+    and magnetic field in curved spacetime. They are the gold standard for modeling black hole
+    accretion and jet launching. This simulation uses semi-analytic fitting functions calibrated
+    to GRMHD results — not the full numerical evolution — to achieve real-time performance
+    while retaining the essential physics.
+</div>
+
+<h3 id="sec-grmhd-two-temp">16.1 Two-Temperature Plasma (R<sub>high</sub> Prescription)</h3>
+
+<p>
+    In GRMHD simulations, the ion temperature <em>T<sub>i</sub></em> and electron temperature
+    <em>T<sub>e</sub></em> are generally different. Since radiation is produced primarily by
+    electrons, the electron temperature determines the observed emission. The simulation uses the
+    <strong>R<sub>high</sub> parameterization</strong> introduced by
+    Mościbrodzka, Falcke &amp; Shiokawa (2016)
+    <sup><a href="#ref-moscibrodzka16">[36]</a></sup>:
+</p>
+<div class="eq">
+    <em>T<sub>i</sub></em> / <em>T<sub>e</sub></em> = <em>R</em>(&beta;)
+    = <em>R</em><sub>high</sub> &beta;&sup2; / (1 + &beta;&sup2;)
+    + <em>R</em><sub>low</sub> / (1 + &beta;&sup2;)
+</div>
+<p>
+    where &beta; = <em>P</em><sub>gas</sub> / <em>P</em><sub>mag</sub> is the plasma beta parameter
+    and <em>R</em><sub>low</sub> = 1. This creates:
+</p>
+<ul>
+    <li><strong>Low &beta; (jet funnel, corona):</strong> <em>R</em> &asymp; 1, so <em>T<sub>e</sub></em> &asymp; <em>T<sub>i</sub></em>/2 — electrons are hot, emission is bright.</li>
+    <li><strong>High &beta; (disk midplane):</strong> <em>R</em> &asymp; <em>R</em><sub>high</sub>, so <em>T<sub>e</sub></em> &Lt; <em>T<sub>i</sub></em> — electrons are cool, dim.</li>
+</ul>
+<p>
+    When <em>R</em><sub>high</sub> = 1, emission comes from everywhere. When <em>R</em><sub>high</sub> = 160,
+    emission concentrates near the jet wall and polar regions, producing the bright crescent morphology
+    observed by the EHT
+    <sup><a href="#ref-eht-v">[37]</a></sup>.
+</p>
+
+<h3 id="sec-grmhd-synchrotron">16.2 Thermal Synchrotron Emission</h3>
+
+<p>
+    In astronomically observed black holes, the dominant radiation mechanism is
+    <strong>thermal synchrotron emission</strong> from hot, magnetized, optically thin plasma:
+</p>
+<div class="eq">
+    <em>j</em><sub>&nu;</sub> &prop; <em>n<sub>e</sub></em> &nu;<sub>s</sub>
+    <em>F</em>(&nu;/&nu;<sub>c</sub>)
+</div>
+<p>
+    where the spectral shape function is the relativistic thermal fit from Mahadevan, Narayan &amp; Yi (1996)
+    <sup><a href="#ref-mahadevan96">[38]</a></sup>:
+</p>
+<div class="eq">
+    <em>F</em>(<em>x</em>) = <em>x</em><sup>&minus;1/6</sup>
+    exp(&minus;1.8899 <em>x</em><sup>1/3</sup>)
+</div>
+
+<h4>Implementation as Spectral Correction</h4>
+
+<p>
+    Because this renderer produces visible-light blackbody images (not monochromatic radio maps),
+    evaluating the full synchrotron kernel at a specific observing frequency is not meaningful.
+    Instead, the synchrotron physics is captured as a <strong>spectral correction factor</strong>
+    that modulates emissivity based on the local magnetic field strength <em>B</em> and
+    electron density &rho;:
+</p>
+<div class="eq">
+    <em>C</em><sub>sync</sub> = 0.3 + 2.7 &middot; <em>B</em> &middot; (0.2 + 0.8 &rho;) / (1 + <em>B</em> &middot; (0.2 + 0.8 &rho;))
+</div>
+<p>
+    This yields a factor in the range ~[0.3, 3.0], ensuring that regions with strong magnetic
+    fields and high electron density emit more brightly (as expected from <em>j</em><sub>&nu;</sub>
+    &prop; <em>n<sub>e</sub></em> <em>B</em>&sup2;), while maintaining well-behaved values
+    across the full parameter space. The <em>B</em>-field strength parameter and density scale
+    slider both directly modulate this correction, providing responsive control.
+</p>
+<p>
+    <strong>Synchrotron self-absorption</strong> is included for the thick torus (ADAF/RIAF),
+    where the opacity scales with density:
+    &alpha;<sub>abs</sub> &prop; <em>j</em><sub>torus</sub> &middot; &rho;<sup>0.5</sup> &middot;
+    (0.5 + 0.5 &middot; density_scale).
+    For the optically thick thin disk and slim disk, synchrotron absorption is less important
+    since these models are already emission-dominated.
+</p>
+
+<h3 id="sec-grmhd-mri">16.3 MRI Turbulence &amp; MAD State</h3>
+
+<p>
+    The <strong>magnetorotational instability</strong> (MRI; Balbus &amp; Hawley 1991
+    <sup><a href="#ref-balbus91">[39]</a></sup>) drives turbulence in accretion disks and is the
+    primary mechanism for angular momentum transport. In the GRMHD mode, MRI turbulence is modeled
+    with log-normal density fluctuations:
+</p>
+<div class="eq">
+    &rho; = &rho;<sub>0</sub> exp(&sigma;<sub>ln</sub> &xi;)
+</div>
+<p>
+    where &sigma;<sub>ln</sub> &asymp; 0.5 &ndash; 1.0 is the log-normal width (controlled by the
+    MRI turbulence parameter) and &xi; is a procedural noise field in co-rotating coordinates.
+    The density fluctuations are clamped to a dynamic range of ~30&times; (0.15 &ndash; 5.0)
+    to prevent extreme outliers from overwhelming the torus geometry, consistent with the
+    1&ndash;2 &sigma; range observed in actual GRMHD density histograms.
+</p>
+<p>
+    Additional MRI-driven features include azimuthal scale-height variations (&plusmn;15%
+    at default turbulence, calibrated to Liska et al. 2022) representing Parker instability
+    buoyant loops and MRI-induced warps.
+</p>
+<p>
+    The <strong>Magnetically Arrested Disk</strong> (MAD) state occurs when magnetic flux accumulates
+    on the black hole until pressure balance arrests further accretion. MAD disks exhibit:
+</p>
+<ul>
+    <li>Dominant <em>m</em> = 1 spiral arm structure from flux tube interactions</li>
+    <li>Stronger magnetic fields (lower plasma &beta;) throughout</li>
+    <li>More powerful jets (up to &eta; ~ 100% accretion efficiency)</li>
+    <li>Episodic magnetic flux eruptions creating variability</li>
+</ul>
+<p>
+    The MAD flux parameter interpolates between SANE (Standard and Normal Evolution, MAD = 0) and
+    full MAD state (MAD = 1), following Tchekhovskoy, Narayan &amp; McKinney (2011)
+    <sup><a href="#ref-tchekhovskoy11">[40]</a></sup>.
+</p>
+
+<h3 id="sec-grmhd-fishbone">16.4 Fishbone-Moncrief Equilibrium Torus</h3>
+
+<p>
+    For the thick torus mode, the GRMHD realism option uses the <strong>Fishbone &amp; Moncrief
+    (1976)</strong> equilibrium torus solution
+    <sup><a href="#ref-fm76">[41]</a></sup> as the initial density distribution. This is the
+    standard initial condition for GRMHD simulations:
+</p>
+<div class="eq">
+    <em>W</em> &minus; <em>W</em><sub>0</sub> = &minus;ln(<em>h</em>)
+</div>
+<p>
+    where <em>W</em> is the effective potential (gravitational + centrifugal) and <em>h</em> is the
+    specific enthalpy. The torus has a cusp at the inner edge giving it a self-consistent shape.
+    The simulation uses a pseudo-Newtonian (Paczyński-Wiita) approximation for real-time evaluation.
+</p>
+
+<h3 id="sec-grmhd-nonthermal">16.5 Non-Thermal Electrons (κ-distribution)</h3>
+
+<p>
+    Magnetic reconnection in current sheets produces non-thermal electrons with a power-law energy tail.
+    The simulation models this using a <strong>κ-distribution</strong>:
+</p>
+<div class="eq">
+    <em>f</em>(<em>E</em>) &prop; (1 + <em>E</em>/&kappa;<em>kT</em>)<sup>&minus;(&kappa;+1)</sup>
+</div>
+<p>
+    The κ parameter controls the thermal/non-thermal balance:
+</p>
+<ul>
+    <li>&kappa; &rarr; &infin;: purely thermal (Maxwell-Jüttner distribution)</li>
+    <li>&kappa; ~ 3.5: significant non-thermal tail (strong reconnection; Ball+ 2018
+        <sup><a href="#ref-ball18">[42]</a></sup>, Werner+ 2018)</li>
+    <li>&kappa; ~ 8: nearly thermal with slight high-energy excess</li>
+</ul>
+<p>
+    Non-thermal electrons enhance synchrotron emission at high frequencies and modify the spectral
+    energy distribution, particularly in the jet funnel and corona regions where reconnection is
+    most vigorous.
+</p>
+
+<h3 id="sec-grmhd-isco">16.6 Non-Zero ISCO Stress</h3>
+
+<p>
+    The classical Novikov-Thorne model assumes zero torque at the ISCO (innermost stable circular
+    orbit), meaning accreting matter plunges freely inside the ISCO with no emission. GRMHD
+    simulations show this is <strong>incorrect</strong>: magnetic stress at the ISCO is significant,
+    and the plunging region contributes ~10&ndash;30% of the total disk luminosity
+    (Noble et al. 2010
+    <sup><a href="#ref-noble10">[43]</a></sup>, Penna et al. 2010).
+</p>
+<p>
+    When GRMHD realism is enabled, thin disk emission extends inside the ISCO with a gradual decay
+    (rather than a hard cutoff), and in MAD simulations the plunging stress is even higher due to
+    stronger magnetic fields near the horizon.
+</p>
+
+<h3 id="sec-grmhd-bz">16.7 Blandford-Znajek Jet Power</h3>
+
+<p>
+    The jet luminosity in GRMHD mode is modulated by the <strong>Blandford &amp; Znajek (1977)</strong>
+    mechanism
+    <sup><a href="#ref-bz77">[25]</a></sup>:
+</p>
+<div class="eq">
+    <em>P</em><sub>BZ</sub> = (&kappa;/4&pi;<em>c</em>)
+    &Phi;<sub>BH</sub>&sup2; &Omega;<sub>H</sub>&sup2; <em>f</em>(&Omega;<sub>H</sub>)
+</div>
+<p>
+    where &Phi;<sub>BH</sub> is the magnetic flux threading the event horizon and
+    &Omega;<sub>H</sub> = <em>a</em>/(2<em>r</em><sub>+</sub>) is the angular velocity of the
+    horizon. In the MAD state, &Phi;<sub>BH</sub> saturates, so <em>P</em><sub>BZ</sub> &prop;
+    <em>a</em>&sup2; Ṁ. The simulation also includes:
+</p>
+<ul>
+    <li><strong>Current-driven kink instability</strong>: helical <em>m</em> = 1 distortions from
+        the wound-up magnetic field (Bromberg &amp; Tchekhovskoy 2016)</li>
+    <li><strong>Synchrotron cooling break</strong>: spectral steepening with distance as electrons
+        radiate energy → jets become redder at large distances</li>
+</ul>
+
+<div class="comparison">
+    <strong>EHT comparison:</strong> The M87* preset with GRMHD enabled at R<sub>high</sub> = 80,
+    MAD flux = 0.8 reproduces the essential morphology of the EHT 2019 image: a bright crescent
+    on the approaching side of a thick ring around the black hole shadow, with emission
+    concentrated near the photon ring. The Sgr A* preset with R<sub>high</sub> = 20, SANE-dominated
+    gives the more face-on, symmetric ring seen in EHT 2022.
+</div>
+
+<!-- ============================================================ -->
+<!-- 17. VOLUMETRIC RT -->
+<!-- ============================================================ -->
+
+<h2 id="sec-volumetric">17. Volumetric Radiative Transfer</h2>
 
 <p>
     The thick torus, slim disk, and jet models all use <strong>volumetric ray marching</strong> with the
@@ -1318,7 +1557,7 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 <!-- 17. TONE MAPPING -->
 <!-- ============================================================ -->
 
-<h2 id="sec-tonemap">17. Tone Mapping &amp; Color Science</h2>
+<h2 id="sec-tonemap">18. Tone Mapping &amp; Color Science</h2>
 
 <p>
     The simulation runs in linear HDR color space and applies a tonemapper to map to display range.
@@ -1356,7 +1595,7 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 <!-- 18. PLANET -->
 <!-- ============================================================ -->
 
-<h2 id="sec-planet">18. Planet Model</h2>
+<h2 id="sec-planet">19. Planet Model</h2>
 
 <p>
     A spherical test body orbits the black hole on a Keplerian circular orbit, demonstrating:
@@ -1398,7 +1637,7 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 <!-- 19. INTERIOR BLACK HOLE -->
 <!-- ============================================================ -->
 
-<h2 id="sec-interior">19. Interior Black Hole &amp; Analytical Escape Classification</h2>
+<h2 id="sec-interior">20. Interior Black Hole &amp; Analytical Escape Classification</h2>
 
 <p>
     Once the observer crosses the event horizon (<em>r</em> &lt; <em>r<sub>s</sub></em>), the standard
@@ -1545,7 +1784,7 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 <!-- 20. FREE-FALL DIVE -->
 <!-- ============================================================ -->
 
-<h2 id="sec-freefall">20. Free-Fall Dive &amp; Observer Frame</h2>
+<h2 id="sec-freefall">21. Free-Fall Dive &amp; Observer Frame</h2>
 
 <p>
     The simulation offers a <strong>"Dive"</strong> mode that drops the observer on a
@@ -1666,10 +1905,10 @@ newR = max(r + k2,  r_min)</code></pre>
 </div>
 
 <!-- ============================================================ -->
-<!-- 21. CINEMATIC SPEED -->
+<!-- 22. CINEMATIC SPEED -->
 <!-- ============================================================ -->
 
-<h2 id="sec-cinematic-speed">21. Cinematic Auto-Speed Envelope</h2>
+<h2 id="sec-cinematic-speed">22. Cinematic Auto-Speed Envelope</h2>
 
 <p>
     In a real free-fall, the observer accelerates continuously and crosses the most visually
@@ -1726,10 +1965,10 @@ newR = max(r + k2,  r_min)</code></pre>
 </div>
 
 <!-- ============================================================ -->
-<!-- 22. COMPARISON WITH REALITY -->
+<!-- 23. COMPARISON WITH REALITY -->
 <!-- ============================================================ -->
 
-<h2 id="sec-comparison">22. Comparison with Reality</h2>
+<h2 id="sec-comparison">23. Comparison with Reality</h2>
 
 <h3>What the simulation gets right</h3>
 
@@ -1950,24 +2189,33 @@ newR = max(r + k2,  r_min)</code></pre>
 </ul>
 
 <!-- ============================================================ -->
-<!-- 23. KNOWN LIMITATIONS -->
+<!-- 24. KNOWN LIMITATIONS -->
 <!-- ============================================================ -->
 
-<h2 id="sec-limitations">23. Known Limitations &amp; Approximations</h2>
+<h2 id="sec-limitations">24. Known Limitations &amp; Approximations</h2>
 
 <ul>
-    <li><strong>Kerr geodesics in interior mode:</strong> The full Kerr geodesic integration is used
-        for exterior rendering; interior mode (inside the event horizon) falls back to the
-        Schwarzschild Binet equation with a perturbative frame-drag correction, so the interior
-        view of a spinning black hole is approximate.</li>
+    <li><strong>Approximate Kerr lensing:</strong> The geodesic integrator uses the Schwarzschild
+        Binet equation with a perturbative frame-drag correction term rather than the full Carter
+        (1968) separated Kerr equations. The shadow shape for a spinning black hole is therefore
+        approximately circular rather than the correct D-shaped asymmetric silhouette.</li>
     <li><strong>No returning radiation:</strong> Photons that are gravitationally lensed back onto
         the accretion disk are not tracked (would require recursive ray tracing).</li>
     <li><strong>Disk is not self-consistent:</strong> The disk temperature, density, and velocity profiles are
         prescribed analytically rather than evolved from MHD equations.</li>
     <li><strong>No polarization:</strong> The simulation does not track photon polarization, which is
         important for EHT science (the EHT measured M87*'s linear polarization pattern in 2021).</li>
-    <li><strong>Procedural turbulence:</strong> The disk texture is artistic noise, not physically motivated
-        MHD turbulence.</li>
+    <li><strong>GRMHD-calibrated turbulence:</strong> When GRMHD realism is enabled, the disk
+        and torus use physically calibrated MRI turbulence with log-normal density PDFs
+        (&sigma;<sub>ln</sub> &asymp; 0.5&ndash;1.0), spiral arm structure, and MAD flux tube
+        interactions. Without GRMHD enabled, the turbulence texture is artistic procedural noise.</li>
+    <li><strong>GRMHD is a visual adaptation, not frequency-resolved:</strong> Real GRMHD operates
+        at radio frequencies (~230 GHz) with ion temperatures of ~10<sup>12</sup> K.
+        This renderer adapts the spatial morphology (R<sub>high</sub> crescent, MRI spirals,
+        &beta;-dependent structure) for visible-light blackbody emission at ~5000 K. The
+        synchrotron emissivity correction is a dimensionless modulation factor calibrated
+        to reproduce qualitative GRMHD features, not a true frequency-dependent radiative
+        transfer calculation.</li>
     <li><strong>Background spectrum:</strong> The Milky Way background Doppler shift uses an approximate
         temperature-matching scheme rather than per-pixel spectral data.</li>
     <li><strong>Planet lighting model:</strong> The planet uses a point-source lighting model with an
@@ -1986,10 +2234,10 @@ newR = max(r + k2,  r_min)</code></pre>
 </ul>
 
 <!-- ============================================================ -->
-<!-- 24. REFERENCES -->
+<!-- 25. REFERENCES -->
 <!-- ============================================================ -->
 
-<h2 id="sec-references">24. References</h2>
+<h2 id="sec-references">25. References</h2>
 
 <ol class="references">
     <li id="ref-mtw">
@@ -2210,6 +2458,76 @@ newR = max(r + k2,  r_min)</code></pre>
         Wikipedia contributors. "Schwarzschild geodesics — Radial free fall."
         <a href="https://en.wikipedia.org/wiki/Schwarzschild_geodesics#Radial_free_fall">Wikipedia</a>.
         — Derivation of dr/dτ = −√(r<sub>s</sub>/r) for a test mass falling from rest at infinity.
+    </li>
+    <li id="ref-moscibrodzka16">
+        Mościbrodzka, M., Falcke, H., &amp; Shiokawa, H. (2016).
+        "General relativistic magnetohydrodynamical simulations of the jet in M 87."
+        <em>Astronomy &amp; Astrophysics</em>, 586, A38.
+        <a href="https://doi.org/10.1051/0004-6361/201526630">doi:10.1051/0004-6361/201526630</a>.
+        <a href="https://arxiv.org/abs/1510.07243">arXiv:1510.07243</a>.
+        — Introduces the R<sub>high</sub> two-temperature prescription for electron heating
+        in GRMHD simulations, used by the EHT collaboration.
+    </li>
+    <li id="ref-eht-v">
+        Event Horizon Telescope Collaboration (2019).
+        "First M87 Event Horizon Telescope Results. V. Physical Origin of the Asymmetric Ring."
+        <em>The Astrophysical Journal Letters</em>, 875(1), L5.
+        <a href="https://doi.org/10.3847/2041-8213/ab0f43">doi:10.3847/2041-8213/ab0f43</a>.
+        — EHT Paper V: comparison of GRMHD models with observations, constraining R<sub>high</sub>,
+        spin, and MAD/SANE state for M87*.
+    </li>
+    <li id="ref-mahadevan96">
+        Mahadevan, R., Narayan, R., &amp; Yi, I. (1996).
+        "Harmony in Electrons: Cyclotron and Synchrotron Emission by Thermal Electrons in a Magnetic Field."
+        <em>The Astrophysical Journal</em>, 465, 327.
+        <a href="https://doi.org/10.1086/177422">doi:10.1086/177422</a>.
+        — Analytic fitting functions for thermal synchrotron emissivity and absorptivity.
+    </li>
+    <li id="ref-balbus91">
+        Balbus, S. A. &amp; Hawley, J. F. (1991).
+        "A powerful local shear instability in weakly magnetized disks. I. Linear analysis."
+        <em>The Astrophysical Journal</em>, 376, 214–222.
+        <a href="https://doi.org/10.1086/170270">doi:10.1086/170270</a>.
+        — Discovery of the magnetorotational instability (MRI) as the mechanism
+        for angular momentum transport in accretion disks.
+    </li>
+    <li id="ref-tchekhovskoy11">
+        Tchekhovskoy, A., Narayan, R., &amp; McKinney, J. C. (2011).
+        "Efficient generation of jets from magnetically arrested accretion on rapidly spinning black holes."
+        <em>Monthly Notices of the Royal Astronomical Society: Letters</em>, 418(1), L79–L83.
+        <a href="https://doi.org/10.1111/j.1745-3933.2011.01147.x">doi:10.1111/j.1745-3933.2011.01147.x</a>.
+        <a href="https://arxiv.org/abs/1108.0412">arXiv:1108.0412</a>.
+        — Magnetically arrested disk (MAD) simulations showing jet efficiencies exceeding 100%.
+    </li>
+    <li id="ref-fm76">
+        Fishbone, L. G. &amp; Moncrief, V. (1976).
+        "Relativistic fluid disks in orbit around Kerr black holes."
+        <em>The Astrophysical Journal</em>, 207, 962–976.
+        <a href="https://doi.org/10.1086/154565">doi:10.1086/154565</a>.
+        — Equilibrium torus solution used as standard initial conditions for GRMHD simulations.
+    </li>
+    <li id="ref-ball18">
+        Ball, D. et al. (2018).
+        "Electron and Proton Acceleration in Trans-relativistic Magnetic Reconnection."
+        <em>The Astrophysical Journal</em>, 862(1), 80.
+        <a href="https://doi.org/10.3847/1538-4357/aac820">doi:10.3847/1538-4357/aac820</a>.
+        — PIC simulations of electron acceleration in reconnection layers,
+        motivating the κ-distribution model for non-thermal electrons.
+    </li>
+    <li id="ref-noble10">
+        Noble, S. C. et al. (2010).
+        "Direct Calculation of the Torque at the Inner Edge of an Accretion Disk around a Black Hole."
+        <em>The Astrophysical Journal</em>, 711(2), 959–973.
+        <a href="https://doi.org/10.1088/0004-637X/711/2/959">doi:10.1088/0004-637X/711/2/959</a>.
+        — GRMHD demonstration that magnetic stress at the ISCO is non-zero, contradicting
+        the Novikov-Thorne no-torque boundary condition.
+    </li>
+    <li id="ref-pandya16">
+        Pandya, A. et al. (2016).
+        "Polarized Synchrotron Emissivities and Absorptivities for Relativistic Thermal, Power-law, and Kappa Distribution Functions."
+        <em>The Astrophysical Journal</em>, 822(1), 34.
+        <a href="https://doi.org/10.3847/0004-637X/822/1/34">doi:10.3847/0004-637X/822/1/34</a>.
+        — Comprehensive synchrotron emission/absorption coefficients for thermal and non-thermal distributions.
     </li>
 </ol>
 

@@ -63,6 +63,12 @@ uniform float jet_magnetization, jet_knot_spacing, jet_corona_brightness;
 uniform float jet_base_width, jet_corona_extent;
 {{/jet_physical}}
 
+{{#grmhd_enabled}}
+uniform float grmhd_r_high, grmhd_magnetic_beta, grmhd_mad_flux;
+uniform float grmhd_density_scale, grmhd_turbulence_amp;
+uniform float grmhd_electron_kappa, grmhd_magnetic_field_str;
+{{/grmhd_enabled}}
+
 uniform sampler2D galaxy_texture, star_texture,
     planet_texture, spectrum_texture;
 

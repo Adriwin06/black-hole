@@ -89,14 +89,18 @@ vec4 trace_ray(vec3 ray) {
 
     vec3 old_pos = pos;
 
-    // ── Kerr state variables (reserved for future true Kerr geodesics) ──
-    // The true Carter (1968) Mino-time integration is disabled for now.
-    // The Binet approximation with frame-drag term is used instead, which
-    // is exact for Schwarzschild and gives qualitatively reasonable results
-    // for moderate spin.  The D-shaped Kerr shadow requires the full
-    // separated equations; a proper implementation is future work.
+    // ── Kerr state variables ──
+    // When kerr_full_geodesic is active and spin > 0. true Carter (1968)
+    // Mino-time integration is used, producing the correct D-shaped
+    // shadow for spinning black holes.  Otherwise the Binet approximation
+    // with frame-drag term is used — exact for Schwarzschild.
     float kerr_a_phys = kerr_spin_a();
-    bool use_kerr = false; // Disabled: Kerr geodesics have numerical issues
+    {{#kerr_full_geodesic}}
+    bool use_kerr = (abs(kerr_a_phys) > 0.001 && interior_mode < 0.5);
+    {{/kerr_full_geodesic}}
+    {{^kerr_full_geodesic}}
+    bool use_kerr = false;
+    {{/kerr_full_geodesic}}
     float kerr_r = 0.0, kerr_cth = 0.0, kerr_phi = 0.0;
     float kerr_pr = 0.0, kerr_pcth = 0.0;
     float kerr_xi = 0.0, kerr_eta = 0.0;
@@ -137,18 +141,26 @@ vec4 trace_ray(vec3 ray) {
         // ── True Kerr geodesic integration ─────────────────────────────
         step = MAX_REVOLUTIONS * 2.0*M_PI / float(NSTEPS);
 
-        // Adaptive refinement near photon sphere region (r ≈ 0.5–2.0)
+        // Convert angular budget to Mino-time step: dσ ≈ dφ / |dφ/dσ|.
+        // At large r the azimuthal rate dφ/dσ scales with r, so without
+        // this each Mino step would cover huge angles.  Near the horizon
+        // dφ/dσ → ∞ (BL coordinate singularity) but the actual radial
+        // traversal in Mino time is finite, so cap the scaling to prevent
+        // the step from collapsing to zero before the photon can capture.
+        float dphi_dsigma = abs(kerr_phi_dot(kerr_r, kerr_cth, kerr_a_phys, kerr_xi));
+        float mino_scale = clamp(dphi_dsigma, 1.0, 40.0);
+        step /= mino_scale;
+
+        // Adaptive refinement near photon sphere for shadow accuracy
         float ps_dist = kerr_r - 1.5;
-        step *= 1.0 - 0.7 * exp(-6.0*ps_dist*ps_dist);
-        // Refine near the Kerr horizon
-        float h_dist = kerr_r - kerr_r_horizon;
-        step *= 1.0 - 0.6 * exp(-8.0*h_dist*h_dist);
-        // Limit by rate of change: max 30% change in r per step
+        step *= 1.0 - 0.5 * exp(-12.0*ps_dist*ps_dist);
+
+        // Limit radial change per step to 30% of current r
         float dr_per_step = abs(kerr_pr) * step;
         if (dr_per_step > kerr_r * 0.3 && abs(kerr_pr) > 0.001) {
             step = kerr_r * 0.3 / abs(kerr_pr);
         }
-        step = max(step, 0.5*M_PI / float(NSTEPS));
+        step = max(step, 1e-6);
 
         old_u = u;
         old_pos = pos;
@@ -158,21 +170,24 @@ vec4 trace_ray(vec3 ray) {
             step, kerr_a_phys, kerr_xi, kerr_eta);
 
         // Capture: photon reached the event horizon
-        if (kerr_r <= kerr_r_horizon + 0.005 || kerr_r < 0.01) {
+        if (kerr_r <= kerr_r_horizon + 0.02 || kerr_r < 0.01) {
             shadow_capture = true;
-            break;
-        }
-        // Escape: photon has moved well past the observer
-        if (kerr_r > 3.0 * length(cam_pos) + 50.0) {
             break;
         }
 
         // Reconstruct 3D Cartesian position from Boyer-Lindquist (r, θ, φ)
+        // MUST happen before escape check so `pos` is valid for background ray
         float sth_k = sqrt(max(1.0 - kerr_cth*kerr_cth, 0.0));
-        pos = vec3(kerr_r * sth_k * cos(kerr_phi),
-                   kerr_r * sth_k * sin(kerr_phi),
+        float rho_perp = sqrt(kerr_r*kerr_r + kerr_a_phys*kerr_a_phys) * sth_k;
+        pos = vec3(rho_perp * cos(kerr_phi),
+                   rho_perp * sin(kerr_phi),
                    kerr_r * kerr_cth);
         u = 1.0 / max(kerr_r, 0.001);
+
+        // Escape: photon past observer and heading outward
+        if (kerr_r > length(cam_pos) * 1.1 && kerr_pr > 0.0) {
+            break;
+        }
 
         } else {
         // ── Schwarzschild Binet integration (a ≈ 0 or interior) ────────
@@ -303,14 +318,63 @@ vec4 trace_ray(vec3 ray) {
                 vec3 isec = sub_old + sub_ray*acc_isec_t;
 
                 float r = length(isec);
+                {{#grmhd_enabled}}
+                // GRMHD: magnetic stress allows emission inside ISCO
+                // (Noble+ 2010, Penna+ 2010: plunging region contributes ~10-30%)
+                float r_inner_grmhd = max(ACCRETION_MIN_R * 0.7, 1.05);
+                if (r > r_inner_grmhd && r < ACCRETION_MIN_R + ACCRETION_WIDTH) {
+                {{/grmhd_enabled}}
+                {{^grmhd_enabled}}
                 if (r > ACCRETION_MIN_R && r < ACCRETION_MIN_R + ACCRETION_WIDTH) {
+                {{/grmhd_enabled}}
                     float angle = atan(isec.x, isec.y);
 
+                    {{#grmhd_enabled}}
+                    // GRMHD thin disk: Shakura-Sunyaev base + subtle GRMHD corrections.
+                    // Thin disks are radiatively efficient → very mild R_high temp correction
+                    // (3%) to preserve the well-established Shakura-Sunyaev color profile.
+                    // Synchrotron/non-thermal add subtle modulation, not brightness boosts.
+                    float gas_temp_g = accretion_temperature(r);
+                    float disk_h_g = r * 0.05;
+                    float beta_g = grmhd_plasma_beta(r, 0.0, disk_h_g);
+                    float Te_ratio_g = grmhd_electron_temp_ratio(beta_g);
+                    // Manual lerp: avoid 'mix' variable shadow from line 264
+                    float Te_corr = 0.97 + Te_ratio_g * 0.03;  // 3% R_high correction (thin disk is efficient)
+                    float temperature = gas_temp_g * Te_corr * gravitational_shift(r);
+                    
+                    // GRMHD turbulence: MRI density fluctuations with log-normal
+                    // PDF + spiral arms (Sorathia+ 2012, Hawley+ 2013)
+                    float r_norm_g = (r - ACCRETION_MIN_R) / ACCRETION_WIDTH;
+                    float edge_fade_g = smoothstep(0.02, 0.18, r_norm_g) *
+                        (1.0 - smoothstep(0.78, 1.0, r_norm_g));
+                    float turbulence = grmhd_mri_turbulence(r, angle, t) * edge_fade_g;
+
+                    // Synchrotron and non-thermal corrections
+                    float rho_g = grmhd_density(r, 1.0);
+                    float B_g = grmhd_B_field(rho_g, gas_temp_g, beta_g);
+                    float nonthermal_g = grmhd_nonthermal_boost(grmhd_electron_kappa);
+                    float sync_corr_g = grmhd_synchrotron_correction(B_g, rho_g);
+                    // ISCO magnetic stress: emission extends inside ISCO
+                    float isco_stress_g = grmhd_isco_stress_factor(r);
+
+                    // Attenuated GRMHD corrections: parameters are responsive but
+                    // preserve the base Shakura-Sunyaev brightness profile.
+                    // At defaults (κ=5, B=1): ~8% deviation from non-GRMHD.
+                    float nt_mod_g = 1.0 + 0.1 * (nonthermal_g - 1.0);
+                    float sync_mod_g = 1.0 + 0.1 * (sync_corr_g - 1.0);
+
+                    float inner_glow = exp(-8.0 * (r - ACCRETION_MIN_R));
+                    float accretion_intensity = ACCRETION_BRIGHTNESS * accretion_flux_profile(r) *
+                        turbulence * nt_mod_g * sync_mod_g * isco_stress_g
+                        * (1.0 + 0.7*inner_glow);
+                    {{/grmhd_enabled}}
+                    {{^grmhd_enabled}}
                     float temperature = accretion_temperature(r) * gravitational_shift(r);
                     float turbulence = accretion_emissivity(r, angle, t);
                     float inner_glow = exp(-8.0 * (r - ACCRETION_MIN_R));
                     float accretion_intensity = ACCRETION_BRIGHTNESS * accretion_flux_profile(r) *
                         turbulence * (1.0 + 0.7*inner_glow);
+                    {{/grmhd_enabled}}
 
                     // Limb darkening: Eddington approximation for an optically
                     // thick disk.  I(μ) = I(1)·(2/5 + 3/5·μ) where μ = cos(θ)
@@ -322,7 +386,7 @@ vec4 trace_ray(vec3 ray) {
                     {{#kerr_fast_mode}}
                     accretion_v = vec3(-isec.y, isec.x, 0.0) / (r * sqrt(2.0*(r-1.0)));
                     {{/kerr_fast_mode}}
-                    {{#kerr_full_core}}
+                    {{#kerr_full_velocity}}
                     float rg_r = max(2.0*r, 1.0002); // convert r_s units to M units
                     float a_M = bh_rotation_enabled * bh_spin;
                     float omega_M = 1.0 / (pow(rg_r, 1.5) + a_M);
@@ -331,7 +395,7 @@ vec4 trace_ray(vec3 ray) {
                     float cyl_r = max(length(xy), 1e-4);
                     vec3 e_phi = vec3(-xy.y/cyl_r, xy.x/cyl_r, 0.0);
                     accretion_v = e_phi * v_phi;
-                    {{/kerr_full_core}}
+                    {{/kerr_full_velocity}}
 
                     gamma = 1.0/sqrt(max(1.0-dot(accretion_v,accretion_v), 0.0001));
                     float doppler_factor = gamma*(1.0+dot(ray/ray_l,accretion_v));
@@ -370,13 +434,60 @@ vec4 trace_ray(vec3 ray) {
         {
             // ADAF/RIAF volumetric emission: optically thin radiative transfer
             // dI/ds = j - alpha*I  (emission minus absorption)
+            {{#grmhd_enabled}}
+            // GRMHD: evaluate torus with height modulation from MRI + Parker
+            // instability, creating azimuthal warps and buoyant features
+            float _cr_t = max(length(pos.xy), 1e-4);
+            float _a_t = atan(pos.x, pos.y);
+            float _hmod_t = grmhd_height_modulation(_cr_t, _a_t, t);
+            vec3 _warp_t = vec3(pos.xy, pos.z / max(_hmod_t, 0.2));
+            float torus_j = torus_local_emissivity(_warp_t);
+            {{/grmhd_enabled}}
+            {{^grmhd_enabled}}
             float torus_j = torus_local_emissivity(pos);
+            {{/grmhd_enabled}}
             if (torus_j > 0.001 && vol_transmittance > 0.005) {
                 float path_len = length(pos - old_pos);
                 float r3d = max(length(pos), 1.001);
                 float cyl_r_t = max(length(pos.xy), 1e-4);
                 float angle_t = atan(pos.x, pos.y);
 
+                {{#grmhd_enabled}}
+                // GRMHD two-temperature torus model (EHT-calibrated)
+                // Temperature: mild β-dependent variation (~±25%) for subtle
+                // color shifts.  R_high affects temperature only (not emissivity)
+                // because applying R_high to emissivity redistributes emission
+                // from the midplane to the funnel walls, turning the torus into
+                // a diffuse halo instead of a defined structure.
+                float h_torus_g = max(cyl_r_t * torus_h_ratio, 0.01);
+                float gas_temp_torus = torus_temperature(r3d);
+                float temperature_t = grmhd_electron_temperature(gas_temp_torus, cyl_r_t, pos.z, h_torus_g)
+                                    * gravitational_shift_static(r3d);
+                // 2D MRI turbulence: coherent azimuthal pattern that survives
+                // volumetric integration (3D FBM averages out along the ray
+                // for optically thin flows like ADAF, producing a smooth blob).
+                float turbulence_t = grmhd_mri_turbulence(cyl_r_t, angle_t, t);
+
+                // Magnetic field, synchrotron, and non-thermal corrections
+                float beta_torus = grmhd_plasma_beta(cyl_r_t, pos.z, h_torus_g);
+                float rho_torus = grmhd_density(cyl_r_t, 1.0);
+                float B_torus = grmhd_B_field(rho_torus, gas_temp_torus, beta_torus);
+                float nonthermal_t = grmhd_nonthermal_boost(grmhd_electron_kappa);
+                float sync_corr_t = grmhd_synchrotron_correction(B_torus, rho_torus);
+
+                // Attenuated GRMHD corrections: parameters responsive but
+                // torus brightness stays close to the non-GRMHD appearance.
+                float nt_mod_t = 1.0 + 0.15 * (nonthermal_t - 1.0);
+                float sync_mod_t = 1.0 + 0.15 * (sync_corr_t - 1.0);
+
+                // Emissivity: base torus × MRI turbulence × subtle corrections
+                float j_eff = ACCRETION_BRIGHTNESS * 0.05 * torus_j * turbulence_t
+                            * nt_mod_t * sync_mod_t;
+
+                // Absorption: density-dependent
+                float alpha_abs = torus_opacity * torus_j * (0.5 + 0.5 * grmhd_density_scale);
+                {{/grmhd_enabled}}
+                {{^grmhd_enabled}}
                 float temperature_t = torus_temperature(r3d) * gravitational_shift_static(r3d);
                 float turbulence_t = accretion_turbulence(cyl_r_t, angle_t, t);
 
@@ -384,6 +495,7 @@ vec4 trace_ray(vec3 ray) {
                 float j_eff = ACCRETION_BRIGHTNESS * 0.05 * torus_j * turbulence_t;
                 // Absorption: user-configurable opacity (default low for optically thin)
                 float alpha_abs = torus_opacity * torus_j;
+                {{/grmhd_enabled}}
                 float tau_step = alpha_abs * path_len;
                 float step_T = exp(-tau_step);
 
@@ -394,14 +506,14 @@ vec4 trace_ray(vec3 ray) {
                 float v_sub_t = clamp(0.5 * v_kep_t, 0.0, 0.95);
                 accretion_v_t = vec3(-pos.y, pos.x, 0.0) / cyl_r_t * v_sub_t;
                 {{/kerr_fast_mode}}
-                {{#kerr_full_core}}
+                {{#kerr_full_velocity}}
                 float rg_cyl_t = max(2.0 * cyl_r_t, 1.0002);
                 float a_M_t = bh_rotation_enabled * bh_spin;
                 float omega_sub_t = 0.5 / (pow(rg_cyl_t, 1.5) + a_M_t);
                 float v_phi_t = clamp(rg_cyl_t * omega_sub_t, -0.95, 0.95);
                 vec3 e_phi_t = vec3(-pos.y, pos.x, 0.0) / cyl_r_t;
                 accretion_v_t = e_phi_t * v_phi_t;
-                {{/kerr_full_core}}
+                {{/kerr_full_velocity}}
 
                 gamma = 1.0/sqrt(max(1.0-dot(accretion_v_t,accretion_v_t), 0.0001));
                 float doppler_factor_t = gamma*(1.0+dot(ray/ray_l,accretion_v_t));
@@ -437,13 +549,55 @@ vec4 trace_ray(vec3 ray) {
         {
             // Slim disk volumetric emission: optically thick radiative transfer
             // Super-Eddington flow: high absorption → surface-like rendering
+            {{#grmhd_enabled}}
+            // GRMHD: height modulation from MRI + radiation-driven warps
+            float _cr_s = max(length(pos.xy), 1e-4);
+            float _a_s = atan(pos.x, pos.y);
+            float _hmod_s = grmhd_height_modulation(_cr_s, _a_s, t);
+            vec3 _warp_s = vec3(pos.xy, pos.z / max(_hmod_s, 0.2));
+            float slim_j = slim_disk_local_emissivity(_warp_s);
+            {{/grmhd_enabled}}
+            {{^grmhd_enabled}}
             float slim_j = slim_disk_local_emissivity(pos);
+            {{/grmhd_enabled}}
             if (slim_j > 0.001 && vol_transmittance > 0.005) {
                 float path_len_s = length(pos - old_pos);
                 float cyl_r_s = max(length(pos.xy), 1e-4);
                 float r3d_s = max(length(pos), 1.001);
                 float angle_s = atan(pos.x, pos.y);
 
+                {{#grmhd_enabled}}
+                // GRMHD slim disk: super-Eddington base model remains physically accurate.
+                // GRMHD adds: mild two-temperature correction (30% R_high) + ISCO magnetic
+                // stress + synchrotron/non-thermal corrections responsive to all parameters.
+                float gas_temp_slim = slim_disk_temperature(cyl_r_s);
+                float beta_slim = grmhd_plasma_beta(cyl_r_s, pos.z, slim_disk_height(cyl_r_s));
+                float Te_ratio_slim = grmhd_electron_temp_ratio(beta_slim);
+                // Manual lerp: avoid 'mix' variable shadow from line 264
+                float Te_corr_slim = 1.0 * 0.7 + Te_ratio_slim * 0.3;  // 30% correction (partially thermalized)
+                float temperature_s = gas_temp_slim * Te_corr_slim * gravitational_shift_static(r3d_s);
+
+                // 3D volumetric FBM turbulence: filamentary density structure
+                float turbulence_s = grmhd_3d_density_turbulence(pos, t);
+                
+                // ISCO stress: adds ~10-30% extra luminosity from plunging region
+                float isco_stress_s = grmhd_isco_stress_factor(cyl_r_s);
+
+                // Synchrotron and non-thermal corrections (radiation-dominated
+                // → gentler response than ADAF, normalized so defaults ≈ 1.0)
+                float rho_slim_g = grmhd_density(cyl_r_s, 1.0);
+                float B_slim_g = grmhd_B_field(rho_slim_g, gas_temp_slim, beta_slim);
+                float nonthermal_slm = grmhd_nonthermal_boost(grmhd_electron_kappa);
+                float sync_slm = grmhd_synchrotron_correction(B_slim_g, rho_slim_g);
+                // sqrt + /2.5 normalization keeps defaults ~1.0, avoids breaking
+                // the existing slim disk appearance while making all params responsive
+                float grmhd_param_slim = sqrt(nonthermal_slm * sync_slm / 2.5);
+
+                float j_eff_s = ACCRETION_BRIGHTNESS * 0.9 * slim_j * turbulence_s * isco_stress_s * grmhd_param_slim;
+                // Absorption: density-modulated (clumps are more opaque)
+                float alpha_abs_s = slim_opacity * slim_j * pow(turbulence_s, 0.5);
+                {{/grmhd_enabled}}
+                {{^grmhd_enabled}}
                 float temperature_s = slim_disk_temperature(cyl_r_s) * gravitational_shift_static(r3d_s);
                 float turbulence_s = accretion_turbulence(cyl_r_s, angle_s, t);
 
@@ -451,6 +605,7 @@ vec4 trace_ray(vec3 ray) {
                 float j_eff_s = ACCRETION_BRIGHTNESS * 0.9 * slim_j * turbulence_s;
                 // User-configurable absorption: higher = more opaque surface-like
                 float alpha_abs_s = slim_opacity * slim_j;
+                {{/grmhd_enabled}}
                 float tau_step_s = alpha_abs_s * path_len_s;
                 float step_T_s = exp(-tau_step_s);
                 // Source function: emission that survives self-absorption in this step
@@ -465,14 +620,14 @@ vec4 trace_ray(vec3 ray) {
                 float v_kep_s = 1.0 / sqrt(2.0 * max(cyl_r_s - 1.0, 0.01));
                 accretion_v_s = vec3(-pos.y, pos.x, 0.0) / cyl_r_s * clamp(v_kep_s, 0.0, 0.95);
                 {{/kerr_fast_mode}}
-                {{#kerr_full_core}}
+                {{#kerr_full_velocity}}
                 float rg_cyl_s = max(2.0 * cyl_r_s, 1.0002);
                 float a_M_s = bh_rotation_enabled * bh_spin;
                 float omega_s = 1.0 / (pow(rg_cyl_s, 1.5) + a_M_s);
                 float v_phi_s = clamp(rg_cyl_s * omega_s, -0.95, 0.95);
                 vec3 e_phi_s = vec3(-pos.y, pos.x, 0.0) / cyl_r_s;
                 accretion_v_s = e_phi_s * v_phi_s;
-                {{/kerr_full_core}}
+                {{/kerr_full_velocity}}
 
                 gamma = 1.0/sqrt(max(1.0-dot(accretion_v_s,accretion_v_s), 0.0001));
                 float doppler_factor_s = gamma*(1.0+dot(ray/ray_l,accretion_v_s));
@@ -533,7 +688,17 @@ vec4 trace_ray(vec3 ray) {
                 }
                 {{/jet_physical}}
 
+                {{#grmhd_enabled}}
+                {{#jet_physical}}
+                float j_jet = grmhd_jet_emissivity(pos, sign_z);
+                {{/jet_physical}}
+                {{#jet_simple}}
                 float j_jet = jet_emissivity(pos, sign_z);
+                {{/jet_simple}}
+                {{/grmhd_enabled}}
+                {{^grmhd_enabled}}
+                float j_jet = jet_emissivity(pos, sign_z);
+                {{/grmhd_enabled}}
                 if (j_jet > 0.001 && vol_transmittance > 0.005) {
                     // Jet bulk velocity
                     vec3 v_jet = jet_velocity(pos, sign_z);
@@ -576,8 +741,14 @@ vec4 trace_ray(vec3 ray) {
                     float g_shift_j = gravitational_shift_static(r_jet_p);
                     float sigma = magnetization(z_abs);
 
+                    {{#grmhd_enabled}}
+                    // Full GRMHD jet: BZ power + kink instability + cooling break
+                    float jet_T = grmhd_jet_temperature(z_abs, r_jet_p, sigma) * g_shift_j;
+                    {{/grmhd_enabled}}
+                    {{^grmhd_enabled}}
                     // Effective temperature with synchrotron aging
                     float jet_T = jet_effective_temperature(z_abs, r_jet_p, sigma) * g_shift_j;
+                    {{/grmhd_enabled}}
 
                     // Doppler temperature shift for approaching/receding jet
                     jet_T /= max(doppler_jet, 0.05);
@@ -635,6 +806,13 @@ vec4 trace_ray(vec3 ray) {
             break;
         }
         {{/kerr_full_core}}
+        {{#kerr_full_geodesic}}
+        // Full Kerr geodesic fallback (Binet): interior capture
+        if (interior_mode > 0.5 && u >= 20.0) {
+            shadow_capture = true;
+            break;
+        }
+        {{/kerr_full_geodesic}}
         } // end if (!use_kerr)
     }
 

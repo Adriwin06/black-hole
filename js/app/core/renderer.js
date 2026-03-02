@@ -524,6 +524,14 @@ function init(glslSource, textures) {
         jet_base_width: { type: "f", value: 0.4 },
         jet_corona_extent: { type: "f", value: 0.5 },
 
+        grmhd_r_high: { type: "f", value: 40.0 },
+        grmhd_magnetic_beta: { type: "f", value: 10.0 },
+        grmhd_mad_flux: { type: "f", value: 0.0 },
+        grmhd_density_scale: { type: "f", value: 1.0 },
+        grmhd_turbulence_amp: { type: "f", value: 1.0 },
+        grmhd_electron_kappa: { type: "f", value: 5.0 },
+        grmhd_magnetic_field_str: { type: "f", value: 1.0 },
+
         grav_blueshift_factor: { type: "f", value: 1.0 },
 
         star_texture: { type: "t", value: textures.stars },
@@ -596,6 +604,14 @@ function init(glslSource, textures) {
         uniforms.jet_corona_brightness.value = shader.parameters.jet.corona_brightness;
         uniforms.jet_base_width.value = shader.parameters.jet.base_width;
         uniforms.jet_corona_extent.value = shader.parameters.jet.corona_extent;
+
+        uniforms.grmhd_r_high.value = shader.parameters.grmhd.r_high;
+        uniforms.grmhd_magnetic_beta.value = shader.parameters.grmhd.magnetic_beta;
+        uniforms.grmhd_mad_flux.value = shader.parameters.grmhd.mad_flux;
+        uniforms.grmhd_density_scale.value = shader.parameters.grmhd.density_scale;
+        uniforms.grmhd_turbulence_amp.value = shader.parameters.grmhd.turbulence_amp;
+        uniforms.grmhd_electron_kappa.value = shader.parameters.grmhd.electron_kappa;
+        uniforms.grmhd_magnetic_field_str.value = shader.parameters.grmhd.magnetic_field_str;
 
         uniforms.resolution.value.x = renderer.domElement.width;
         uniforms.resolution.value.y = renderer.domElement.height;

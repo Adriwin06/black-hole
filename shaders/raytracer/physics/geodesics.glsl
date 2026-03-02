@@ -121,14 +121,21 @@ void kerr_init(vec3 pos, vec3 dir, float a,
         out float r, out float cth, out float phi,
         out float pr, out float pcth) {
 
-    r = length(pos);
+    float a2 = a * a;
+
+    // Solve for Boyer-Lindquist r from Cartesian position:
+    // x²+y²+z² = r² + a²sin²θ  →  r⁴ − (ρ²−a²)r² − a²z² = 0
+    float rho2 = dot(pos, pos);
+    float z2 = pos.z * pos.z;
+    float w = rho2 - a2;
+    r = sqrt(max((w + sqrt(max(w*w + 4.0*a2*z2, 0.0))) * 0.5, 0.001));
+
     cth = pos.z / r;
     phi = atan(pos.y, pos.x);
 
     float c2 = cth * cth;
     float sth2 = max(1.0 - c2, 1e-10);
     float sth  = sqrt(sth2);
-    float a2 = a * a;
 
     // Flat-space velocity components
     float rdot = dot(pos, dir) / r;             // dr/dλ

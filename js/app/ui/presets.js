@@ -16,6 +16,9 @@ var BH_PRESETS = {
                lorentz_factor: 3.0, brightness: 1.2, length: 30.0,
                magnetization: 10.0, knot_spacing: 6.0, corona_brightness: 1.5,
                base_width: 0.4, corona_extent: 0.5 },
+        grmhd: { enabled: false, r_high: 40.0, magnetic_beta: 10.0, mad_flux: 0.0,
+                 density_scale: 1.0, turbulence_amp: 1.0, electron_kappa: 5.0,
+                 magnetic_field_str: 1.0 },
         observer: { distance: 11.0 },
         beaming: true,
         physical_beaming: true,
@@ -40,6 +43,12 @@ var BH_PRESETS = {
                lorentz_factor: 5.0, brightness: 1.2, length: 35.0,
                magnetization: 15.0, knot_spacing: 7.0, corona_brightness: 1.5,
                base_width: 0.35, corona_extent: 0.6 },
+        // M87* GRMHD: EHT Paper V best-fit MAD model with R_high = 80-160
+        // (high R_high = disk-dominated image with bright crescent)
+        // MAD state produces the observed jet power (Narayan+ 2012)
+        grmhd: { enabled: true, r_high: 80.0, magnetic_beta: 5.0, mad_flux: 0.8,
+                 density_scale: 1.2, turbulence_amp: 1.5, electron_kappa: 4.5,
+                 magnetic_field_str: 1.5 },
         observer: { distance: 11.0 },
         beaming: true,
         physical_beaming: true,
@@ -64,6 +73,11 @@ var BH_PRESETS = {
                lorentz_factor: 3.0, brightness: 0.6, length: 20.0,
                magnetization: 10.0, knot_spacing: 5.0, corona_brightness: 1.0,
                base_width: 0.4, corona_extent: 0.5 },
+        // Sgr A* GRMHD: EHT 2022 modeling — SANE models preferred
+        // Lower R_high than M87* (R_high ~ 10-40), more variable
+        grmhd: { enabled: true, r_high: 20.0, magnetic_beta: 15.0, mad_flux: 0.2,
+                 density_scale: 0.8, turbulence_amp: 1.8, electron_kappa: 5.0,
+                 magnetic_field_str: 1.0 },
         observer: { distance: 11.0 },
         beaming: true,
         physical_beaming: true,
@@ -89,6 +103,11 @@ var BH_PRESETS = {
                lorentz_factor: 2.0, brightness: 0.8, length: 20.0,
                magnetization: 10.0, knot_spacing: 6.0, corona_brightness: 1.0,
                base_width: 0.4, corona_extent: 0.5 },
+        // Cygnus X-1 GRMHD: thin disk with MRI and coronal heating
+        // Moderate R_high (disk-dominated), SANE state
+        grmhd: { enabled: true, r_high: 10.0, magnetic_beta: 20.0, mad_flux: 0.1,
+                 density_scale: 1.5, turbulence_amp: 0.8, electron_kappa: 6.0,
+                 magnetic_field_str: 0.8 },
         observer: { distance: 8.0 },
         beaming: true,
         physical_beaming: true,
@@ -113,6 +132,11 @@ var BH_PRESETS = {
                lorentz_factor: 4.0, brightness: 1.0, length: 25.0,
                magnetization: 10.0, knot_spacing: 6.0, corona_brightness: 1.5,
                base_width: 0.4, corona_extent: 0.5 },
+        // GRS 1915+105 GRMHD: super-Eddington slim disk with strong B-field
+        // Near-extreme spin → efficient magnetic coupling
+        grmhd: { enabled: true, r_high: 5.0, magnetic_beta: 3.0, mad_flux: 0.6,
+                 density_scale: 2.0, turbulence_amp: 2.0, electron_kappa: 3.5,
+                 magnetic_field_str: 2.0 },
         observer: { distance: 9.0 },
         beaming: true,
         physical_beaming: true,
@@ -132,6 +156,10 @@ var BH_PRESETS = {
                lorentz_factor: 3.0, brightness: 1.0, length: 30.0,
                magnetization: 10.0, knot_spacing: 6.0, corona_brightness: 1.5,
                base_width: 0.4, corona_extent: 0.5 },
+        // Gargantua: cinematic look, GRMHD off for clean Interstellar aesthetics
+        grmhd: { enabled: false, r_high: 40.0, magnetic_beta: 10.0, mad_flux: 0.0,
+                 density_scale: 1.0, turbulence_amp: 1.0, electron_kappa: 5.0,
+                 magnetic_field_str: 1.0 },
         observer: { distance: 11.0 },
         beaming: false,
         physical_beaming: false,
@@ -153,6 +181,10 @@ var BH_PRESETS = {
                lorentz_factor: 3.0, brightness: 1.0, length: 30.0,
                magnetization: 10.0, knot_spacing: 6.0, corona_brightness: 1.5,
                base_width: 0.4, corona_extent: 0.5 },
+        // Schwarzschild: GRMHD off for clean textbook appearance
+        grmhd: { enabled: false, r_high: 40.0, magnetic_beta: 10.0, mad_flux: 0.0,
+                 density_scale: 1.0, turbulence_amp: 1.0, electron_kappa: 5.0,
+                 magnetic_field_str: 1.0 },
         observer: { distance: 11.0 },
         beaming: true,
         physical_beaming: true,

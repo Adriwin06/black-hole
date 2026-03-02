@@ -153,6 +153,7 @@ function setupGUI() {
             torus: deepClonePlain(p.torus),
             slim: deepClonePlain(p.slim),
             jet: deepClonePlain(p.jet),
+            grmhd: deepClonePlain(p.grmhd),
             beaming: p.beaming,
             physical_beaming: p.physical_beaming,
             doppler_shift: p.doppler_shift,
@@ -192,6 +193,16 @@ function setupGUI() {
         p.jet.corona_brightness = state.jet.corona_brightness;
         p.jet.base_width = state.jet.base_width;
         p.jet.corona_extent = state.jet.corona_extent;
+        if (state.grmhd) {
+            p.grmhd.enabled = state.grmhd.enabled;
+            p.grmhd.r_high = state.grmhd.r_high;
+            p.grmhd.magnetic_beta = state.grmhd.magnetic_beta;
+            p.grmhd.mad_flux = state.grmhd.mad_flux;
+            p.grmhd.density_scale = state.grmhd.density_scale;
+            p.grmhd.turbulence_amp = state.grmhd.turbulence_amp;
+            p.grmhd.electron_kappa = state.grmhd.electron_kappa;
+            p.grmhd.magnetic_field_str = state.grmhd.magnetic_field_str;
+        }
         p.beaming = state.beaming;
         p.physical_beaming = state.physical_beaming;
         p.doppler_shift = state.doppler_shift;
@@ -623,12 +634,91 @@ function setupGUI() {
     var torusRows = [torusCenterCtrl, torusHRCtrl, torusFalloffCtrl, torusOpacityCtrl, torusOuterCtrl];
     var slimRows = [slimHRCtrl, slimOpacityCtrl, slimPuffCtrl];
 
+    // ─── GRMHD realism toggle ────────────────────────────
+    var grmhdEnabledCtrl = addControl(diskFolder, p.grmhd, 'enabled', {
+        name: 'GRMHD realism',
+        trackBlackHolePreset: true,
+        onChange: function() {
+            updateDependentVisibility();
+            updateShader();
+        },
+        help: 'Enables GRMHD-calibrated physics: two-temperature plasma (R_high prescription), thermal synchrotron emissivity, MRI turbulence, and magnetic field effects. Based on EHT Collaboration (2019) and Mościbrodzka+ (2016) models.'
+    });
+    var grmhdRHighCtrl = addControl(diskFolder, p.grmhd, 'r_high', {
+        min: 1.0,
+        max: 160.0,
+        step: 1.0,
+        name: 'R_high',
+        trackBlackHolePreset: true,
+        onChange: updateUniformsLive,
+        help: 'Electron-to-ion temperature ratio parameter. R_high=1: electrons as hot as ions (emission everywhere). R_high=160: cool electrons in disk body (emission near jet wall/polar regions). Key EHT parameter controlling image morphology.'
+    });
+    var grmhdBetaCtrl = addControl(diskFolder, p.grmhd, 'magnetic_beta', {
+        min: 0.01,
+        max: 100.0,
+        step: 0.1,
+        name: 'plasma β',
+        trackBlackHolePreset: true,
+        onChange: updateUniformsLive,
+        help: 'Ratio of gas-to-magnetic pressure in the disk midplane. Low β = strongly magnetized, high β = gas dominated. GRMHD simulations: β ~ 1-30.'
+    });
+    var grmhdMADCtrl = addControl(diskFolder, p.grmhd, 'mad_flux', {
+        min: 0.0,
+        max: 1.0,
+        step: 0.01,
+        name: 'MAD flux',
+        trackBlackHolePreset: true,
+        onChange: updateUniformsLive,
+        help: 'Magnetically Arrested Disk saturation. 0 = SANE (standard), 1 = full MAD. MAD state creates stronger B-fields, prominent m=1 spiral arms, and more powerful jets (Tchekhovskoy+ 2011).'
+    });
+    var grmhdDensityCtrl = addControl(diskFolder, p.grmhd, 'density_scale', {
+        min: 0.1,
+        max: 5.0,
+        step: 0.1,
+        name: 'density scale',
+        trackBlackHolePreset: true,
+        onChange: updateUniformsLive,
+        help: 'Normalization of the GRMHD density profile. Higher values increase overall emissivity and absorption.'
+    });
+    var grmhdTurbCtrl = addControl(diskFolder, p.grmhd, 'turbulence_amp', {
+        min: 0.0,
+        max: 3.0,
+        step: 0.1,
+        name: 'MRI turbulence',
+        trackBlackHolePreset: true,
+        onChange: updateUniformsLive,
+        help: 'Amplitude of MRI-driven turbulent density fluctuations. 0 = smooth, 1 = typical GRMHD, 3 = strongly turbulent. Controls log-normal density PDF and spiral arm contrast.'
+    });
+    var grmhdKappaCtrl = addControl(diskFolder, p.grmhd, 'electron_kappa', {
+        min: 2.5,
+        max: 8.0,
+        step: 0.1,
+        name: 'κ (non-thermal)',
+        trackBlackHolePreset: true,
+        onChange: updateUniformsLive,
+        help: 'Kappa-distribution index for non-thermal electrons from magnetic reconnection. κ ~ 3.5 = strong non-thermal tail, κ ~ 8 = nearly thermal. (Ball+ 2018, Werner+ 2018).'
+    });
+    var grmhdBFieldCtrl = addControl(diskFolder, p.grmhd, 'magnetic_field_str', {
+        min: 0.1,
+        max: 5.0,
+        step: 0.1,
+        name: 'B-field strength',
+        trackBlackHolePreset: true,
+        onChange: updateUniformsLive,
+        help: 'Overall magnetic field strength scaling. Affects synchrotron emissivity (j ∝ B²), self-absorption, and electron temperature.'
+    });
+
+    var grmhdRows = [grmhdRHighCtrl, grmhdBetaCtrl, grmhdMADCtrl, grmhdDensityCtrl,
+                     grmhdTurbCtrl, grmhdKappaCtrl, grmhdBFieldCtrl];
+
     // Apply initial accretion visibility immediately, even before the global
     // dependency updater is assigned at the end of setupGUI().
     setControlVisible(accretionModeCtrl, !!p.accretion_disk);
     setControlVisible(diskTempCtrl, !!p.accretion_disk);
     setControlsVisible(torusRows, !!p.accretion_disk && p.accretion_mode === 'thick_torus');
     setControlsVisible(slimRows, !!p.accretion_disk && p.accretion_mode === 'slim_disk');
+    setControlVisible(grmhdEnabledCtrl, !!p.accretion_disk);
+    setControlsVisible(grmhdRows, !!p.accretion_disk && !!p.grmhd.enabled);
 
     diskFolder.open();
 
@@ -777,6 +867,19 @@ function setupGUI() {
         p.jet.corona_brightness      = preset.jet.corona_brightness;
         p.jet.base_width             = preset.jet.base_width;
         p.jet.corona_extent          = preset.jet.corona_extent;
+        if (preset.grmhd) {
+            p.grmhd.enabled              = preset.grmhd.enabled;
+            p.grmhd.r_high               = preset.grmhd.r_high;
+            p.grmhd.magnetic_beta        = preset.grmhd.magnetic_beta;
+            p.grmhd.mad_flux             = preset.grmhd.mad_flux;
+            p.grmhd.density_scale        = preset.grmhd.density_scale;
+            p.grmhd.turbulence_amp       = preset.grmhd.turbulence_amp;
+            p.grmhd.electron_kappa       = preset.grmhd.electron_kappa;
+            p.grmhd.magnetic_field_str   = preset.grmhd.magnetic_field_str;
+        } else {
+            // Default GRMHD off when preset doesn't specify it
+            p.grmhd.enabled = false;
+        }
         p.beaming                    = preset.beaming;
         p.physical_beaming           = preset.physical_beaming;
         p.doppler_shift              = preset.doppler_shift;
@@ -1037,6 +1140,11 @@ function setupGUI() {
         setControlVisible(diskTempCtrl, diskEnabled);
         setControlsVisible(torusRows, thickTorusEnabled);
         setControlsVisible(slimRows, slimDiskEnabled);
+
+        // GRMHD controls: toggle visible when disk is enabled, parameters visible when GRMHD mode is on
+        var grmhdEnabled = diskEnabled && !!p.grmhd.enabled;
+        setControlVisible(grmhdEnabledCtrl, diskEnabled);
+        setControlsVisible(grmhdRows, grmhdEnabled);
 
         var jetEnabled = !!p.jet.enabled;
         setControlsVisible(jetCommonCtrls, jetEnabled);

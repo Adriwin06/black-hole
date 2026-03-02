@@ -52,6 +52,16 @@ function Shader(mustacheTemplate) {
             base_width: 0.4,
             corona_extent: 0.5
         },
+        grmhd: {
+            enabled: false,
+            r_high: 40.0,
+            magnetic_beta: 10.0,
+            mad_flux: 0.0,
+            density_scale: 1.0,
+            turbulence_amp: 1.0,
+            electron_kappa: 5.0,
+            magnetic_field_str: 1.0
+        },
         black_hole: {
             spin_enabled: true,
             spin: 0.90,
@@ -124,6 +134,8 @@ function Shader(mustacheTemplate) {
     this.compile = function() {
         that.parameters.kerr_fast_mode = (that.parameters.kerr_mode === 'fast');
         that.parameters.kerr_full_core = (that.parameters.kerr_mode === 'realtime_full_kerr_core');
+        that.parameters.kerr_full_geodesic = false; // WIP: full Kerr geodesics, not yet exposed in UI
+        that.parameters.kerr_full_velocity = (that.parameters.kerr_mode === 'realtime_full_kerr_core');
 
         var accMode = that.parameters.accretion_mode;
         var diskOn = that.parameters.accretion_disk;
@@ -133,6 +145,7 @@ function Shader(mustacheTemplate) {
         that.parameters.jet_enabled = that.parameters.jet.enabled;
         that.parameters.jet_simple = that.parameters.jet.enabled && (that.parameters.jet.mode === 'simple');
         that.parameters.jet_physical = that.parameters.jet.enabled && (that.parameters.jet.mode === 'physical');
+        that.parameters.grmhd_enabled = !!that.parameters.grmhd.enabled;
 
         return Mustache.render(mustacheTemplate, that.parameters);
     };
