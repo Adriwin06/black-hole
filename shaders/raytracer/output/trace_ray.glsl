@@ -435,11 +435,15 @@ vec4 trace_ray(vec3 ray) {
             // ADAF/RIAF volumetric emission: optically thin radiative transfer
             // dI/ds = j - alpha*I  (emission minus absorption)
             {{#grmhd_enabled}}
-            // GRMHD: evaluate torus with height modulation from MRI + Parker
-            // instability, creating azimuthal warps and buoyant features
+            // GRMHD: evaluate torus with stronger height modulation (2×) for
+            // visible azimuthal warps and buoyant features from MRI + Parker
+            // instability.  The torus is geometrically thick, so larger warps
+            // are physically expected (Liska+ 2022: H/R variation ~15-30%).
             float _cr_t = max(length(pos.xy), 1e-4);
             float _a_t = atan(pos.x, pos.y);
-            float _hmod_t = grmhd_height_modulation(_cr_t, _a_t, t);
+            float _hmod_raw_t = grmhd_height_modulation(_cr_t, _a_t, t);
+            // Amplify: base function gives ±15%, double it for ±30% warps
+            float _hmod_t = 1.0 + 2.0 * (_hmod_raw_t - 1.0);
             vec3 _warp_t = vec3(pos.xy, pos.z / max(_hmod_t, 0.2));
             float torus_j = torus_local_emissivity(_warp_t);
             {{/grmhd_enabled}}
@@ -454,19 +458,20 @@ vec4 trace_ray(vec3 ray) {
 
                 {{#grmhd_enabled}}
                 // GRMHD two-temperature torus model (EHT-calibrated)
-                // Temperature: mild β-dependent variation (~±25%) for subtle
-                // color shifts.  R_high affects temperature only (not emissivity)
-                // because applying R_high to emissivity redistributes emission
-                // from the midplane to the funnel walls, turning the torus into
-                // a diffuse halo instead of a defined structure.
+                // Temperature: β-dependent variation for color shifts.
                 float h_torus_g = max(cyl_r_t * torus_h_ratio, 0.01);
                 float gas_temp_torus = torus_temperature(r3d);
                 float temperature_t = grmhd_electron_temperature(gas_temp_torus, cyl_r_t, pos.z, h_torus_g)
                                     * gravitational_shift_static(r3d);
-                // 2D MRI turbulence: coherent azimuthal pattern that survives
-                // volumetric integration (3D FBM averages out along the ray
-                // for optically thin flows like ADAF, producing a smooth blob).
-                float turbulence_t = grmhd_mri_turbulence(cyl_r_t, angle_t, t);
+
+                // 3D volumetric turbulence with sqrt() to moderate extremes.
+                // The raw 3D FBM has high dynamic range (~100×) which produces
+                // dramatic filaments in the slim disk (where Beer-Lambert
+                // absorption renders surface features).  For the optically thin
+                // ADAF torus, sqrt compresses this to ~10×, keeping visible 3D
+                // structure without the tornado/nebula artefact.
+                float raw_turb_t = grmhd_3d_density_turbulence(pos, t);
+                float turbulence_t = sqrt(max(raw_turb_t, 0.01));
 
                 // Magnetic field, synchrotron, and non-thermal corrections
                 float beta_torus = grmhd_plasma_beta(cyl_r_t, pos.z, h_torus_g);
@@ -480,12 +485,13 @@ vec4 trace_ray(vec3 ray) {
                 float nt_mod_t = 1.0 + 0.15 * (nonthermal_t - 1.0);
                 float sync_mod_t = 1.0 + 0.15 * (sync_corr_t - 1.0);
 
-                // Emissivity: base torus × MRI turbulence × subtle corrections
+                // Emissivity: base torus × 3D turbulence × subtle corrections
                 float j_eff = ACCRETION_BRIGHTNESS * 0.05 * torus_j * turbulence_t
                             * nt_mod_t * sync_mod_t;
 
-                // Absorption: density-dependent
-                float alpha_abs = torus_opacity * torus_j * (0.5 + 0.5 * grmhd_density_scale);
+                // Absorption: turbulence-modulated (denser clumps are more opaque)
+                float alpha_abs = torus_opacity * torus_j * pow(turbulence_t, 0.5)
+                                * (0.5 + 0.5 * grmhd_density_scale);
                 {{/grmhd_enabled}}
                 {{^grmhd_enabled}}
                 float temperature_t = torus_temperature(r3d) * gravitational_shift_static(r3d);
