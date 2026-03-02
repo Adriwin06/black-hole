@@ -1,0 +1,118 @@
+{
+  "duration": 24,
+  "loop": false,
+  "tracks": [
+    {
+      "path": "look.exposure",
+      "keys": [
+        {
+          "t": 0,
+          "v": 0.9
+        },
+        {
+          "t": 10,
+          "v": 1.25,
+          "ease": "smooth"
+        },
+        {
+          "t": 24,
+          "v": 1.55
+        }
+      ]
+    },
+    {
+      "path": "look.star_gain",
+      "keys": [
+        {
+          "t": 0,
+          "v": 0.45
+        },
+        {
+          "t": 24,
+          "v": 0.85
+        }
+      ]
+    },
+    {
+      "path": "look.galaxy_gain",
+      "keys": [
+        {
+          "t": 0,
+          "v": 0.45
+        },
+        {
+          "t": 24,
+          "v": 0.8
+        }
+      ]
+    },
+    {
+      "path": "look.glow",
+      "keys": [
+        {
+          "t": 0,
+          "v": 0.02
+        },
+        {
+          "t": 24,
+          "v": 0.22
+        }
+      ]
+    },
+    {
+      "path": "cameraPan.x",
+      "keys": [
+        {
+          "t": 0,
+          "v": 0
+        },
+        {
+          "t": 24,
+          "v": 0
+        }
+      ]
+    },
+    {
+      "path": "cameraPan.y",
+      "keys": [
+        {
+          "t": 0,
+          "v": 0.01
+        },
+        {
+          "t": 24,
+          "v": -0.02
+        }
+      ]
+    }
+  ],
+  "events": [
+    {
+      "t": 0,
+      "action": "set",
+      "path": "observer.motion",
+      "value": false
+    },
+    {
+      "t": 0,
+      "action": "set",
+      "path": "observer.distance",
+      "value": 10.5
+    },
+    {
+      "t": 0,
+      "action": "set",
+      "path": "hover.speed",
+      "value": 0.32
+    },
+    {
+      "t": 0.8,
+      "action": "startHover"
+    },
+    {
+      "t": 20.5,
+      "action": "pauseHover"
+    }
+  ],
+  "name": "Hover Blueshift"
+}

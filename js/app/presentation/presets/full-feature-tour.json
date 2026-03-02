@@ -1,0 +1,1839 @@
+{
+  "duration": 210,
+  "loop": false,
+  "tracks": [
+    {
+      "path": "observer.distance",
+      "keys": [
+        {
+          "t": 0,
+          "v": 24
+        },
+        {
+          "t": 20,
+          "v": 21,
+          "ease": "smooth"
+        },
+        {
+          "t": 40,
+          "v": 19,
+          "ease": "smooth"
+        },
+        {
+          "t": 60,
+          "v": 20
+        },
+        {
+          "t": 82,
+          "v": 18.5,
+          "ease": "smooth"
+        },
+        {
+          "t": 104,
+          "v": 18
+        },
+        {
+          "t": 128,
+          "v": 17.6,
+          "ease": "smooth"
+        },
+        {
+          "t": 146,
+          "v": 18.6
+        },
+        {
+          "t": 164,
+          "v": 19
+        },
+        {
+          "t": 176,
+          "v": 18.6
+        },
+        {
+          "t": 178,
+          "v": 18
+        },
+        {
+          "t": 194,
+          "v": 17.8
+        },
+        {
+          "t": 206,
+          "v": 17.4,
+          "ease": "smooth"
+        },
+        {
+          "t": 210,
+          "v": 17.2
+        }
+      ]
+    },
+    {
+      "path": "look.exposure",
+      "keys": [
+        {
+          "t": 0,
+          "v": 0.9
+        },
+        {
+          "t": 30,
+          "v": 1.05
+        },
+        {
+          "t": 60,
+          "v": 1.18
+        },
+        {
+          "t": 90,
+          "v": 1.35
+        },
+        {
+          "t": 120,
+          "v": 1.15
+        },
+        {
+          "t": 150,
+          "v": 1.3
+        },
+        {
+          "t": 180,
+          "v": 1.5
+        },
+        {
+          "t": 210,
+          "v": 1.25
+        }
+      ]
+    },
+    {
+      "path": "look.disk_gain",
+      "keys": [
+        {
+          "t": 0,
+          "v": 0.9
+        },
+        {
+          "t": 40,
+          "v": 1.3
+        },
+        {
+          "t": 70,
+          "v": 1.6
+        },
+        {
+          "t": 100,
+          "v": 1.2
+        },
+        {
+          "t": 130,
+          "v": 1.5
+        },
+        {
+          "t": 160,
+          "v": 1
+        },
+        {
+          "t": 210,
+          "v": 1.55
+        }
+      ]
+    },
+    {
+      "path": "look.glow",
+      "keys": [
+        {
+          "t": 0,
+          "v": 0.02
+        },
+        {
+          "t": 48,
+          "v": 0.28
+        },
+        {
+          "t": 76,
+          "v": 0.55
+        },
+        {
+          "t": 110,
+          "v": 0.08
+        },
+        {
+          "t": 150,
+          "v": 0.32
+        },
+        {
+          "t": 210,
+          "v": 0.48
+        }
+      ]
+    },
+    {
+      "path": "look.star_gain",
+      "keys": [
+        {
+          "t": 0,
+          "v": 0.4
+        },
+        {
+          "t": 120,
+          "v": 0.7
+        },
+        {
+          "t": 210,
+          "v": 0.95
+        }
+      ]
+    },
+    {
+      "path": "look.galaxy_gain",
+      "keys": [
+        {
+          "t": 0,
+          "v": 0.35
+        },
+        {
+          "t": 120,
+          "v": 0.68
+        },
+        {
+          "t": 210,
+          "v": 0.9
+        }
+      ]
+    },
+    {
+      "path": "look.doppler_boost",
+      "keys": [
+        {
+          "t": 0,
+          "v": 1.2
+        },
+        {
+          "t": 110,
+          "v": 2
+        },
+        {
+          "t": 140,
+          "v": 0.8
+        },
+        {
+          "t": 210,
+          "v": 1.4
+        }
+      ]
+    },
+    {
+      "path": "look.aberration_strength",
+      "keys": [
+        {
+          "t": 0,
+          "v": 1
+        },
+        {
+          "t": 120,
+          "v": 2.4
+        },
+        {
+          "t": 140,
+          "v": 0.6
+        },
+        {
+          "t": 210,
+          "v": 1.3
+        }
+      ]
+    },
+    {
+      "path": "black_hole.spin",
+      "keys": [
+        {
+          "t": 0,
+          "v": 0.92
+        },
+        {
+          "t": 18,
+          "v": 0.92
+        },
+        {
+          "t": 42,
+          "v": 0.55
+        },
+        {
+          "t": 72,
+          "v": 0.94
+        },
+        {
+          "t": 120,
+          "v": 0.8
+        },
+        {
+          "t": 170,
+          "v": 0.97
+        },
+        {
+          "t": 210,
+          "v": 0.9
+        }
+      ]
+    },
+    {
+      "path": "black_hole.spin_strength",
+      "keys": [
+        {
+          "t": 0,
+          "v": 0.8
+        },
+        {
+          "t": 60,
+          "v": 1
+        },
+        {
+          "t": 140,
+          "v": 1.2
+        },
+        {
+          "t": 210,
+          "v": 1.05
+        }
+      ]
+    },
+    {
+      "path": "disk_temperature",
+      "keys": [
+        {
+          "t": 0,
+          "v": 5000
+        },
+        {
+          "t": 34,
+          "v": 7600
+        },
+        {
+          "t": 62,
+          "v": 11000
+        },
+        {
+          "t": 84,
+          "v": 16000
+        },
+        {
+          "t": 120,
+          "v": 9000
+        },
+        {
+          "t": 160,
+          "v": 13000
+        },
+        {
+          "t": 210,
+          "v": 18500
+        }
+      ]
+    },
+    {
+      "path": "torus.r0",
+      "keys": [
+        {
+          "t": 0,
+          "v": 4
+        },
+        {
+          "t": 56,
+          "v": 4.8
+        },
+        {
+          "t": 82,
+          "v": 3.8
+        },
+        {
+          "t": 210,
+          "v": 4.2
+        }
+      ]
+    },
+    {
+      "path": "torus.h_ratio",
+      "keys": [
+        {
+          "t": 0,
+          "v": 0.45
+        },
+        {
+          "t": 56,
+          "v": 0.62
+        },
+        {
+          "t": 82,
+          "v": 0.38
+        },
+        {
+          "t": 210,
+          "v": 0.45
+        }
+      ]
+    },
+    {
+      "path": "torus.opacity",
+      "keys": [
+        {
+          "t": 0,
+          "v": 0.015
+        },
+        {
+          "t": 56,
+          "v": 0.04
+        },
+        {
+          "t": 82,
+          "v": 0.02
+        },
+        {
+          "t": 210,
+          "v": 0.015
+        }
+      ]
+    },
+    {
+      "path": "slim.h_ratio",
+      "keys": [
+        {
+          "t": 0,
+          "v": 0.15
+        },
+        {
+          "t": 196,
+          "v": 0.28
+        },
+        {
+          "t": 210,
+          "v": 0.22
+        }
+      ]
+    },
+    {
+      "path": "slim.opacity",
+      "keys": [
+        {
+          "t": 0,
+          "v": 0.6
+        },
+        {
+          "t": 196,
+          "v": 1
+        },
+        {
+          "t": 210,
+          "v": 0.8
+        }
+      ]
+    },
+    {
+      "path": "slim.puff_factor",
+      "keys": [
+        {
+          "t": 0,
+          "v": 2.5
+        },
+        {
+          "t": 196,
+          "v": 4.2
+        },
+        {
+          "t": 210,
+          "v": 3.4
+        }
+      ]
+    },
+    {
+      "path": "jet.half_angle",
+      "keys": [
+        {
+          "t": 0,
+          "v": 5
+        },
+        {
+          "t": 72,
+          "v": 7
+        },
+        {
+          "t": 84,
+          "v": 4
+        },
+        {
+          "t": 210,
+          "v": 6
+        }
+      ]
+    },
+    {
+      "path": "jet.lorentz_factor",
+      "keys": [
+        {
+          "t": 0,
+          "v": 3
+        },
+        {
+          "t": 72,
+          "v": 4.2
+        },
+        {
+          "t": 84,
+          "v": 7.5
+        },
+        {
+          "t": 210,
+          "v": 6
+        }
+      ]
+    },
+    {
+      "path": "jet.brightness",
+      "keys": [
+        {
+          "t": 0,
+          "v": 1.2
+        },
+        {
+          "t": 72,
+          "v": 1.5
+        },
+        {
+          "t": 84,
+          "v": 2
+        },
+        {
+          "t": 130,
+          "v": 1
+        },
+        {
+          "t": 210,
+          "v": 1.8
+        }
+      ]
+    },
+    {
+      "path": "jet.length",
+      "keys": [
+        {
+          "t": 0,
+          "v": 30
+        },
+        {
+          "t": 72,
+          "v": 24
+        },
+        {
+          "t": 84,
+          "v": 42
+        },
+        {
+          "t": 210,
+          "v": 36
+        }
+      ]
+    },
+    {
+      "path": "jet.magnetization",
+      "keys": [
+        {
+          "t": 0,
+          "v": 10
+        },
+        {
+          "t": 84,
+          "v": 22
+        },
+        {
+          "t": 210,
+          "v": 14
+        }
+      ]
+    },
+    {
+      "path": "jet.knot_spacing",
+      "keys": [
+        {
+          "t": 0,
+          "v": 6
+        },
+        {
+          "t": 84,
+          "v": 5
+        },
+        {
+          "t": 210,
+          "v": 8
+        }
+      ]
+    },
+    {
+      "path": "jet.corona_brightness",
+      "keys": [
+        {
+          "t": 0,
+          "v": 1.5
+        },
+        {
+          "t": 84,
+          "v": 2.4
+        },
+        {
+          "t": 210,
+          "v": 1.9
+        }
+      ]
+    },
+    {
+      "path": "jet.base_width",
+      "keys": [
+        {
+          "t": 0,
+          "v": 0.4
+        },
+        {
+          "t": 84,
+          "v": 0.62
+        },
+        {
+          "t": 210,
+          "v": 0.45
+        }
+      ]
+    },
+    {
+      "path": "jet.corona_extent",
+      "keys": [
+        {
+          "t": 0,
+          "v": 0.5
+        },
+        {
+          "t": 84,
+          "v": 0.68
+        },
+        {
+          "t": 210,
+          "v": 0.54
+        }
+      ]
+    },
+    {
+      "path": "grmhd.r_high",
+      "keys": [
+        {
+          "t": 0,
+          "v": 40
+        },
+        {
+          "t": 64,
+          "v": 80
+        },
+        {
+          "t": 110,
+          "v": 30
+        },
+        {
+          "t": 210,
+          "v": 45
+        }
+      ]
+    },
+    {
+      "path": "grmhd.magnetic_beta",
+      "keys": [
+        {
+          "t": 0,
+          "v": 10
+        },
+        {
+          "t": 64,
+          "v": 6
+        },
+        {
+          "t": 110,
+          "v": 18
+        },
+        {
+          "t": 210,
+          "v": 12
+        }
+      ]
+    },
+    {
+      "path": "grmhd.mad_flux",
+      "keys": [
+        {
+          "t": 0,
+          "v": 0
+        },
+        {
+          "t": 64,
+          "v": 0.65
+        },
+        {
+          "t": 110,
+          "v": 0.2
+        },
+        {
+          "t": 210,
+          "v": 0.45
+        }
+      ]
+    },
+    {
+      "path": "grmhd.density_scale",
+      "keys": [
+        {
+          "t": 0,
+          "v": 1
+        },
+        {
+          "t": 64,
+          "v": 1.4
+        },
+        {
+          "t": 110,
+          "v": 0.8
+        },
+        {
+          "t": 210,
+          "v": 1.3
+        }
+      ]
+    },
+    {
+      "path": "grmhd.turbulence_amp",
+      "keys": [
+        {
+          "t": 0,
+          "v": 1
+        },
+        {
+          "t": 64,
+          "v": 1.8
+        },
+        {
+          "t": 110,
+          "v": 0.9
+        },
+        {
+          "t": 210,
+          "v": 1.4
+        }
+      ]
+    },
+    {
+      "path": "grmhd.electron_kappa",
+      "keys": [
+        {
+          "t": 0,
+          "v": 5
+        },
+        {
+          "t": 64,
+          "v": 3.7
+        },
+        {
+          "t": 110,
+          "v": 6
+        },
+        {
+          "t": 210,
+          "v": 4.6
+        }
+      ]
+    },
+    {
+      "path": "grmhd.magnetic_field_str",
+      "keys": [
+        {
+          "t": 0,
+          "v": 1
+        },
+        {
+          "t": 64,
+          "v": 2.2
+        },
+        {
+          "t": 110,
+          "v": 0.8
+        },
+        {
+          "t": 210,
+          "v": 1.6
+        }
+      ]
+    },
+    {
+      "path": "bloom.strength",
+      "keys": [
+        {
+          "t": 0,
+          "v": 0.3
+        },
+        {
+          "t": 80,
+          "v": 0.55
+        },
+        {
+          "t": 120,
+          "v": 0.2
+        },
+        {
+          "t": 210,
+          "v": 0.4
+        }
+      ]
+    },
+    {
+      "path": "bloom.threshold",
+      "keys": [
+        {
+          "t": 0,
+          "v": 0.68
+        },
+        {
+          "t": 80,
+          "v": 0.58
+        },
+        {
+          "t": 120,
+          "v": 0.72
+        },
+        {
+          "t": 210,
+          "v": 0.64
+        }
+      ]
+    },
+    {
+      "path": "bloom.radius",
+      "keys": [
+        {
+          "t": 0,
+          "v": 0.85
+        },
+        {
+          "t": 80,
+          "v": 0.95
+        },
+        {
+          "t": 120,
+          "v": 0.7
+        },
+        {
+          "t": 210,
+          "v": 0.9
+        }
+      ]
+    },
+    {
+      "path": "planet.distance",
+      "keys": [
+        {
+          "t": 0,
+          "v": 14
+        },
+        {
+          "t": 138,
+          "v": 14
+        },
+        {
+          "t": 152,
+          "v": 8.5
+        },
+        {
+          "t": 160,
+          "v": 12
+        },
+        {
+          "t": 210,
+          "v": 10
+        }
+      ]
+    },
+    {
+      "path": "planet.radius",
+      "keys": [
+        {
+          "t": 0,
+          "v": 0.4
+        },
+        {
+          "t": 138,
+          "v": 0.55
+        },
+        {
+          "t": 160,
+          "v": 0.3
+        },
+        {
+          "t": 210,
+          "v": 0.45
+        }
+      ]
+    },
+    {
+      "path": "time_scale",
+      "keys": [
+        {
+          "t": 0,
+          "v": 1
+        },
+        {
+          "t": 80,
+          "v": 1.35
+        },
+        {
+          "t": 120,
+          "v": 0.85
+        },
+        {
+          "t": 164,
+          "v": 0.9
+        },
+        {
+          "t": 178,
+          "v": 0.75
+        },
+        {
+          "t": 206,
+          "v": 1.1
+        },
+        {
+          "t": 210,
+          "v": 1
+        }
+      ]
+    }
+  ],
+  "events": [
+    {
+      "t": 0,
+      "action": "set",
+      "path": "observer.motion",
+      "value": false
+    },
+    {
+      "t": 0,
+      "action": "set",
+      "path": "black_hole.spin_enabled",
+      "value": true
+    },
+    {
+      "t": 0,
+      "action": "set",
+      "path": "kerr_mode",
+      "value": "realtime_full_kerr_core"
+    },
+    {
+      "t": 0,
+      "action": "set",
+      "path": "accretion_disk",
+      "value": true
+    },
+    {
+      "t": 0,
+      "action": "set",
+      "path": "accretion_mode",
+      "value": "thin_disk"
+    },
+    {
+      "t": 0,
+      "action": "set",
+      "path": "disk_self_irradiation",
+      "value": false
+    },
+    {
+      "t": 0,
+      "action": "set",
+      "path": "jet.enabled",
+      "value": false
+    },
+    {
+      "t": 0,
+      "action": "set",
+      "path": "jet.mode",
+      "value": "simple"
+    },
+    {
+      "t": 0,
+      "action": "set",
+      "path": "grmhd.enabled",
+      "value": false
+    },
+    {
+      "t": 0,
+      "action": "set",
+      "path": "planet.enabled",
+      "value": false
+    },
+    {
+      "t": 0,
+      "action": "set",
+      "path": "aberration",
+      "value": true
+    },
+    {
+      "t": 0,
+      "action": "set",
+      "path": "beaming",
+      "value": true
+    },
+    {
+      "t": 0,
+      "action": "set",
+      "path": "physical_beaming",
+      "value": true
+    },
+    {
+      "t": 0,
+      "action": "set",
+      "path": "doppler_shift",
+      "value": true
+    },
+    {
+      "t": 0,
+      "action": "set",
+      "path": "light_travel_time",
+      "value": true
+    },
+    {
+      "t": 0,
+      "action": "set",
+      "path": "gravitational_time_dilation",
+      "value": true
+    },
+    {
+      "t": 0,
+      "action": "set",
+      "path": "lorentz_contraction",
+      "value": true
+    },
+    {
+      "t": 0,
+      "action": "set",
+      "path": "cinematic_tonemap",
+      "value": true
+    },
+    {
+      "t": 0,
+      "action": "set",
+      "path": "look.tonemap_mode",
+      "value": 1
+    },
+    {
+      "t": 0,
+      "action": "set",
+      "path": "cameraPan.x",
+      "value": 0
+    },
+    {
+      "t": 0,
+      "action": "set",
+      "path": "cameraPan.y",
+      "value": 0
+    },
+    {
+      "t": 0.01,
+      "action": "updateShader"
+    },
+    {
+      "t": 0.2,
+      "action": "annotation",
+      "note": {
+        "title": "Full Feature Tour",
+        "text": "We start outside the black hole with the thin accretion disk and all baseline relativistic effects enabled.",
+        "anchor": {
+          "mode": "world",
+          "target": "black_hole"
+        },
+        "placement": "auto",
+        "color": "#7cc5ff",
+        "width": 330
+      }
+    },
+    {
+      "t": 8,
+      "action": "set",
+      "path": "black_hole.spin_enabled",
+      "value": false
+    },
+    {
+      "t": 8.2,
+      "action": "annotation",
+      "note": {
+        "title": "Schwarzschild Mode",
+        "text": "Black-hole spin is now disabled. The shadow becomes more symmetric (no frame-drag asymmetry).",
+        "anchor": {
+          "mode": "world",
+          "target": "black_hole"
+        },
+        "placement": "auto",
+        "color": "#9bd3ff",
+        "width": 320
+      }
+    },
+    {
+      "t": 16,
+      "action": "set",
+      "path": "black_hole.spin_enabled",
+      "value": true
+    },
+    {
+      "t": 16.2,
+      "action": "annotation",
+      "note": {
+        "title": "Kerr Spin Restored",
+        "text": "Spin is back on, so frame dragging and asymmetry return in the lensed image and inner-flow behavior.",
+        "anchor": {
+          "mode": "world",
+          "target": "black_hole"
+        },
+        "placement": "auto",
+        "color": "#7cc5ff"
+      }
+    },
+    {
+      "t": 24,
+      "action": "set",
+      "path": "kerr_mode",
+      "value": "fast"
+    },
+    {
+      "t": 24.02,
+      "action": "updateShader"
+    },
+    {
+      "t": 24.2,
+      "action": "annotation",
+      "note": {
+        "title": "Fast Solver",
+        "text": "Switching to the faster Kerr approximation: great for FPS, less accurate near strong-lensing boundaries.",
+        "anchor": {
+          "mode": "world",
+          "target": "black_hole"
+        },
+        "placement": "auto",
+        "color": "#8ec8ff"
+      }
+    },
+    {
+      "t": 30,
+      "action": "set",
+      "path": "kerr_mode",
+      "value": "realtime_full_kerr_core"
+    },
+    {
+      "t": 30.02,
+      "action": "updateShader"
+    },
+    {
+      "t": 30.2,
+      "action": "annotation",
+      "note": {
+        "title": "Realtime Full Kerr Core",
+        "text": "Back to the higher-fidelity realtime Kerr core for stronger physical consistency in the showcased shots.",
+        "anchor": {
+          "mode": "world",
+          "target": "black_hole"
+        },
+        "placement": "auto",
+        "color": "#7cc5ff"
+      }
+    },
+    {
+      "t": 44,
+      "action": "set",
+      "path": "accretion_disk",
+      "value": false
+    },
+    {
+      "t": 44.02,
+      "action": "updateShader"
+    },
+    {
+      "t": 44.2,
+      "action": "annotation",
+      "note": {
+        "title": "Disk Disabled",
+        "text": "Only background lensing remains, so the black-hole shadow geometry is easier to isolate.",
+        "anchor": {
+          "mode": "world",
+          "target": "black_hole"
+        },
+        "placement": "auto",
+        "color": "#a5d8ff"
+      }
+    },
+    {
+      "t": 46,
+      "action": "set",
+      "path": "accretion_disk",
+      "value": true
+    },
+    {
+      "t": 46.02,
+      "action": "updateShader"
+    },
+    {
+      "t": 48,
+      "action": "set",
+      "path": "disk_self_irradiation",
+      "value": true
+    },
+    {
+      "t": 48.02,
+      "action": "updateShader"
+    },
+    {
+      "t": 48.2,
+      "action": "annotation",
+      "note": {
+        "title": "Self-Irradiation",
+        "text": "Returning radiation boosts inner-disk brightness: photons emitted near ISCO bend back and reheat the flow.",
+        "anchor": {
+          "mode": "world",
+          "target": "disk"
+        },
+        "placement": "auto",
+        "color": "#86caff"
+      }
+    },
+    {
+      "t": 56,
+      "action": "set",
+      "path": "accretion_mode",
+      "value": "thick_torus"
+    },
+    {
+      "t": 56.02,
+      "action": "updateShader"
+    },
+    {
+      "t": 56.2,
+      "action": "annotation",
+      "note": {
+        "title": "Thick Torus (ADAF/RIAF)",
+        "text": "The flow becomes geometrically thick and optically thinner, typical of low-accretion systems.",
+        "anchor": {
+          "mode": "world",
+          "target": "disk"
+        },
+        "placement": "auto",
+        "color": "#79bbff"
+      }
+    },
+    {
+      "t": 64,
+      "action": "set",
+      "path": "grmhd.enabled",
+      "value": true
+    },
+    {
+      "t": 64.02,
+      "action": "updateShader"
+    },
+    {
+      "t": 64.2,
+      "action": "annotation",
+      "note": {
+        "title": "GRMHD Realism",
+        "text": "GRMHD-inspired plasma parameters are enabled (electron heating, turbulence, magnetization, MAD flux).",
+        "anchor": {
+          "mode": "world",
+          "target": "disk"
+        },
+        "placement": "auto",
+        "color": "#70b6ff",
+        "width": 340
+      }
+    },
+    {
+      "t": 72,
+      "action": "set",
+      "path": "jet.enabled",
+      "value": true
+    },
+    {
+      "t": 72,
+      "action": "set",
+      "path": "jet.mode",
+      "value": "simple"
+    },
+    {
+      "t": 72.02,
+      "action": "updateShader"
+    },
+    {
+      "t": 72.2,
+      "action": "annotation",
+      "note": {
+        "title": "Relativistic Jet (Simple)",
+        "text": "A stylized bipolar jet appears along the spin axis for clear visual orientation and beaming effects.",
+        "anchor": {
+          "mode": "world",
+          "target": "jet_north"
+        },
+        "placement": "auto",
+        "color": "#77bfff"
+      }
+    },
+    {
+      "t": 84,
+      "action": "set",
+      "path": "jet.mode",
+      "value": "physical"
+    },
+    {
+      "t": 84.02,
+      "action": "updateShader"
+    },
+    {
+      "t": 84.2,
+      "action": "annotation",
+      "note": {
+        "title": "Jet Physical Mode",
+        "text": "Switching to the GRMHD-calibrated jet model: spine/sheath structure, knots, and stronger base corona.",
+        "anchor": {
+          "mode": "world",
+          "target": "jet_north"
+        },
+        "placement": "auto",
+        "color": "#6fb7ff"
+      }
+    },
+    {
+      "t": 92,
+      "action": "set",
+      "path": "look.tonemap_mode",
+      "value": 0
+    },
+    {
+      "t": 92.2,
+      "action": "annotation",
+      "note": {
+        "title": "Tone Mapper: ACES",
+        "text": "Cinematic response with smooth highlights; good default for film-like black-hole visuals.",
+        "anchor": {
+          "mode": "world",
+          "target": "black_hole"
+        },
+        "placement": "auto",
+        "color": "#8cc7ff"
+      }
+    },
+    {
+      "t": 98,
+      "action": "set",
+      "path": "look.tonemap_mode",
+      "value": 2
+    },
+    {
+      "t": 98.2,
+      "action": "annotation",
+      "note": {
+        "title": "Tone Mapper: Scientific Log",
+        "text": "Logarithmic mapping emphasizes faint structures, closer to analysis-style imagery.",
+        "anchor": {
+          "mode": "world",
+          "target": "black_hole"
+        },
+        "placement": "auto",
+        "color": "#98d1ff"
+      }
+    },
+    {
+      "t": 104,
+      "action": "set",
+      "path": "look.tonemap_mode",
+      "value": 1
+    },
+    {
+      "t": 104.2,
+      "action": "annotation",
+      "note": {
+        "title": "Tone Mapper: AGX",
+        "text": "AGX controls saturation in extreme HDR regions while preserving high-energy structure.",
+        "anchor": {
+          "mode": "world",
+          "target": "black_hole"
+        },
+        "placement": "auto",
+        "color": "#78beff"
+      }
+    },
+    {
+      "t": 106,
+      "action": "set",
+      "path": "cinematic_tonemap",
+      "value": false
+    },
+    {
+      "t": 106.02,
+      "action": "updateShader"
+    },
+    {
+      "t": 110,
+      "action": "set",
+      "path": "cinematic_tonemap",
+      "value": true
+    },
+    {
+      "t": 110.02,
+      "action": "updateShader"
+    },
+    {
+      "t": 112,
+      "action": "set",
+      "path": "physical_beaming",
+      "value": false
+    },
+    {
+      "t": 112.02,
+      "action": "updateShader"
+    },
+    {
+      "t": 112.2,
+      "action": "annotation",
+      "note": {
+        "title": "Beaming: Cinematic Curve",
+        "text": "Physical D^3 transfer is replaced by a softer artistic curve for more moderate brightness contrast.",
+        "anchor": {
+          "mode": "world",
+          "target": "black_hole"
+        },
+        "placement": "auto",
+        "color": "#88ccff"
+      }
+    },
+    {
+      "t": 118,
+      "action": "set",
+      "path": "physical_beaming",
+      "value": true
+    },
+    {
+      "t": 118.02,
+      "action": "updateShader"
+    },
+    {
+      "t": 118.2,
+      "action": "annotation",
+      "note": {
+        "title": "Beaming: Physical D^3",
+        "text": "Back to Liouville-consistent physical transfer scaling for observer-frame intensity.",
+        "anchor": {
+          "mode": "world",
+          "target": "black_hole"
+        },
+        "placement": "auto",
+        "color": "#6fb9ff"
+      }
+    },
+    {
+      "t": 120,
+      "action": "set",
+      "path": "aberration",
+      "value": false
+    },
+    {
+      "t": 120.02,
+      "action": "updateShader"
+    },
+    {
+      "t": 120.2,
+      "action": "annotation",
+      "note": {
+        "title": "Aberration OFF",
+        "text": "Directional warping from observer velocity is disabled.",
+        "anchor": {
+          "mode": "world",
+          "target": "black_hole"
+        },
+        "placement": "auto",
+        "color": "#9ed7ff"
+      }
+    },
+    {
+      "t": 124,
+      "action": "set",
+      "path": "aberration",
+      "value": true
+    },
+    {
+      "t": 124.02,
+      "action": "updateShader"
+    },
+    {
+      "t": 126,
+      "action": "set",
+      "path": "doppler_shift",
+      "value": false
+    },
+    {
+      "t": 126.02,
+      "action": "updateShader"
+    },
+    {
+      "t": 126.2,
+      "action": "annotation",
+      "note": {
+        "title": "Doppler Shift OFF",
+        "text": "Color/frequency shift from relative motion is temporarily disabled.",
+        "anchor": {
+          "mode": "world",
+          "target": "black_hole"
+        },
+        "placement": "auto",
+        "color": "#a7dcff"
+      }
+    },
+    {
+      "t": 130,
+      "action": "set",
+      "path": "doppler_shift",
+      "value": true
+    },
+    {
+      "t": 130.02,
+      "action": "updateShader"
+    },
+    {
+      "t": 132,
+      "action": "set",
+      "path": "beaming",
+      "value": false
+    },
+    {
+      "t": 132.02,
+      "action": "updateShader"
+    },
+    {
+      "t": 136,
+      "action": "set",
+      "path": "beaming",
+      "value": true
+    },
+    {
+      "t": 136.02,
+      "action": "updateShader"
+    },
+    {
+      "t": 138,
+      "action": "set",
+      "path": "planet.enabled",
+      "value": true
+    },
+    {
+      "t": 138.02,
+      "action": "updateShader"
+    },
+    {
+      "t": 138.2,
+      "action": "annotation",
+      "note": {
+        "title": "Reference Planet ON",
+        "text": "An orbiting body is added to make lensing distortions easier to perceive on familiar shapes.",
+        "anchor": {
+          "mode": "world",
+          "target": "planet"
+        },
+        "placement": "auto",
+        "color": "#8acbff"
+      }
+    },
+    {
+      "t": 146,
+      "action": "set",
+      "path": "light_travel_time",
+      "value": false
+    },
+    {
+      "t": 146.02,
+      "action": "updateShader"
+    },
+    {
+      "t": 146.2,
+      "action": "annotation",
+      "note": {
+        "title": "Light Travel Time OFF",
+        "text": "Retarded-time delays are disabled, so moving elements are sampled at synchronous scene time.",
+        "anchor": {
+          "mode": "world",
+          "target": "planet"
+        },
+        "placement": "auto",
+        "color": "#9bd4ff"
+      }
+    },
+    {
+      "t": 150,
+      "action": "set",
+      "path": "light_travel_time",
+      "value": true
+    },
+    {
+      "t": 150.02,
+      "action": "updateShader"
+    },
+    {
+      "t": 152,
+      "action": "set",
+      "path": "lorentz_contraction",
+      "value": false
+    },
+    {
+      "t": 152.02,
+      "action": "updateShader"
+    },
+    {
+      "t": 156,
+      "action": "set",
+      "path": "lorentz_contraction",
+      "value": true
+    },
+    {
+      "t": 156.02,
+      "action": "updateShader"
+    },
+    {
+      "t": 158,
+      "action": "set",
+      "path": "gravitational_time_dilation",
+      "value": false
+    },
+    {
+      "t": 158.02,
+      "action": "updateShader"
+    },
+    {
+      "t": 162,
+      "action": "set",
+      "path": "gravitational_time_dilation",
+      "value": true
+    },
+    {
+      "t": 162.02,
+      "action": "updateShader"
+    },
+    {
+      "t": 164,
+      "action": "set",
+      "path": "observer.motion",
+      "value": false
+    },
+    {
+      "t": 164.02,
+      "action": "updateShader"
+    },
+    {
+      "t": 164.1,
+      "action": "set",
+      "path": "observer.distance",
+      "value": 19
+    },
+    {
+      "t": 164.2,
+      "action": "set",
+      "path": "hover.speed",
+      "value": 0.28
+    },
+    {
+      "t": 165,
+      "action": "startHover"
+    },
+    {
+      "t": 165.2,
+      "action": "annotation",
+      "note": {
+        "title": "Hover Approach",
+        "text": "Now the observer hovers with v=0. This isolates pure gravitational blueshift near the horizon.",
+        "anchor": {
+          "mode": "world",
+          "target": "black_hole"
+        },
+        "placement": "auto",
+        "color": "#7ac2ff"
+      }
+    },
+    {
+      "t": 175,
+      "action": "pauseHover"
+    },
+    {
+      "t": 176,
+      "action": "resetHover"
+    },
+    {
+      "t": 176.02,
+      "action": "set",
+      "path": "observer.motion",
+      "value": false
+    },
+    {
+      "t": 176.04,
+      "action": "updateShader"
+    },
+    {
+      "t": 178,
+      "action": "set",
+      "path": "observer.motion",
+      "value": false
+    },
+    {
+      "t": 178.02,
+      "action": "updateShader"
+    },
+    {
+      "t": 178.1,
+      "action": "set",
+      "path": "observer.distance",
+      "value": 17.8
+    },
+    {
+      "t": 178.2,
+      "action": "set",
+      "path": "dive.speed",
+      "value": 0.56
+    },
+    {
+      "t": 178.3,
+      "action": "set",
+      "path": "dive.cinematic",
+      "value": true
+    },
+    {
+      "t": 179,
+      "action": "startDive"
+    },
+    {
+      "t": 179.2,
+      "action": "annotation",
+      "note": {
+        "title": "Freefall Dive",
+        "text": "Entering radial infall. Watch lensing, photon-ring warping, and interior behavior evolve continuously.",
+        "anchor": {
+          "mode": "world",
+          "target": "black_hole"
+        },
+        "placement": "auto",
+        "color": "#6db8ff"
+      }
+    },
+    {
+      "t": 194,
+      "action": "resetDive"
+    },
+    {
+      "t": 194.02,
+      "action": "set",
+      "path": "observer.motion",
+      "value": false
+    },
+    {
+      "t": 194.04,
+      "action": "updateShader"
+    },
+    {
+      "t": 196,
+      "action": "set",
+      "path": "accretion_mode",
+      "value": "slim_disk"
+    },
+    {
+      "t": 196.02,
+      "action": "updateShader"
+    },
+    {
+      "t": 196.2,
+      "action": "annotation",
+      "note": {
+        "title": "Slim Disk Regime",
+        "text": "Switching to slim-disk parameters to emulate higher accretion rates with puffed inner flow.",
+        "anchor": {
+          "mode": "world",
+          "target": "disk"
+        },
+        "placement": "auto",
+        "color": "#7ec4ff"
+      }
+    },
+    {
+      "t": 200,
+      "action": "set",
+      "path": "jet.enabled",
+      "value": true
+    },
+    {
+      "t": 200,
+      "action": "set",
+      "path": "jet.mode",
+      "value": "physical"
+    },
+    {
+      "t": 200.02,
+      "action": "updateShader"
+    },
+    {
+      "t": 202,
+      "action": "set",
+      "path": "grmhd.enabled",
+      "value": false
+    },
+    {
+      "t": 202.02,
+      "action": "updateShader"
+    },
+    {
+      "t": 204,
+      "action": "set",
+      "path": "grmhd.enabled",
+      "value": true
+    },
+    {
+      "t": 204.02,
+      "action": "updateShader"
+    },
+    {
+      "t": 206,
+      "action": "set",
+      "path": "planet.enabled",
+      "value": false
+    },
+    {
+      "t": 206.02,
+      "action": "updateShader"
+    },
+    {
+      "t": 208,
+      "action": "set",
+      "path": "planet.enabled",
+      "value": true
+    },
+    {
+      "t": 208.02,
+      "action": "updateShader"
+    },
+    {
+      "t": 208.2,
+      "action": "annotation",
+      "note": {
+        "title": "All Systems Combined",
+        "text": "Final composite shot: Kerr lensing, GRMHD plasma, physical jet, and relativistic post-processing all active.",
+        "anchor": {
+          "mode": "world",
+          "target": "black_hole"
+        },
+        "placement": "auto",
+        "color": "#71beff",
+        "width": 340
+      }
+    },
+    {
+      "t": 209.8,
+      "action": "clearAnnotation"
+    }
+  ],
+  "name": "Full Feature Tour"
+}

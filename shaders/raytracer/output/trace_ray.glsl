@@ -313,7 +313,12 @@ vec4 trace_ray(vec3 ray) {
                 vec3 sub_new = old_pos + sub_step_vec * float(ds + 1);
                 if (sub_old.z * sub_new.z < 0.0) {
             vec3 sub_ray = sub_new - sub_old;
-            float acc_isec_t = -sub_old.z / sub_ray.z;
+            float sub_ray_z = sub_ray.z;
+            if (abs(sub_ray_z) < 1e-6) {
+                sub_old = sub_new;
+                continue;
+            }
+            float acc_isec_t = -sub_old.z / sub_ray_z;
             if (acc_isec_t < solid_isec_t) {
                 vec3 isec = sub_old + sub_ray*acc_isec_t;
 
@@ -870,14 +875,15 @@ vec4 trace_ray(vec3 ray) {
         // changes the hue.  The D^3 brightness factor must be applied
         // explicitly.  Clamping prevents blow-ups for extreme D values
         // (near-horizon freefall where T shifts far into UV anyway).
-        float bg_D = 1.0 / max(bg_doppler, 0.01);
+        float safe_bg_doppler = max(abs(bg_doppler), 0.01);
+        float bg_D = 1.0 / safe_bg_doppler;
         float bg_boost = min(bg_D * bg_D * bg_D, 10000.0);
 
         vec4 star_color = texture2D(star_texture, tex_coord);
         if (star_color.r > 0.0) {
             t_coord = (STAR_MIN_TEMPERATURE +
                 (STAR_MAX_TEMPERATURE-STAR_MIN_TEMPERATURE) * star_color.g)
-                 / bg_doppler;
+                 / safe_bg_doppler;
 
             color += BLACK_BODY_COLOR(t_coord) * star_color.r * STAR_BRIGHTNESS * look_star_gain * vol_transmittance * interior_boost * bg_boost;
         }

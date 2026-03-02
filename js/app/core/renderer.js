@@ -411,6 +411,7 @@ var hoverState = {
     prevDistance: 11.0,
     minR: 1.005  // Cannot hover at the horizon (infinite proper acceleration)
 };
+
 // ─────────────────────────────────────────────────────────────────────────────
 var effectLabels = {
     spin: null,
@@ -1308,6 +1309,13 @@ function animate() {
     // Before this was inside render(), so hidden-tab pauses or post-dive states
     // with hasMovingParts()==false silently froze the disk animation.
     var dt = getFrameDuration();
+    if (typeof getPresentationState === 'function' &&
+        typeof updatePresentation === 'function') {
+        var presentationRuntimeState = getPresentationState();
+        if (presentationRuntimeState.playing) {
+            updatePresentation(dt);
+        }
+    }
     if (diveState.active && !diveState.paused && !diveState.reachedSingularity) {
         updateDive(dt);
         updateCamera();
@@ -1323,6 +1331,10 @@ function animate() {
 
     camera.updateMatrixWorld();
     camera.matrixWorldInverse.getInverse( camera.matrixWorld );
+
+    if (typeof updatePresentationOverlay === 'function') {
+        updatePresentationOverlay();
+    }
 
     if (shader.needsUpdate || shader.hasMovingParts() ||
         frobeniusDistance(camera.matrixWorldInverse, lastCameraMat) > 1e-10) {

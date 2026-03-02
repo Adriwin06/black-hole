@@ -1,0 +1,184 @@
+{
+  "duration": 26,
+  "loop": false,
+  "tracks": [
+    {
+      "path": "observer.motion",
+      "keys": [
+        {
+          "t": 0,
+          "v": true
+        }
+      ]
+    },
+    {
+      "path": "observer.distance",
+      "keys": [
+        {
+          "t": 0,
+          "v": 14
+        },
+        {
+          "t": 8,
+          "v": 9.5,
+          "ease": "smooth"
+        },
+        {
+          "t": 17,
+          "v": 6.8,
+          "ease": "smooth"
+        },
+        {
+          "t": 26,
+          "v": 8.5
+        }
+      ]
+    },
+    {
+      "path": "observer.orbital_inclination",
+      "keys": [
+        {
+          "t": 0,
+          "v": -12
+        },
+        {
+          "t": 10,
+          "v": 7,
+          "ease": "smooth"
+        },
+        {
+          "t": 21,
+          "v": 20
+        },
+        {
+          "t": 26,
+          "v": 4
+        }
+      ]
+    },
+    {
+      "path": "look.exposure",
+      "keys": [
+        {
+          "t": 0,
+          "v": 0.88
+        },
+        {
+          "t": 13,
+          "v": 1.18,
+          "ease": "smooth"
+        },
+        {
+          "t": 26,
+          "v": 1.05
+        }
+      ]
+    },
+    {
+      "path": "look.disk_gain",
+      "keys": [
+        {
+          "t": 0,
+          "v": 0.95
+        },
+        {
+          "t": 12,
+          "v": 1.35,
+          "ease": "smooth"
+        },
+        {
+          "t": 26,
+          "v": 1.18
+        }
+      ]
+    },
+    {
+      "path": "look.glow",
+      "keys": [
+        {
+          "t": 0,
+          "v": 0.05
+        },
+        {
+          "t": 12,
+          "v": 0.45,
+          "ease": "smooth"
+        },
+        {
+          "t": 26,
+          "v": 0.18
+        }
+      ]
+    },
+    {
+      "path": "black_hole.spin",
+      "keys": [
+        {
+          "t": 0,
+          "v": 0.58
+        },
+        {
+          "t": 26,
+          "v": 0.92
+        }
+      ]
+    },
+    {
+      "path": "disk_temperature",
+      "keys": [
+        {
+          "t": 0,
+          "v": 5600
+        },
+        {
+          "t": 26,
+          "v": 13200
+        }
+      ]
+    },
+    {
+      "path": "cameraPan.x",
+      "keys": [
+        {
+          "t": 0,
+          "v": 0
+        },
+        {
+          "t": 10,
+          "v": 0.1
+        },
+        {
+          "t": 19,
+          "v": -0.08
+        },
+        {
+          "t": 26,
+          "v": 0.03
+        }
+      ]
+    },
+    {
+      "path": "cameraPan.y",
+      "keys": [
+        {
+          "t": 0,
+          "v": 0
+        },
+        {
+          "t": 9,
+          "v": 0.06
+        },
+        {
+          "t": 17,
+          "v": -0.04
+        },
+        {
+          "t": 26,
+          "v": 0.01
+        }
+      ]
+    }
+  ],
+  "events": [],
+  "name": "Orbit Showcase"
+}

@@ -1,0 +1,18 @@
+[
+  {
+    "name": "Full Feature Tour",
+    "file": "js/app/presentation/presets/full-feature-tour.json"
+  },
+  {
+    "name": "Orbit Showcase",
+    "file": "js/app/presentation/presets/orbit-showcase.json"
+  },
+  {
+    "name": "Horizon Dive",
+    "file": "js/app/presentation/presets/horizon-dive.json"
+  },
+  {
+    "name": "Hover Blueshift",
+    "file": "js/app/presentation/presets/hover-blueshift.json"
+  }
+]

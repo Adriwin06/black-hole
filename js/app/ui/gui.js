@@ -55,6 +55,13 @@ function setupGUI() {
         mobileGuiToggleBtn.textContent = gui.closed ? 'Open Controls' : 'Close Controls';
     }
 
+    function syncOverlayPanelsWithGuiState() {
+        updateMobileGuiToggleLabel();
+        var animPanel = document.getElementById('anim-panel');
+        if (!animPanel) return;
+        animPanel.classList.toggle('controls-closed', !!gui.closed);
+    }
+
     function ensureMobileGuiToggleButton() {
         if (mobileGuiToggleBtn) return;
         mobileGuiToggleBtn = document.createElement('button');
@@ -65,17 +72,25 @@ function setupGUI() {
             event.preventDefault();
             event.stopPropagation();
             gui.closed = !gui.closed;
-            updateMobileGuiToggleLabel();
+            syncOverlayPanelsWithGuiState();
         });
         document.body.appendChild(mobileGuiToggleBtn);
-        updateMobileGuiToggleLabel();
+        syncOverlayPanelsWithGuiState();
     }
 
     if (window.matchMedia && window.matchMedia('(max-width: 960px)').matches) {
         gui.close();
     }
     ensureMobileGuiToggleButton();
-    window.addEventListener('resize', updateMobileGuiToggleLabel);
+    window.addEventListener('resize', syncOverlayPanelsWithGuiState);
+    var previousGuiOnResize = gui.onResize;
+    gui.onResize = function() {
+        if (typeof previousGuiOnResize === 'function') {
+            previousGuiOnResize.apply(gui, arguments);
+        }
+        syncOverlayPanelsWithGuiState();
+    };
+    syncOverlayPanelsWithGuiState();
     var syncObserverWidgetControls = null;
 
     // Recursively update all dat.GUI controllers to reflect programmatic changes.
@@ -1141,6 +1156,7 @@ function setupGUI() {
     });
     //folder.open();
 
+
     updateDependentVisibility = function() {
         var diskEnabled = !!p.accretion_disk;
         var thinDiskEnabled = diskEnabled && p.accretion_mode === 'thin_disk';
@@ -1277,8 +1293,12 @@ function setupGUI() {
                     '<button id="hover-reset-btn" class="hover-btn hover-btn-reset" ' +
                         'disabled>\u21ba RESET</button>' +
                 '</div>' +
-            '</div>';
+            '</div>' +
+            (typeof createPresentationAnimationSectionHtml === 'function'
+                ? createPresentationAnimationSectionHtml()
+                : '');
         document.body.appendChild(panel);
+        syncOverlayPanelsWithGuiState();
 
         var openBtn = document.createElement('button');
         openBtn.id = 'anim-open-btn';
@@ -1309,6 +1329,9 @@ function setupGUI() {
         }
         setupSectionToggle('dive-section');
         setupSectionToggle('hover-section');
+        if (document.getElementById('presentation-section')) {
+            setupSectionToggle('presentation-section');
+        }
 
         // ── Dive events ────────────────────────────────────────────────
         document.getElementById('dive-start-btn').addEventListener('click',
@@ -1390,6 +1413,11 @@ function setupGUI() {
         hoverTrack.addEventListener('touchmove', function(e) {
             handleHoverTrackSeek(e); e.preventDefault();
         });
+
+        // ── Presentation timeline events ───────────────────────────────
+        if (typeof bindPresentationAnimationSection === 'function') {
+            bindPresentationAnimationSection(panel);
+        }
     })();
     // ─────────────────────────────────────────────────────────────────────────────
 
