@@ -26,6 +26,7 @@ function Shader(mustacheTemplate) {
         kerr_mode: 'realtime_full_kerr_core',
         accretion_disk: true,
         accretion_mode: 'thin_disk',
+        disk_self_irradiation: true,
         disk_temperature: 5000.0,
         torus: {
             r0: 4.0,
@@ -53,7 +54,7 @@ function Shader(mustacheTemplate) {
             corona_extent: 0.5
         },
         grmhd: {
-            enabled: false,
+            enabled: true,
             r_high: 40.0,
             magnetic_beta: 10.0,
             mad_flux: 0.0,
@@ -146,6 +147,7 @@ function Shader(mustacheTemplate) {
         that.parameters.jet_simple = that.parameters.jet.enabled && (that.parameters.jet.mode === 'simple');
         that.parameters.jet_physical = that.parameters.jet.enabled && (that.parameters.jet.mode === 'physical');
         that.parameters.grmhd_enabled = !!that.parameters.grmhd.enabled;
+        that.parameters.disk_self_irradiation_enabled = !!that.parameters.disk_self_irradiation;
 
         return Mustache.render(mustacheTemplate, that.parameters);
     };

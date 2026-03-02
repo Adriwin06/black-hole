@@ -45,17 +45,19 @@ float accretion_emissivity(float radius, float angle, float t) {
 // Based on Cunningham (1976), this returning radiation enhances the
 // local flux and temperature, peaking near the ISCO and scaling with spin.
 float accretion_returning_radiation_enhancement(float radius) {
+{{#disk_self_irradiation_enabled}}
     float r_norm = max(radius / ACCRETION_MIN_R, 1.0001);
-    
     // Closer ISCO (higher spin) means the potential well is deeper, bending more light back.
     // For a=0 (Schwarzschild), ~20% enhancement. For a=0.99 (Extreme Kerr), > 100% enhancement.
     float spin_a = bh_rotation_enabled * bh_spin;
     float peak_enhancement = 0.2 + 1.2 * abs(spin_a);
-    
     // The returning radiation flux decays rapidly outward as ~ r^-3.5
     float enhancement = peak_enhancement * pow(1.0 / r_norm, 3.5);
-    
     return 1.0 + enhancement;
+{{/disk_self_irradiation_enabled}}
+{{^disk_self_irradiation_enabled}}
+    return 1.0;
+{{/disk_self_irradiation_enabled}}
 }
 
 float accretion_flux_profile(float radius) {

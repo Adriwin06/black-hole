@@ -27,12 +27,14 @@ var lastTaaCameraMat = new THREE.Matrix4().identity();
 
 var applyRenderScaleFromSettings = function() {};
 var resetTemporalAAHistory = function() {};
-var QUALITY_BENCHMARK_STORAGE_KEY = 'black-hole-quality-benchmark-v3';
-var QUALITY_BENCHMARK_SCHEMA_VERSION = 3;
+var QUALITY_BENCHMARK_STORAGE_KEY = 'black-hole-quality-benchmark-v4';
+var QUALITY_BENCHMARK_SCHEMA_VERSION = 4;
 var QUALITY_BENCHMARK_TARGET_FRAME_MS = 32.0;
-var QUALITY_BENCHMARK_HIGH_PROBE_GATE_MS = 18.5;
-var QUALITY_BENCHMARK_HIGH_PROBE_GATE_MS_ULTRA_CAPABLE = 24.0;
-var QUALITY_BENCHMARK_HIGH_TARGET_FRAME_MS_ULTRA_CAPABLE = 40.0;
+// High-quality auto-upgrade is intentionally disabled: once volumetric effects
+// (GRMHD, thick torus, slim disk) are enabled, even high-end laptop GPUs
+// (e.g. RTX 4070 Laptop) cannot sustain acceptable frame rates at 'high'
+// quality settings. Optimal is the correct default for all hardware tiers.
+// Users who want 'high' should select it manually via the quality preset control.
 var qualityBenchmarkState = null;
 
 function getGpuRendererName() {
@@ -155,16 +157,8 @@ function beginQualityBenchmarkIfNeeded() {
         sampleFrames: 72,
         frameCount: 0,
         sampleCount: 0,
-        accumulatedDt: 0.0,
-        optimalAvgMs: null,
-        highProbeGateMs: QUALITY_BENCHMARK_HIGH_PROBE_GATE_MS,
-        highTargetFrameMs: QUALITY_BENCHMARK_TARGET_FRAME_MS
+        accumulatedDt: 0.0
     };
-    var gpuRendererName = getGpuRendererName();
-    if (isUltraCapableGpu(gpuRendererName)) {
-        qualityBenchmarkState.highProbeGateMs = QUALITY_BENCHMARK_HIGH_PROBE_GATE_MS_ULTRA_CAPABLE;
-        qualityBenchmarkState.highTargetFrameMs = QUALITY_BENCHMARK_HIGH_TARGET_FRAME_MS_ULTRA_CAPABLE;
-    }
     applyQualityPresetRuntime('optimal');
 }
 
@@ -182,14 +176,9 @@ function advanceQualityBenchmark(frameDt) {
     var avgFrameMs = (qualityBenchmarkState.accumulatedDt / qualityBenchmarkState.sampleCount) * 1000.0;
 
     if (qualityBenchmarkState.phase === 'optimal') {
-        if (avgFrameMs <= qualityBenchmarkState.highProbeGateMs) {
-            qualityBenchmarkState.phase = 'high';
-            qualityBenchmarkState.optimalAvgMs = avgFrameMs;
-            resetQualityBenchmarkCounters(qualityBenchmarkState);
-            applyQualityPresetRuntime('high');
-            return;
-        }
-
+        // Optimal is always the benchmark ceiling. Volumetric effects (GRMHD,
+        // thick torus, slim disk) make 'high' impractical on all but the most
+        // extreme desktop GPUs. Users can upgrade manually.
         if (avgFrameMs <= QUALITY_BENCHMARK_TARGET_FRAME_MS) {
             finishQualityBenchmark('optimal', avgFrameMs);
             return;
@@ -204,14 +193,6 @@ function advanceQualityBenchmark(frameDt) {
     if (qualityBenchmarkState.phase === 'mobile') {
         finishQualityBenchmark('mobile', avgFrameMs);
         return;
-    }
-
-    if (qualityBenchmarkState.phase === 'high') {
-        if (avgFrameMs <= qualityBenchmarkState.highTargetFrameMs) {
-            finishQualityBenchmark('high', avgFrameMs);
-        } else {
-            finishQualityBenchmark('optimal', qualityBenchmarkState.optimalAvgMs);
-        }
     }
 }
 

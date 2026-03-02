@@ -149,6 +149,7 @@ function setupGUI() {
             black_hole: deepClonePlain(p.black_hole),
             accretion_disk: p.accretion_disk,
             accretion_mode: p.accretion_mode,
+            disk_self_irradiation: p.disk_self_irradiation,
             disk_temperature: p.disk_temperature,
             torus: deepClonePlain(p.torus),
             slim: deepClonePlain(p.slim),
@@ -173,6 +174,7 @@ function setupGUI() {
         p.black_hole.spin_strength = state.black_hole.spin_strength;
         p.accretion_disk = state.accretion_disk;
         p.accretion_mode = state.accretion_mode;
+        if (state.disk_self_irradiation !== undefined) p.disk_self_irradiation = state.disk_self_irradiation;
         p.disk_temperature = state.disk_temperature;
         p.torus.r0 = state.torus.r0;
         p.torus.h_ratio = state.torus.h_ratio;
@@ -546,6 +548,14 @@ function setupGUI() {
         },
         help: 'Thin disk: Novikov-Thorne (quasars/XRBs). Thick torus: ADAF/RIAF (M87*/Sgr A*). Slim disk: super-Eddington.'
     });
+    var diskSelfIrradiationCtrl = addControl(diskFolder, p, 'disk_self_irradiation', {
+        name: 'self-irradiation',
+        trackBlackHolePreset: true,
+        onChange: function() {
+            updateShader();
+        },
+        help: 'Disk returning radiation: photons emitted near the ISCO bend back and reheat the inner disk (Cunningham 1976). Effect peaks near the event horizon and scales with black hole spin.'
+    });
     var diskTempCtrl = addControl(diskFolder, p, 'disk_temperature', {
         min: DISK_TEMPERATURE_MIN,
         max: DISK_TEMPERATURE_MAX,
@@ -714,6 +724,7 @@ function setupGUI() {
     // Apply initial accretion visibility immediately, even before the global
     // dependency updater is assigned at the end of setupGUI().
     setControlVisible(accretionModeCtrl, !!p.accretion_disk);
+    setControlVisible(diskSelfIrradiationCtrl, !!p.accretion_disk);
     setControlVisible(diskTempCtrl, !!p.accretion_disk);
     setControlsVisible(torusRows, !!p.accretion_disk && p.accretion_mode === 'thick_torus');
     setControlsVisible(slimRows, !!p.accretion_disk && p.accretion_mode === 'slim_disk');
