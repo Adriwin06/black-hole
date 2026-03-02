@@ -8,7 +8,7 @@ var BH_PRESETS = {
     'Default': {
         // Simulation defaults — use this to restore the starting configuration.
         spin_enabled: true, spin: 0.90, spin_strength: 1.0,
-        accretion_disk: true, accretion_mode: 'thin_disk',
+        accretion_disk: true, accretion_mode: 'thin_disk', disk_self_irradiation: true,
         disk_temperature: 5000,
         torus: { r0: 4.0, h_ratio: 0.45, radial_falloff: 2.5, opacity: 0.015, outer_radius: 3.5 },
         slim: { h_ratio: 0.15, opacity: 0.6, puff_factor: 2.5 },
@@ -16,7 +16,7 @@ var BH_PRESETS = {
                lorentz_factor: 3.0, brightness: 1.2, length: 30.0,
                magnetization: 10.0, knot_spacing: 6.0, corona_brightness: 1.5,
                base_width: 0.4, corona_extent: 0.5 },
-        grmhd: { enabled: false, r_high: 40.0, magnetic_beta: 10.0, mad_flux: 0.0,
+        grmhd: { enabled: true, r_high: 40.0, magnetic_beta: 10.0, mad_flux: 0.0,
                  density_scale: 1.0, turbulence_amp: 1.0, electron_kappa: 5.0,
                  magnetic_field_str: 1.0 },
         observer: { distance: 11.0 },
@@ -35,7 +35,7 @@ var BH_PRESETS = {
         // Accretion: ADAF/RIAF thick torus — low-luminosity AGN, sub-mm synchrotron.
         // Prominent relativistic jet (HST-1, superluminal knots).
         spin_enabled: true, spin: 0.90, spin_strength: 1.0,
-        accretion_disk: true, accretion_mode: 'thick_torus',
+        accretion_disk: true, accretion_mode: 'thick_torus', disk_self_irradiation: true,
         disk_temperature: 20000,
         torus: { r0: 4.0, h_ratio: 0.45, radial_falloff: 2.5, opacity: 0.02, outer_radius: 3.5 },
         slim: { h_ratio: 0.15, opacity: 0.6, puff_factor: 2.5 },
@@ -65,7 +65,7 @@ var BH_PRESETS = {
         // Accretion: RIAF/ADAF; quiescent low-luminosity state.
         // No persistent jet detected observationally.
         spin_enabled: true, spin: 0.50, spin_strength: 1.0,
-        accretion_disk: true, accretion_mode: 'thick_torus',
+        accretion_disk: true, accretion_mode: 'thick_torus', disk_self_irradiation: true,
         disk_temperature: 15000,
         torus: { r0: 3.5, h_ratio: 0.50, radial_falloff: 2.8, opacity: 0.012, outer_radius: 3.0 },
         slim: { h_ratio: 0.15, opacity: 0.6, puff_factor: 2.5 },
@@ -95,7 +95,7 @@ var BH_PRESETS = {
         // Inner disk temperature ~10⁷ K (X-ray); visual proxy shown here.
         // Microquasar with transient jets; disabled here for canonical soft state.
         spin_enabled: true, spin: 0.99, spin_strength: 1.0,
-        accretion_disk: true, accretion_mode: 'thin_disk',
+        accretion_disk: true, accretion_mode: 'thin_disk', disk_self_irradiation: true,
         disk_temperature: 12000,
         torus: { r0: 4.0, h_ratio: 0.45, radial_falloff: 2.5, opacity: 0.015, outer_radius: 3.5 },
         slim: { h_ratio: 0.15, opacity: 0.6, puff_factor: 2.5 },
@@ -124,7 +124,7 @@ var BH_PRESETS = {
         // Rotates ≥ 950 rev/s. Super-Eddington accretion episodes → slim disk.
         // Jets at ~0.9c; Lorentz factor Γ ≈ 2–5 (apparent superluminal).
         spin_enabled: true, spin: 0.98, spin_strength: 1.0,
-        accretion_disk: true, accretion_mode: 'slim_disk',
+        accretion_disk: true, accretion_mode: 'slim_disk', disk_self_irradiation: true,
         disk_temperature: 22000,
         torus: { r0: 4.0, h_ratio: 0.45, radial_falloff: 2.5, opacity: 0.015, outer_radius: 3.5 },
         slim: { h_ratio: 0.18, opacity: 0.7, puff_factor: 3.0 },
@@ -148,8 +148,8 @@ var BH_PRESETS = {
     },
     'Gargantua (Interstellar visuals)': {
         spin_enabled: true, spin: 0.7, spin_strength: 1.0,
-        accretion_disk: true, accretion_mode: 'thin_disk',
-        disk_temperature: 5800,
+        accretion_disk: true, accretion_mode: 'thin_disk', disk_self_irradiation: true,
+        disk_temperature: 4500,
         torus: { r0: 4.0, h_ratio: 0.45, radial_falloff: 2.5, opacity: 0.015, outer_radius: 3.5 },
         slim: { h_ratio: 0.15, opacity: 0.6, puff_factor: 2.5 },
         jet: { enabled: false, mode: 'simple', half_angle: 5.0,
@@ -173,7 +173,7 @@ var BH_PRESETS = {
         // Idealised non-rotating black hole (a/M = 0).
         // Classical textbook case: symmetric circular shadow, no frame dragging.
         spin_enabled: false, spin: 0.0, spin_strength: 1.0,
-        accretion_disk: true, accretion_mode: 'thin_disk',
+        accretion_disk: true, accretion_mode: 'thin_disk', disk_self_irradiation: true,
         disk_temperature: 5000,
         torus: { r0: 4.0, h_ratio: 0.45, radial_falloff: 2.5, opacity: 0.015, outer_radius: 3.5 },
         slim: { h_ratio: 0.15, opacity: 0.6, puff_factor: 2.5 },

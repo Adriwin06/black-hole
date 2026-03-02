@@ -16,8 +16,18 @@ float accretion_turbulence(float radius, float angle, float t) {
         radius*7.2 + orbit_unit.x*9.0 + 1.5*large_scale,
         orbit_unit.y*9.0 - t*0.11
     ));
+    // High-frequency chaos layer, moving faster and concentrated near the middle (ISCO)
+    float micro_scale = fbm(vec2(
+        radius*18.0 + orbit_unit.x*22.0 - small_scale*2.5,
+        orbit_unit.y*22.0 + t*0.35
+    ));
+    
+    float isco_factor = exp(-0.8 * max(radius - ACCRETION_MIN_R, 0.0));
     float filaments = 0.6 + 0.4*swirl;
-    float plasma = mix(large_scale, small_scale, 0.6);
+    
+    // Mix scales, giving micro_scale more weight near the center
+    float base_plasma = mix(large_scale, small_scale, 0.6);
+    float plasma = mix(base_plasma, micro_scale, 0.2 + 0.3 * isco_factor);
 
     return max((0.45 + 1.1*plasma) * (0.8 + 0.2*filaments), 0.02);
 }
@@ -29,11 +39,31 @@ float accretion_emissivity(float radius, float angle, float t) {
     return accretion_turbulence(radius, angle, t) * edge_fade;
 }
 
+// --- Disk Self-Irradiation (Returning Radiation) ---
+// Radiation emitted from the inner disk is strongly lensed by the black hole's
+// gravity, causing a significant fraction of it to strike the disk again.
+// Based on Cunningham (1976), this returning radiation enhances the
+// local flux and temperature, peaking near the ISCO and scaling with spin.
+float accretion_returning_radiation_enhancement(float radius) {
+    float r_norm = max(radius / ACCRETION_MIN_R, 1.0001);
+    
+    // Closer ISCO (higher spin) means the potential well is deeper, bending more light back.
+    // For a=0 (Schwarzschild), ~20% enhancement. For a=0.99 (Extreme Kerr), > 100% enhancement.
+    float spin_a = bh_rotation_enabled * bh_spin;
+    float peak_enhancement = 0.2 + 1.2 * abs(spin_a);
+    
+    // The returning radiation flux decays rapidly outward as ~ r^-3.5
+    float enhancement = peak_enhancement * pow(1.0 / r_norm, 3.5);
+    
+    return 1.0 + enhancement;
+}
+
 float accretion_flux_profile(float radius) {
     float x = max(radius / ACCRETION_MIN_R, 1.0001);
     float inner_edge = max(1.0 - sqrt(1.0 / x), 0.0);
     float flux = inner_edge / (x*x*x);
-    return flux * 18.0;
+    // Multiply by returning radiation enhancement to capture self-irradiation heating
+    return flux * 18.0 * accretion_returning_radiation_enhancement(radius);
 }
 
 float accretion_temperature(float radius) {
@@ -42,8 +72,12 @@ float accretion_temperature(float radius) {
     const float SS_PEAK_NORMALIZATION = 2.04910267;
     float x = max(radius / ACCRETION_MIN_R, 1.0001);
     float inner_edge = max(1.0 - sqrt(1.0 / x), 0.02);
-    return disk_temperature * SS_PEAK_NORMALIZATION *
+    
+    float t_base = disk_temperature * SS_PEAK_NORMALIZATION *
         pow(1.0 / x, 0.75) * pow(inner_edge, 0.25);
+        
+    // Stefan-Boltzmann law: Flux prop T^4. Thus, T = T_base * (F / F_base)^0.25
+    return t_base * pow(accretion_returning_radiation_enhancement(radius), 0.25);
 }
 
 // Observer metric factor shared by both shift functions.
@@ -399,12 +433,19 @@ float grmhd_3d_density_turbulence(vec3 p, float t) {
         cyl_r * 5.0 + orbit_unit.x * 8.0 + n1 * 1.2,
         orbit_unit.y * 8.0 + z_sc * 3.0 - t * 0.09
     ));
+    // Small scale (chaos): rapid turbulent shredding, especially intense near ISCO
+    // and highly dynamic (fast t modulation).
+    float isco_factor = exp(-0.8 * max(cyl_r - ACCRETION_MIN_R, 0.0));
+    float n3 = fbm(vec2(
+        cyl_r * 15.0 + orbit_unit.x * 25.0 - n2 * 3.0,
+        orbit_unit.y * 25.0 + z_sc * 9.0 + t * 0.35
+    ));
 
     // Log-normal density fluctuations: high dynamic range for the optically
     // thick slim disk where Beer-Lambert absorption renders surface features.
     // (Only the slim disk uses this function; torus uses grmhd_mri_turbulence.)
     float sigma_ln = 0.8 + 1.5 * grmhd_turbulence_amp;
-    float combined = 0.55 * n1 + 0.45 * n2;
+    float combined = 0.45 * n1 + 0.35 * n2 + (0.1 + 0.3 * isco_factor) * n3;
     float log_density = exp(sigma_ln * (combined - 0.5) * 3.5);
 
     return log_density * (0.75 + 1.0 * spirals);

@@ -180,6 +180,7 @@
                 <li><a href="#sec-thin-disk">Thin Disk (Novikov–Thorne / Shakura–Sunyaev)</a></li>
                 <li><a href="#sec-thick-torus">Thick Torus (ADAF/RIAF)</a></li>
                 <li><a href="#sec-slim-disk">Slim Disk (Super-Eddington)</a></li>
+                <li><a href="#sec-self-irradiation">Disk Self-Irradiation (Returning Radiation)</a></li>
             </ol>
         </li>
         <li><a href="#sec-blackbody">Black-Body Radiation &amp; Spectrum</a></li>
@@ -765,6 +766,28 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
         higher values produce the characteristic radiation-pressure "puffing" expected in
         super-Eddington flows.</li>
 </ul>
+
+<!-- 7.4 Self-Irradiation -->
+<h3 id="sec-self-irradiation">7.4. Disk Self-Irradiation (Returning Radiation)</h3>
+
+<p>
+    An important relativistic correction incorporated into both the thin and slim disk models is 
+    <strong>returning radiation</strong>. Light emitted from the inner regions of the accretion disk 
+    (near the ISCO) does not always escape to infinity. Because of the strong gravitational lensing 
+    near the black hole, a significant fraction of the emitted flux is bent back and strikes the disk 
+    again, depositing its energy back into the plasma (Cunningham, 1976).
+</p>
+<p>
+    This self-irradiation effectively increases both the observed local flux and the corresponding 
+    black-body temperature. The effect scales strongly with the black hole's spin <em>a</em>. For a 
+    maximally spinning Kerr black hole, the disk extends much further down the gravitational well, 
+    causing well over 100% flux enhancement right at the innermost edge. The simulation models this 
+    effect empirically by applying a flux enhancement factor that peaks at the ISCO as a function 
+    of the spin, and decays rapidly outward proportionately to <em>r</em><sup>&minus;3.5</sup>. 
+    By the Stefan-Boltzmann law, the effective disk temperature is subsequently raised by the 
+    fourth root of this enhancement factor, locally brightening the core while maintaining 
+    thermodynamic equilibrium.
+</p>
 
 <!-- ============================================================ -->
 <!-- 8. BLACK-BODY RADIATION -->
@@ -1414,6 +1437,14 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     Additional MRI-driven features include azimuthal scale-height variations (&plusmn;15%
     at default turbulence, calibrated to Liska et al. 2022) representing Parker instability
     buoyant loops and MRI-induced warps.
+</p>
+<p>
+    Furthermore, near the <strong>Innermost Stable Circular Orbit (ISCO)</strong>, the shear and relativistic 
+    velocities reach their maximum, resulting in <strong>high-frequency micro-scale 
+    turbulence</strong> (rapid turbulent shredding). This is modeled by mixing in an additional, faster moving layer of 
+    continuous fractional Brownian motion heavily weighted by an exponential decay factor 
+    approaching the ISCO. This ensures chaotic and non-uniform plasma fluctuations 
+    close to the event horizon, breaking the appearance of uniform macroscopic banding near the center.
 </p>
 <p>
     The <strong>Magnetically Arrested Disk</strong> (MAD) state occurs when magnetic flux accumulates
