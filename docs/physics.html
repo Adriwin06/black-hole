@@ -488,8 +488,7 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     the spin-dependent photon sphere structure, and higher-order Kerr lensing features.
     <br><br>
     <strong>Current status:</strong> This integrator is <strong>work-in-progress</strong> and is not
-    yet exposed in the user interface (<code>kerr_full_geodesic</code> is hardcoded to <code>false</code>
-    in <code>shader.js</code>). All user-facing modes currently use the perturbative Binet
+    yet exposed in the user interface. All user-facing modes currently use the perturbative Binet
     approximation (Section 5.1) for photon lensing. The "Realtime Kerr core" mode uses exact
     Kerr angular velocities for disk matter orbits but does not change the photon geodesic solver.
 </div>
@@ -2201,11 +2200,11 @@ newR = max(r + k2,  r_min)</code></pre>
     </tr>
     <tr>
         <td>Self-illumination / reflection</td>
-        <td>Not implemented</td>
+        <td>Analytical returning radiation flux enhancement</td>
         <td>Disk photons returning to disk after lensing</td>
-        <td>In reality, some disk photons are bent by gravity back onto the disk
-            ("returning radiation"), enhancing inner-disk emission. This effect
-            is omitted for performance.</td>
+        <td>True ray-traced reflections are omitted for performance. Replaced with an analytical flux
+            enhancement based on Cunningham (1976), which correctly captures the enhanced inner-disk
+            emission without the cost of recursive raytracing.</td>
     </tr>
 </table>
 
