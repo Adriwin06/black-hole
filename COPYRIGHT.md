@@ -15,7 +15,7 @@
 
         Copyright (c) 2015 Otto Seiskari
         Copyright (c) 2026 Adriwin
-        This fork is maintained and substantially extended by Adriwin (https://github.com/Adriwin), based on the original work by Otto Seiskari (https://github.com/oseiskar).
+        This fork is maintained and substantially extended by Adriwin (https://github.com/Adriwin06), based on the original work by Otto Seiskari (https://github.com/oseiskar).
 
        Permission is hereby granted, free of charge, to any person obtaining a copy
        of this software and associated documentation files (the "Software"), to deal
