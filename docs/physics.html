@@ -482,9 +482,15 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     <strong>Accuracy:</strong> The Mino-time integration is <em>exact</em> for Kerr null geodesics &mdash;
     the separated equations follow directly from the Hamiltonian with the Carter constant
     <sup><a href="#ref-carter">[6]</a></sup> <sup><a href="#ref-chandrasekhar">[28]</a></sup>.
-    This produces the correct <strong>D-shaped shadow boundary</strong>
+    When enabled, it would produce the correct <strong>D-shaped shadow boundary</strong>
     (Bardeen 1973), including the asymmetry between prograde and retrograde photon orbits,
     the spin-dependent photon sphere structure, and higher-order Kerr lensing features.
+    <br><br>
+    <strong>Current status:</strong> This integrator is <strong>work-in-progress</strong> and is not
+    yet exposed in the user interface (<code>kerr_full_geodesic</code> is hardcoded to <code>false</code>
+    in <code>shader.js</code>). All user-facing modes currently use the perturbative Binet
+    approximation (Section 5.1) for photon lensing. The "Realtime Kerr core" mode uses exact
+    Kerr angular velocities for disk matter orbits but does not change the photon geodesic solver.
 </div>
 
 <!-- ============================================================ -->
@@ -1379,8 +1385,8 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 </p>
 <p>
     <strong>Synchrotron self-absorption</strong> is included for the thick torus (ADAF/RIAF),
-    where the opacity scales with density:
-    &alpha;<sub>abs</sub> &prop; <em>j</em><sub>torus</sub> &middot; &rho;<sup>0.5</sup> &middot;
+    where the opacity scales with turbulence-modulated density:
+    &alpha;<sub>abs</sub> &prop; <em>j</em><sub>torus</sub> &middot; turbulence<sup>0.5</sup> &middot;
     (0.5 + 0.5 &middot; density_scale).
     For the optically thick thin disk and slim disk, synchrotron absorption is less important
     since these models are already emission-dominated.
@@ -1400,7 +1406,7 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 <p>
     where &sigma;<sub>ln</sub> &asymp; 0.5 &ndash; 1.0 is the log-normal width (controlled by the
     MRI turbulence parameter) and &xi; is a procedural noise field in co-rotating coordinates.
-    The density fluctuations are clamped to a dynamic range of ~30&times; (0.15 &ndash; 5.0)
+    The density fluctuations are clamped to a dynamic range of 20&times; (0.2 &ndash; 4.0)
     to prevent extreme outliers from overwhelming the torus geometry, consistent with the
     1&ndash;2 &sigma; range observed in actual GRMHD density histograms.
 </p>
@@ -1554,7 +1560,7 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 </p>
 
 <!-- ============================================================ -->
-<!-- 17. TONE MAPPING -->
+<!-- 18. TONE MAPPING -->
 <!-- ============================================================ -->
 
 <h2 id="sec-tonemap">18. Tone Mapping &amp; Color Science</h2>
@@ -1592,7 +1598,7 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 </p>
 
 <!-- ============================================================ -->
-<!-- 18. PLANET -->
+<!-- 19. PLANET -->
 <!-- ============================================================ -->
 
 <h2 id="sec-planet">19. Planet Model</h2>
@@ -1634,7 +1640,7 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 </ul>
 
 <!-- ============================================================ -->
-<!-- 19. INTERIOR BLACK HOLE -->
+<!-- 20. INTERIOR BLACK HOLE -->
 <!-- ============================================================ -->
 
 <h2 id="sec-interior">20. Interior Black Hole &amp; Analytical Escape Classification</h2>
@@ -1649,7 +1655,7 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     Binet conserved energy to decide each ray's fate <em>before</em> entering the integration loop.
 </p>
 
-<h3 id="sec-binet-energy">19.1. Binet Conserved Energy</h3>
+<h3 id="sec-binet-energy">20.1. Binet Conserved Energy</h3>
 
 <p>
     The first-order Binet equation for photons in Schwarzschild spacetime is
@@ -1681,7 +1687,7 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     <sup><a href="#ref-mtw">[1]</a></sup> <sup><a href="#ref-chandrasekhar">[28]</a></sup>.
 </p>
 
-<h3 id="sec-escape-class">19.2. Escape vs. Capture Classification</h3>
+<h3 id="sec-escape-class">20.2. Escape vs. Capture Classification</h3>
 
 <p>
     For each ray launched from the interior observer (at <em>u</em><sub>obs</sub> &gt; 1,
@@ -1733,7 +1739,7 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     improving performance inside the black hole.
 </div>
 
-<h3 id="sec-analytical-exit">19.3. Analytical Exit Direction</h3>
+<h3 id="sec-analytical-exit">20.3. Analytical Exit Direction</h3>
 
 <p>
     For rays that escape, the simulation needs to determine where they hit the background sky.
@@ -1781,7 +1787,7 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 </div>
 
 <!-- ============================================================ -->
-<!-- 20. FREE-FALL DIVE -->
+<!-- 21. FREE-FALL DIVE -->
 <!-- ============================================================ -->
 
 <h2 id="sec-freefall">21. Free-Fall Dive &amp; Observer Frame</h2>
@@ -1793,7 +1799,7 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     with zero initial velocity.
 </p>
 
-<h3 id="sec-radial-freefall">20.1. Radial Free-Fall Trajectory</h3>
+<h3 id="sec-radial-freefall">21.1. Radial Free-Fall Trajectory</h3>
 
 <p>
     For a massive test particle falling radially from rest at infinity in Schwarzschild spacetime,
@@ -1841,7 +1847,7 @@ newR = max(r + k2,  r_min)</code></pre>
     like M87* (6.5 &times; 10<sup>9</sup> <em>M</em><sub>☉</sub>).
 </div>
 
-<h3 id="sec-dive-frame">20.2. Locally Inertial Dive Frame</h3>
+<h3 id="sec-dive-frame">21.2. Locally Inertial Dive Frame</h3>
 
 <p>
     A free-falling observer carries a <strong>locally inertial reference frame</strong>
@@ -1864,21 +1870,26 @@ newR = max(r + k2,  r_min)</code></pre>
     pixel coordinates to 3D ray directions.
 </p>
 
-<h3 id="sec-interior-rendering">20.3. Interior Rendering Pipeline</h3>
+<h3 id="sec-interior-rendering">21.3. Interior Rendering Pipeline</h3>
 
 <p>
     When the observer is inside the horizon (<em>r</em> &lt; <em>r<sub>s</sub></em>), the shader
     activates the <strong>interior mode</strong>, which changes several aspects of the rendering:
 </p>
 <ol>
-    <li><strong>Analytical pre-classification</strong> (Section 18.2) eliminates the numerical
+    <li><strong>Analytical pre-classification</strong> (Section 20.2) eliminates the numerical
         integration loop for most rays, which would otherwise waste the step budget on
         captured trajectories.</li>
     <li><strong>Adaptive stepping</strong> is relaxed: the maximum allowed relative <em>u</em>-change
         is multiplied by a combined depth-dependent factor
         <code>3 + 2 &middot; max(u &minus; 1, 0)</code>.
         At the horizon (<em>u</em> = 1) this gives a 3&times; relaxation; deeper inside,
-        the allowance grows linearly with <em>u</em> to handle the rapidly changing curvature.</li>
+        the allowance grows linearly with <em>u</em> to handle the rapidly changing curvature.
+        Additionally, an extra <strong>horizon-proximity step reduction</strong> is applied:
+        step &times;= 1 &minus; 0.6 &middot; exp(&minus;8 (<em>u</em> &minus; 1)&sup2;), reducing
+        the step by up to 60% near the horizon to improve accuracy in this critical
+        transition region. A minimum step floor of 0.5&pi;/NSTEPS prevents the step
+        from collapsing to zero.</li>
     <li><strong>Frame-drag clamping:</strong> The <em>u</em>&sup3; frame-drag term (Section 5)
         uses <code>min(<em>u</em>, 1.2)</code> instead of raw <em>u</em> to prevent the
         spin correction from diverging at small <em>r</em>.</li>
@@ -2089,11 +2100,13 @@ newR = max(r + k2,  r_min)</code></pre>
     </tr>
     <tr>
         <td>Kerr geodesics (exterior)</td>
-        <td>Full Carter-separated Mino-time integration</td>
+        <td>Schwarzschild Binet equation with perturbative frame-drag correction;
+            exact Kerr disk angular velocities in "Realtime Kerr core" mode</td>
         <td>Full Carter-constant geodesics in Boyer-Lindquist coords<sup><a href="#ref-carter">[6]</a></sup></td>
-        <td><strong>Exact</strong> for null geodesics in Kerr spacetime.
-            Produces the correct D-shaped shadow boundary.
-            A perturbative approximation is used only for interior mode.</td>
+        <td>The photon shadow shape is approximately circular rather than the correct
+            D-shaped silhouette. A full Mino-time Kerr geodesic integrator exists in the
+            codebase but is <strong>WIP</strong> and not yet exposed in the UI.
+            Disk matter velocities are exact Kerr in the full-core mode.</td>
     </tr>
     <tr>
         <td>Disk turbulence</td>
@@ -2180,7 +2193,9 @@ newR = max(r + k2,  r_min)</code></pre>
 </p>
 <ul>
     <li>Ray-tracing photon geodesics in Kerr spacetime (they used exact Kerr geodesics;
-        this simulation uses the Schwarzschild equation with a frame-dragging approximation).</li>
+        this simulation uses the Schwarzschild Binet equation with a perturbative
+        frame-dragging correction for photon lensing, while using exact Kerr angular
+        velocities for disk matter in "Realtime Kerr core" mode).</li>
     <li>Thin accretion disk with blackbody emission and Doppler shifting.</li>
     <li>The movie team deliberately <strong>reduced the Doppler beaming</strong> for artistic reasons,
         exactly as this simulation's "cinematic beaming" mode does.</li>
@@ -2198,7 +2213,12 @@ newR = max(r + k2,  r_min)</code></pre>
     <li><strong>Approximate Kerr lensing:</strong> The geodesic integrator uses the Schwarzschild
         Binet equation with a perturbative frame-drag correction term rather than the full Carter
         (1968) separated Kerr equations. The shadow shape for a spinning black hole is therefore
-        approximately circular rather than the correct D-shaped asymmetric silhouette.</li>
+        approximately circular rather than the correct D-shaped asymmetric silhouette.
+        A full Mino-time Kerr geodesic integrator exists in the codebase
+        (<code>kerr_init()</code>, <code>integrate_kerr_step()</code> in <code>geodesics.glsl</code>)
+        but is <strong>work-in-progress</strong> and not yet exposed in the UI.
+        The "Realtime Kerr core" mode uses exact Kerr angular velocities for disk matter
+        but still traces photon paths with the perturbative Binet equation.</li>
     <li><strong>No returning radiation:</strong> Photons that are gravitationally lensed back onto
         the accretion disk are not tracked (would require recursive ray tracing).</li>
     <li><strong>Disk is not self-consistent:</strong> The disk temperature, density, and velocity profiles are
@@ -2229,7 +2249,7 @@ newR = max(r + k2,  r_min)</code></pre>
         Schwarzschild coordinate Binet equation; it does not implement Kruskal–Szekeres or
         Eddington–Finkelstein coordinates, so the coordinate singularity at the horizon
         is handled by an abrupt switch rather than a smooth transition.</li>
-    <li><strong>Cinematic speed is artistic:</strong> The auto-speed envelope (Section 20) is
+    <li><strong>Cinematic speed is artistic:</strong> The auto-speed envelope (Section 22) is
         a user-experience choice, not a physical model — real free-fall has no variable speed.</li>
 </ul>
 
