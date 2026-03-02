@@ -5,31 +5,34 @@
 float accretion_turbulence(float radius, float angle, float t) {
     float orbit_phase = angle - 0.45*t / pow(max(radius, 1.001), 1.5);
     vec2 orbit_unit = vec2(cos(orbit_phase), sin(orbit_phase));
-    float swirl = sin(18.0*orbit_phase + 10.0*log(max(radius, 1.001)));
 
     // Use periodic angular coordinates to avoid seam artifacts at angle wrap.
     float large_scale = fbm(vec2(
-        radius*1.5 + orbit_unit.x*2.7,
-        orbit_unit.y*2.7 + t*0.05
+        radius*2.5 + orbit_unit.x*4.5,
+        orbit_unit.y*4.5 + t*0.08
     ));
     float small_scale = fbm(vec2(
-        radius*7.2 + orbit_unit.x*9.0 + 1.5*large_scale,
-        orbit_unit.y*9.0 - t*0.11
+        radius*12.0 + orbit_unit.x*15.0 + 2.5*large_scale,
+        orbit_unit.y*15.0 - t*0.18
     ));
     // High-frequency chaos layer, moving faster and concentrated near the middle (ISCO)
     float micro_scale = fbm(vec2(
-        radius*18.0 + orbit_unit.x*22.0 - small_scale*2.5,
-        orbit_unit.y*22.0 + t*0.35
+        radius*25.0 + orbit_unit.x*35.0 - small_scale*4.0,
+        orbit_unit.y*35.0 + t*0.55
     ));
+    
+    // Distort the regular spiral using small_scale noise so it looks chaotic instead of uniform stripes
+    float swirl_phase = 12.0*orbit_phase + 8.0*log(max(radius, 1.001)) + small_scale * 4.0;
+    float swirl = sin(swirl_phase);
     
     float isco_factor = exp(-0.8 * max(radius - ACCRETION_MIN_R, 0.0));
     float filaments = 0.6 + 0.4*swirl;
     
     // Mix scales, giving micro_scale more weight near the center
-    float base_plasma = mix(large_scale, small_scale, 0.6);
-    float plasma = mix(base_plasma, micro_scale, 0.2 + 0.3 * isco_factor);
+    float base_plasma = mix(large_scale, small_scale, 0.5);
+    float plasma = mix(base_plasma, micro_scale, 0.3 + 0.5 * isco_factor);
 
-    return max((0.45 + 1.1*plasma) * (0.8 + 0.2*filaments), 0.02);
+    return max((0.4 + 1.25*plasma) * (0.8 + 0.2*filaments), 0.02);
 }
 
 float accretion_emissivity(float radius, float angle, float t) {
@@ -266,11 +269,22 @@ float grmhd_electron_temp_ratio(float beta) {
 // hotter at low-β (magnetically dominated corona/funnel wall), cooler at
 // high-β (gas-pressure dominated disk body).  The dominant R_high emission
 // morphology is applied separately via grmhd_r_high_emissivity().
-float grmhd_electron_temperature(float gas_temp, float cyl_r, float z, float disk_h) {
+float grmhd_electron_temperature(float gas_temp, float cyl_r, float z, float disk_h, float t, float angle) {
     float beta = grmhd_plasma_beta(cyl_r, z, disk_h);
     // Low β → temp_mod ≈ 1.25 (hotter), high β → temp_mod ≈ 0.78 (cooler)
     float temp_mod = 0.75 + 0.5 / (1.0 + 0.15 * beta);
-    return gas_temp * temp_mod;
+    
+    // Smooth time-dependent variation to avoid sharp stripes
+    float orbit_phase = angle - 0.3 * t / pow(max(cyl_r, 1.0), 1.5);
+    vec2 orbit_unit = vec2(cos(orbit_phase), sin(orbit_phase));
+    float t_noise = fbm(vec2(
+        cyl_r * 2.0 + orbit_unit.x * 2.5,
+        orbit_unit.y * 2.5 + t * 0.15
+    ));
+    // Reduced amplitude to 10% because T^4 causes massive brightness swings
+    float t_var = 1.0 + 0.1 * (t_noise - 0.5) * exp(-0.4 * max(cyl_r - ACCRETION_MIN_R, 0.0));
+    
+    return gas_temp * temp_mod * t_var;
 }
 
 // --- R_high emissivity morphology (EHT crescent) ---
@@ -344,9 +358,9 @@ float grmhd_mri_turbulence(float r, float angle, float t) {
     // Log-normal fluctuations calibrated to GRMHD σ_ln(ρ) ≈ 0.5–1.0
     // accretion_turbulence averages ~0.85, center log-normal there
     // so the mean output ≈ 1.0 (no systematic brightness bias)
-    float sigma_ln = 0.5 + 0.5 * grmhd_turbulence_amp;
+    float sigma_ln = 0.4 + 0.6 * grmhd_turbulence_amp;
     float log_fluct = exp(sigma_ln * (base - 0.85) * 2.0);
-    log_fluct = clamp(log_fluct, 0.2, 4.0);
+    log_fluct = clamp(log_fluct, 0.2, 5.0);
 
     return log_fluct * (1.0 + mad_spiral);
 }
@@ -415,8 +429,8 @@ float grmhd_3d_density_turbulence(vec3 p, float t) {
     // (Balbus & Hawley 1998, Beckwith et al. 2011)
     float sp1 = sin(orbit_phase + 3.0 * log(max(cyl_r, 1.0)));
     float sp2 = sin(2.0 * orbit_phase + 5.5 * log(max(cyl_r, 1.0)) + 1.7);
-    float spirals = 0.35 * smoothstep(-0.3, 1.0, sp1)
-                  + 0.25 * smoothstep(-0.3, 1.0, sp2);
+    float spirals = 0.45 * smoothstep(-0.3, 1.0, sp1)
+                  + 0.35 * smoothstep(-0.3, 1.0, sp2);
 
     // MAD state: dominant m=1 spiral from arrested magnetic flux tube
     if (grmhd_mad_flux > 0.1) {
@@ -427,30 +441,30 @@ float grmhd_3d_density_turbulence(vec3 p, float t) {
     // Multi-scale FBM in co-rotating frame (2 octaves → 8 noise evals)
     // Large scale: ~ few r_g blobs and density waves
     float n1 = fbm(vec2(
-        cyl_r * 1.2 + orbit_unit.x * 2.5,
-        orbit_unit.y * 2.5 + z_sc * 0.7 + t * 0.035
+        cyl_r * 2.0 + orbit_unit.x * 4.0,
+        orbit_unit.y * 4.0 + z_sc * 1.5 + t * 0.05
     ));
     // Medium scale: filaments, streams, magnetic flux bundles
     float n2 = fbm(vec2(
-        cyl_r * 5.0 + orbit_unit.x * 8.0 + n1 * 1.2,
-        orbit_unit.y * 8.0 + z_sc * 3.0 - t * 0.09
+        cyl_r * 8.0 + orbit_unit.x * 12.0 + n1 * 2.0,
+        orbit_unit.y * 12.0 + z_sc * 5.0 - t * 0.15
     ));
     // Small scale (chaos): rapid turbulent shredding, especially intense near ISCO
     // and highly dynamic (fast t modulation).
     float isco_factor = exp(-0.8 * max(cyl_r - ACCRETION_MIN_R, 0.0));
     float n3 = fbm(vec2(
-        cyl_r * 15.0 + orbit_unit.x * 25.0 - n2 * 3.0,
-        orbit_unit.y * 25.0 + z_sc * 9.0 + t * 0.35
+        cyl_r * 20.0 + orbit_unit.x * 35.0 - n2 * 4.0,
+        orbit_unit.y * 35.0 + z_sc * 12.0 + t * 0.55
     ));
 
     // Log-normal density fluctuations: high dynamic range for the optically
     // thick slim disk where Beer-Lambert absorption renders surface features.
     // (Only the slim disk uses this function; torus uses grmhd_mri_turbulence.)
     float sigma_ln = 0.8 + 1.5 * grmhd_turbulence_amp;
-    float combined = 0.45 * n1 + 0.35 * n2 + (0.1 + 0.3 * isco_factor) * n3;
-    float log_density = exp(sigma_ln * (combined - 0.5) * 3.5);
+    float combined = 0.35 * n1 + 0.35 * n2 + (0.15 + 0.4 * isco_factor) * n3;
+    float log_density = exp(sigma_ln * (combined - 0.5) * 4.5);
 
-    return log_density * (0.75 + 1.0 * spirals);
+    return log_density * (0.65 + 1.2 * spirals);
 }
 
 // --- GRMHD disk height modulation ---
@@ -465,13 +479,13 @@ float grmhd_height_modulation(float cyl_r, float angle, float t) {
     vec2 orbit_unit = vec2(cos(orbit_phase), sin(orbit_phase));
 
     float warp = fbm(vec2(
-        cyl_r * 0.6 + orbit_unit.x * 1.5,
-        orbit_unit.y * 1.5 + t * 0.025
+        cyl_r * 0.9 + orbit_unit.x * 2.0,
+        orbit_unit.y * 2.0 + t * 0.05
     ));
 
     // Centered at 1.0: height varies by ±(15% * turbulence_amp)
     // warp ∈ [0,1], so (warp - 0.5) ∈ [-0.5, 0.5]
-    float variation = 0.3 * (warp - 0.5) * grmhd_turbulence_amp;
+    float variation = 0.5 * (warp - 0.5) * grmhd_turbulence_amp;
     return 1.0 + variation;
 }
 {{/grmhd_enabled}}

@@ -337,10 +337,9 @@ vec4 trace_ray(vec3 ray) {
                     float gas_temp_g = accretion_temperature(r);
                     float disk_h_g = r * 0.05;
                     float beta_g = grmhd_plasma_beta(r, 0.0, disk_h_g);
-                    float Te_ratio_g = grmhd_electron_temp_ratio(beta_g);
-                    // Manual lerp: avoid 'mix' variable shadow from line 264
-                    float Te_corr = 0.97 + Te_ratio_g * 0.03;  // 3% R_high correction (thin disk is efficient)
-                    float temperature = gas_temp_g * Te_corr * gravitational_shift(r);
+                    // Add t and angle parameters needed by the updated function signature
+                    float Te_corr = 0.97 + grmhd_electron_temp_ratio(beta_g) * 0.03;  // 3% R_high correction (thin disk is efficient)
+                    float temperature = grmhd_electron_temperature(gas_temp_g, r, 0.0, disk_h_g, t, angle) * Te_corr * gravitational_shift(r);
                     
                     // GRMHD turbulence: MRI density fluctuations with log-normal
                     // PDF + spiral arms (Sorathia+ 2012, Hawley+ 2013)
@@ -461,7 +460,7 @@ vec4 trace_ray(vec3 ray) {
                 // Temperature: β-dependent variation for color shifts.
                 float h_torus_g = max(cyl_r_t * torus_h_ratio, 0.01);
                 float gas_temp_torus = torus_temperature(r3d);
-                float temperature_t = grmhd_electron_temperature(gas_temp_torus, cyl_r_t, pos.z, h_torus_g)
+                float temperature_t = grmhd_electron_temperature(gas_temp_torus, cyl_r_t, pos.z, h_torus_g, t, angle_t)
                                     * gravitational_shift_static(r3d);
 
                 // 3D volumetric turbulence with sqrt() to moderate extremes.
@@ -577,11 +576,12 @@ vec4 trace_ray(vec3 ray) {
                 // GRMHD adds: mild two-temperature correction (30% R_high) + ISCO magnetic
                 // stress + synchrotron/non-thermal corrections responsive to all parameters.
                 float gas_temp_slim = slim_disk_temperature(cyl_r_s);
-                float beta_slim = grmhd_plasma_beta(cyl_r_s, pos.z, slim_disk_height(cyl_r_s));
+                float h_slim_g = slim_disk_height(cyl_r_s);
+                float beta_slim = grmhd_plasma_beta(cyl_r_s, pos.z, h_slim_g);
                 float Te_ratio_slim = grmhd_electron_temp_ratio(beta_slim);
                 // Manual lerp: avoid 'mix' variable shadow from line 264
                 float Te_corr_slim = 1.0 * 0.7 + Te_ratio_slim * 0.3;  // 30% correction (partially thermalized)
-                float temperature_s = gas_temp_slim * Te_corr_slim * gravitational_shift_static(r3d_s);
+                float temperature_s = grmhd_electron_temperature(gas_temp_slim, cyl_r_s, pos.z, h_slim_g, t, angle_s) * Te_corr_slim * gravitational_shift_static(r3d_s);
 
                 // 3D volumetric FBM turbulence: filamentary density structure
                 float turbulence_s = grmhd_3d_density_turbulence(pos, t);

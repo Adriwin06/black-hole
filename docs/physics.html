@@ -1479,7 +1479,25 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     The simulation uses a pseudo-Newtonian (Paczyński-Wiita) approximation for real-time evaluation.
 </p>
 
-<h3 id="sec-grmhd-nonthermal">16.5 Non-Thermal Electrons (κ-distribution)</h3>
+<h3 id="sec-grmhd-turbulence-temperature">16.5 High-Frequency Chaos &amp; Dynamic Thermal Bands</h3>
+
+<p>
+    Near the <strong>Innermost Stable Circular Orbit (ISCO)</strong>, extreme relativistic shear
+    drives high-frequency, complex turbulent shredding. This is modeled by injecting rapid,
+    micro-scale fractional Brownian motion (fBm) heavily weighted by a spatially decaying factor
+    near the event horizon. This breaks the predictable visual uniformity of macroscopic banding
+    into chaotic, fluctuating plasma filaments.
+</p>
+<p>
+    Coupled with structural MRI fluctuations, the application of dynamic <strong>temperature variations</strong>
+    further prevents the "painted stripes" artifact seen in simpler procedural disks. Small variations
+    (up to ~5%) in local electron temperature are generated dynamically along orbital phase shifts and
+    fractal noise manifolds. Since blackbody thermal radiation scales proportionally with
+    <em>T</em><sup>4</sup> (Stefan-Boltzmann), even minor dynamic temperature shifts create deeply
+    organic and visually striking brightness waves sweeping continuously through the accretion disk.
+</p>
+
+<h3 id="sec-grmhd-nonthermal">16.6 Non-Thermal Electrons (κ-distribution)</h3>
 
 <p>
     Magnetic reconnection in current sheets produces non-thermal electrons with a power-law energy tail.
@@ -2258,8 +2276,10 @@ newR = max(r + k2,  r_min)</code></pre>
         important for EHT science (the EHT measured M87*'s linear polarization pattern in 2021).</li>
     <li><strong>GRMHD-calibrated turbulence:</strong> When GRMHD realism is enabled, the disk
         and torus use physically calibrated MRI turbulence with log-normal density PDFs
-        (&sigma;<sub>ln</sub> &asymp; 0.5&ndash;1.0), spiral arm structure, and MAD flux tube
-        interactions. Without GRMHD enabled, the turbulence texture is artistic procedural noise.</li>
+        (&sigma;<sub>ln</sub> &asymp; 0.4&ndash;1.0), spiral arm structure, and MAD flux tube
+        interactions. The simulation also injects time-dependent variations and fractal Brownian motion (fBm)
+        noise mapped seamlessly across spatial phases to produce organic, evolving plasma filament structures.
+        Without GRMHD enabled, the turbulence texture is a simpler procedural noise model.</li>
     <li><strong>GRMHD is a visual adaptation, not frequency-resolved:</strong> Real GRMHD operates
         at radio frequencies (~230 GHz) with ion temperatures of ~10<sup>12</sup> K.
         This renderer adapts the spatial morphology (R<sub>high</sub> crescent, MRI spirals,
