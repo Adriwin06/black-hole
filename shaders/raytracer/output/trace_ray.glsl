@@ -79,6 +79,7 @@ vec4 trace_ray(vec3 ray) {
     float phi = 0.0;
 
     float t = time;
+    float turb_t = loopable_turbulence_time(time);
     float dt = 1.0;
     bool shadow_capture = false;
 
@@ -344,14 +345,14 @@ vec4 trace_ray(vec3 ray) {
                     float beta_g = grmhd_plasma_beta(r, 0.0, disk_h_g);
                     // Add t and angle parameters needed by the updated function signature
                     float Te_corr = 0.97 + grmhd_electron_temp_ratio(beta_g) * 0.03;  // 3% R_high correction (thin disk is efficient)
-                    float temperature = grmhd_electron_temperature(gas_temp_g, r, 0.0, disk_h_g, t, angle) * Te_corr * gravitational_shift(r);
+                    float temperature = grmhd_electron_temperature(gas_temp_g, r, 0.0, disk_h_g, turb_t, angle) * Te_corr * gravitational_shift(r);
                     
                     // GRMHD turbulence: MRI density fluctuations with log-normal
                     // PDF + spiral arms (Sorathia+ 2012, Hawley+ 2013)
                     float r_norm_g = (r - ACCRETION_MIN_R) / ACCRETION_WIDTH;
                     float edge_fade_g = smoothstep(0.02, 0.18, r_norm_g) *
                         (1.0 - smoothstep(0.78, 1.0, r_norm_g));
-                    float turbulence = grmhd_mri_turbulence(r, angle, t) * edge_fade_g;
+                    float turbulence = grmhd_mri_turbulence(r, angle, turb_t) * edge_fade_g;
 
                     // Synchrotron and non-thermal corrections
                     float rho_g = grmhd_density(r, 1.0);
@@ -374,7 +375,7 @@ vec4 trace_ray(vec3 ray) {
                     {{/grmhd_enabled}}
                     {{^grmhd_enabled}}
                     float temperature = accretion_temperature(r) * gravitational_shift(r);
-                    float turbulence = accretion_emissivity(r, angle, t);
+                    float turbulence = accretion_emissivity(r, angle, turb_t);
                     float inner_glow = exp(-8.0 * (r - ACCRETION_MIN_R));
                     float accretion_intensity = ACCRETION_BRIGHTNESS * accretion_flux_profile(r) *
                         turbulence * (1.0 + 0.7*inner_glow);
@@ -445,7 +446,7 @@ vec4 trace_ray(vec3 ray) {
             // are physically expected (Liska+ 2022: H/R variation ~15-30%).
             float _cr_t = max(length(pos.xy), 1e-4);
             float _a_t = atan(pos.x, pos.y);
-            float _hmod_raw_t = grmhd_height_modulation(_cr_t, _a_t, t);
+            float _hmod_raw_t = grmhd_height_modulation(_cr_t, _a_t, turb_t);
             // Amplify: base function gives ±15%, double it for ±30% warps
             float _hmod_t = 1.0 + 2.0 * (_hmod_raw_t - 1.0);
             vec3 _warp_t = vec3(pos.xy, pos.z / max(_hmod_t, 0.2));
@@ -465,7 +466,7 @@ vec4 trace_ray(vec3 ray) {
                 // Temperature: β-dependent variation for color shifts.
                 float h_torus_g = max(cyl_r_t * torus_h_ratio, 0.01);
                 float gas_temp_torus = torus_temperature(r3d);
-                float temperature_t = grmhd_electron_temperature(gas_temp_torus, cyl_r_t, pos.z, h_torus_g, t, angle_t)
+                float temperature_t = grmhd_electron_temperature(gas_temp_torus, cyl_r_t, pos.z, h_torus_g, turb_t, angle_t)
                                     * gravitational_shift_static(r3d);
 
                 // 3D volumetric turbulence with sqrt() to moderate extremes.
@@ -474,7 +475,7 @@ vec4 trace_ray(vec3 ray) {
                 // absorption renders surface features).  For the optically thin
                 // ADAF torus, sqrt compresses this to ~10×, keeping visible 3D
                 // structure without the tornado/nebula artefact.
-                float raw_turb_t = grmhd_3d_density_turbulence(pos, t);
+                float raw_turb_t = grmhd_3d_density_turbulence(pos, turb_t);
                 float turbulence_t = sqrt(max(raw_turb_t, 0.01));
 
                 // Magnetic field, synchrotron, and non-thermal corrections
@@ -499,7 +500,7 @@ vec4 trace_ray(vec3 ray) {
                 {{/grmhd_enabled}}
                 {{^grmhd_enabled}}
                 float temperature_t = torus_temperature(r3d) * gravitational_shift_static(r3d);
-                float turbulence_t = accretion_turbulence(cyl_r_t, angle_t, t);
+                float turbulence_t = accretion_turbulence(cyl_r_t, angle_t, turb_t);
 
                 // Emission coefficient: optically thin ADAF has low emissivity
                 float j_eff = ACCRETION_BRIGHTNESS * 0.05 * torus_j * turbulence_t;
@@ -563,7 +564,7 @@ vec4 trace_ray(vec3 ray) {
             // GRMHD: height modulation from MRI + radiation-driven warps
             float _cr_s = max(length(pos.xy), 1e-4);
             float _a_s = atan(pos.x, pos.y);
-            float _hmod_s = grmhd_height_modulation(_cr_s, _a_s, t);
+            float _hmod_s = grmhd_height_modulation(_cr_s, _a_s, turb_t);
             vec3 _warp_s = vec3(pos.xy, pos.z / max(_hmod_s, 0.2));
             float slim_j = slim_disk_local_emissivity(_warp_s);
             {{/grmhd_enabled}}
@@ -586,10 +587,10 @@ vec4 trace_ray(vec3 ray) {
                 float Te_ratio_slim = grmhd_electron_temp_ratio(beta_slim);
                 // Manual lerp: avoid 'mix' variable shadow from line 264
                 float Te_corr_slim = 1.0 * 0.7 + Te_ratio_slim * 0.3;  // 30% correction (partially thermalized)
-                float temperature_s = grmhd_electron_temperature(gas_temp_slim, cyl_r_s, pos.z, h_slim_g, t, angle_s) * Te_corr_slim * gravitational_shift_static(r3d_s);
+                float temperature_s = grmhd_electron_temperature(gas_temp_slim, cyl_r_s, pos.z, h_slim_g, turb_t, angle_s) * Te_corr_slim * gravitational_shift_static(r3d_s);
 
                 // 3D volumetric FBM turbulence: filamentary density structure
-                float turbulence_s = grmhd_3d_density_turbulence(pos, t);
+                float turbulence_s = grmhd_3d_density_turbulence(pos, turb_t);
                 
                 // ISCO stress: adds ~10-30% extra luminosity from plunging region
                 float isco_stress_s = grmhd_isco_stress_factor(cyl_r_s);
@@ -610,7 +611,7 @@ vec4 trace_ray(vec3 ray) {
                 {{/grmhd_enabled}}
                 {{^grmhd_enabled}}
                 float temperature_s = slim_disk_temperature(cyl_r_s) * gravitational_shift_static(r3d_s);
-                float turbulence_s = accretion_turbulence(cyl_r_s, angle_s, t);
+                float turbulence_s = accretion_turbulence(cyl_r_s, angle_s, turb_t);
 
                 // Emission coefficient: slim disk is bright (super-Eddington luminosity)
                 float j_eff_s = ACCRETION_BRIGHTNESS * 0.9 * slim_j * turbulence_s;

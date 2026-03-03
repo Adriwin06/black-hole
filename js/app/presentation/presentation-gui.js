@@ -26,10 +26,20 @@ function createPresentationAnimationSectionHtml() {
                 '<div class="presentation-row presentation-toggles">' +
                     '<label><input type="checkbox" id="presentation-annotations-recording"> Include text in recording</label>' +
                 '</div>' +
+                '<div class="presentation-row presentation-toggles">' +
+                    '<label><input type="checkbox" id="presentation-record-reset-sim" checked> Reset simulation on rec start</label>' +
+                '</div>' +
 
-                '<div class="presentation-row">' +
+                '<div class="presentation-row presentation-timeline-row">' +
                     '<label for="presentation-scrub">Time</label>' +
-                    '<input id="presentation-scrub" type="range" min="0" max="1" step="0.01" value="0">' +
+                    '<div class="presentation-timeline-stack">' +
+                        '<div id="presentation-timeline" class="presentation-timeline" aria-hidden="true">' +
+                            '<div id="presentation-timeline-fill" class="presentation-timeline-fill"></div>' +
+                            '<div id="presentation-timeline-markers" class="presentation-timeline-markers"></div>' +
+                            '<div id="presentation-timeline-playhead" class="presentation-timeline-playhead"></div>' +
+                        '</div>' +
+                        '<input id="presentation-scrub" type="range" min="0" max="1" step="0.01" value="0">' +
+                    '</div>' +
                     '<span id="presentation-scrub-label">0.0s</span>' +
                 '</div>' +
 
@@ -87,6 +97,10 @@ function bindPresentationAnimationSection(panelRoot) {
     var recordAnnotationsCheckbox = section.querySelector('#presentation-annotations-recording');
     var scrubInput = section.querySelector('#presentation-scrub');
     var scrubLabel = section.querySelector('#presentation-scrub-label');
+    var timelineEl = section.querySelector('#presentation-timeline');
+    var timelineFillEl = section.querySelector('#presentation-timeline-fill');
+    var timelineMarkersEl = section.querySelector('#presentation-timeline-markers');
+    var timelinePlayheadEl = section.querySelector('#presentation-timeline-playhead');
     var playBtn = section.querySelector('#presentation-play-btn');
     var pauseBtn = section.querySelector('#presentation-pause-btn');
     var stopBtn = section.querySelector('#presentation-stop-btn');
@@ -97,9 +111,16 @@ function bindPresentationAnimationSection(panelRoot) {
     var bitrateInput = section.querySelector('#presentation-bitrate');
     var recordStartBtn = section.querySelector('#presentation-record-start-btn');
     var recordStopBtn = section.querySelector('#presentation-record-stop-btn');
+    var recordResetSimCheckbox = section.querySelector('#presentation-record-reset-sim');
     var statusEl = section.querySelector('#presentation-status');
     var presentationEditorBinding = null;
     var NEW_PRESET_OPTION_VALUE = '__new_preset__';
+    var timelineMarkerSignature = '';
+    var timelineMarkersDirty = true;
+    var timelinePointerDragging = false;
+    var timelinePointerId = null;
+    var timelineLoadedState = false;
+    var timelineDurationState = 0;
 
     function clamp(v, lo, hi) {
         return Math.max(lo, Math.min(hi, v));
@@ -115,6 +136,123 @@ function bindPresentationAnimationSection(panelRoot) {
     function updateScrubLabel(seconds) {
         if (!scrubLabel) return;
         scrubLabel.textContent = (seconds || 0).toFixed(1) + 's';
+    }
+
+    function getScrubDurationSeconds(fallbackSeconds) {
+        var duration = parseFloat(scrubInput ? scrubInput.max : 0);
+        if (!isFinite(duration) || duration <= 0) {
+            duration = parseFloat(fallbackSeconds);
+        }
+        if (!isFinite(duration) || duration <= 0) {
+            duration = 1.0;
+        }
+        return duration;
+    }
+
+    function updateTimelineProgressVisual(timeSeconds, durationSeconds) {
+        if (!timelineEl) return;
+        var safeDuration = Math.max(0.001, durationSeconds || 0.0);
+        var normalized = clamp((timeSeconds || 0.0) / safeDuration, 0.0, 1.0);
+        if (timelineFillEl) {
+            timelineFillEl.style.transform = 'translateY(-50%) scaleX(' + normalized.toFixed(5) + ')';
+        }
+        if (timelinePlayheadEl) {
+            timelinePlayheadEl.style.left = (normalized * 100.0).toFixed(3) + '%';
+        }
+    }
+
+    function collectTimelineKeyframeMarkers(durationSeconds) {
+        if (typeof getPresentationTimeline !== 'function') return [];
+        var timeline = getPresentationTimeline();
+        if (!timeline || !Array.isArray(timeline.tracks)) return [];
+
+        var bucketMap = {};
+        var markerIds = [];
+        var safeDuration = Math.max(0.001, durationSeconds || 0.0);
+        for (var i = 0; i < timeline.tracks.length; i++) {
+            var track = timeline.tracks[i];
+            if (!track || !Array.isArray(track.keys)) continue;
+            for (var k = 0; k < track.keys.length; k++) {
+                var key = track.keys[k];
+                var t = parseFloat(key && key.t);
+                if (!isFinite(t)) continue;
+                t = clamp(t, 0.0, safeDuration);
+                var bucketId = String(Math.round(t * 100.0));
+                if (!bucketMap[bucketId]) {
+                    bucketMap[bucketId] = { t: t, count: 1 };
+                    markerIds.push(bucketId);
+                } else {
+                    bucketMap[bucketId].count += 1;
+                    if (t < bucketMap[bucketId].t) bucketMap[bucketId].t = t;
+                }
+            }
+        }
+
+        var markers = [];
+        for (var m = 0; m < markerIds.length; m++) {
+            markers.push(bucketMap[markerIds[m]]);
+        }
+        markers.sort(function(a, b) { return a.t - b.t; });
+        return markers;
+    }
+
+    function updateTimelineMarkers(durationSeconds) {
+        if (!timelineMarkersEl) return;
+        var markers = collectTimelineKeyframeMarkers(durationSeconds);
+        if (!markers.length) {
+            timelineMarkerSignature = '';
+            timelineMarkersEl.innerHTML = '';
+            return;
+        }
+
+        var signatureParts = [durationSeconds.toFixed(3)];
+        for (var s = 0; s < markers.length; s++) {
+            signatureParts.push(markers[s].t.toFixed(2) + ':' + markers[s].count);
+        }
+        var signature = signatureParts.join('|');
+        if (signature === timelineMarkerSignature) return;
+        timelineMarkerSignature = signature;
+
+        var html = '';
+        var safeDuration = Math.max(0.001, durationSeconds || 0.0);
+        for (var i = 0; i < markers.length; i++) {
+            var marker = markers[i];
+            var leftPct = clamp((marker.t / safeDuration) * 100.0, 0.0, 100.0);
+            var markerClass = 'presentation-timeline-marker' + (marker.count > 1 ? ' is-stack' : '');
+            var markerTitle = marker.t.toFixed(2) + 's';
+            if (marker.count > 1) {
+                markerTitle += ' (' + marker.count + ' keys)';
+            }
+            html += '<span class="' + markerClass + '" style="left:' + leftPct.toFixed(3) +
+                '%" title="' + markerTitle + '"></span>';
+        }
+        timelineMarkersEl.innerHTML = html;
+    }
+
+    function syncScrubVisual(timeSeconds, durationSeconds, forceMarkers) {
+        var safeDuration = getScrubDurationSeconds(durationSeconds);
+        var t = clamp(parseFloat(timeSeconds) || 0.0, 0.0, safeDuration);
+        updateScrubLabel(t);
+        if (forceMarkers) {
+            updateTimelineMarkers(safeDuration);
+            timelineMarkersDirty = false;
+        }
+        updateTimelineProgressVisual(t, safeDuration);
+        return t;
+    }
+
+    function seekTimelineFromClientX(clientX, commitSeek) {
+        if (!timelineEl || !scrubInput) return;
+        var rect = timelineEl.getBoundingClientRect();
+        if (!rect.width) return;
+        var x = clamp(clientX - rect.left, 0.0, rect.width);
+        var duration = getScrubDurationSeconds();
+        var t = (x / rect.width) * duration;
+        scrubInput.value = t.toFixed(3);
+        syncScrubVisual(t, duration, false);
+        if (commitSeek && typeof seekPresentation === 'function') {
+            seekPresentation(t);
+        }
     }
 
     function formatShortDuration(seconds) {
@@ -280,13 +418,25 @@ function bindPresentationAnimationSection(panelRoot) {
             setStatus(text, mode || 'is-recording');
         }
 
+        var durationSeconds = (typeof state.duration === 'number')
+            ? Math.max(1.0, state.duration)
+            : getScrubDurationSeconds();
         if (typeof state.duration === 'number') {
-            scrubInput.max = Math.max(1.0, state.duration).toFixed(2);
+            scrubInput.max = durationSeconds.toFixed(2);
         }
-        if (!scrubInput.matches(':active')) {
-            scrubInput.value = state.time || 0.0;
+        if (!scrubInput.matches(':active') && !timelinePointerDragging) {
+            scrubInput.value = String(state.time || 0.0);
         }
-        updateScrubLabel(state.time || 0.0);
+        var shouldRefreshMarkers = timelineMarkersDirty ||
+            timelineLoadedState !== !!state.loaded ||
+            Math.abs(timelineDurationState - durationSeconds) > 1e-4;
+        var scrubUiTime = parseFloat(scrubInput.value);
+        if (!isFinite(scrubUiTime)) {
+            scrubUiTime = state.time || 0.0;
+        }
+        syncScrubVisual(scrubUiTime, durationSeconds, shouldRefreshMarkers);
+        timelineLoadedState = !!state.loaded;
+        timelineDurationState = durationSeconds;
 
         if (typeof state.loop === 'boolean') {
             loopCheckbox.checked = state.loop;
@@ -465,6 +615,8 @@ function bindPresentationAnimationSection(panelRoot) {
                 }
             }
             setStatus('New preset mode: edit timeline then press APPLY.', '');
+            timelineMarkersDirty = true;
+            syncFromState();
             return;
         }
 
@@ -491,6 +643,7 @@ function bindPresentationAnimationSection(panelRoot) {
                 }
             }));
         }
+        timelineMarkersDirty = true;
         syncFromState();
     }
 
@@ -515,13 +668,63 @@ function bindPresentationAnimationSection(panelRoot) {
     });
 
     scrubInput.addEventListener('input', function() {
-        updateScrubLabel(parseFloat(scrubInput.value) || 0.0);
+        syncScrubVisual(parseFloat(scrubInput.value) || 0.0, getScrubDurationSeconds(), false);
     });
     scrubInput.addEventListener('change', function() {
+        var t = parseFloat(scrubInput.value) || 0.0;
+        syncScrubVisual(t, getScrubDurationSeconds(), false);
         if (typeof seekPresentation === 'function') {
-            seekPresentation(parseFloat(scrubInput.value) || 0.0);
+            seekPresentation(t);
         }
     });
+
+    if (timelineEl) {
+        function endTimelinePointerDrag(event, commitSeek) {
+            if (!timelinePointerDragging) return;
+            if (timelinePointerId !== null && event.pointerId !== timelinePointerId) return;
+            if (commitSeek) {
+                seekTimelineFromClientX(event.clientX, true);
+            }
+            timelinePointerDragging = false;
+            timelinePointerId = null;
+            timelineEl.classList.remove('is-dragging');
+            if (timelineEl.releasePointerCapture) {
+                try {
+                    timelineEl.releasePointerCapture(event.pointerId);
+                } catch (err) {
+                    // Ignore when capture is already released.
+                }
+            }
+            event.preventDefault();
+        }
+
+        timelineEl.addEventListener('pointerdown', function(event) {
+            if (event.button !== 0) return;
+            timelinePointerDragging = true;
+            timelinePointerId = event.pointerId;
+            timelineEl.classList.add('is-dragging');
+            if (timelineEl.setPointerCapture) {
+                timelineEl.setPointerCapture(event.pointerId);
+            }
+            seekTimelineFromClientX(event.clientX, true);
+            event.preventDefault();
+        });
+
+        timelineEl.addEventListener('pointermove', function(event) {
+            if (!timelinePointerDragging) return;
+            if (timelinePointerId !== null && event.pointerId !== timelinePointerId) return;
+            seekTimelineFromClientX(event.clientX, true);
+            event.preventDefault();
+        });
+
+        timelineEl.addEventListener('pointerup', function(event) {
+            endTimelinePointerDrag(event, true);
+        });
+
+        timelineEl.addEventListener('pointercancel', function(event) {
+            endTimelinePointerDrag(event, false);
+        });
+    }
 
     playBtn.addEventListener('click', function() {
         if (typeof getPresentationState !== 'function') return;
@@ -564,6 +767,14 @@ function bindPresentationAnimationSection(panelRoot) {
 
     recordStartBtn.addEventListener('click', function() {
         if (typeof startPresentationRecording !== 'function') return;
+        if (recordResetSimCheckbox && recordResetSimCheckbox.checked) {
+            if (typeof observer !== 'undefined' && observer) {
+                observer.time = 0.0;
+            }
+            if (typeof shader !== 'undefined' && shader) {
+                shader.needsUpdate = true;
+            }
+        }
         var fps = clamp(parseFloat(fpsInput.value) || 60, 24, 120);
         var bitrate = clamp(parseFloat(bitrateInput.value) || 20, 4, 80);
         fpsInput.value = Math.round(fps);
@@ -645,6 +856,10 @@ function bindPresentationAnimationSection(panelRoot) {
         presentationEditorBinding.syncFromRuntime(true);
     }
     updateEditorVisibilityForPresetSelection();
+    section.addEventListener('presentation:timeline-loaded', function() {
+        timelineMarkersDirty = true;
+        syncFromState();
+    });
 
     if (section._presentationSyncTimer) {
         clearInterval(section._presentationSyncTimer);

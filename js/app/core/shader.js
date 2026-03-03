@@ -97,6 +97,8 @@ function Shader(mustacheTemplate) {
         doppler_shift: true,
         light_travel_time: true,
         time_scale: 1.0,
+        turbulence_loop_enabled: false,
+        turbulence_loop_seconds: 20.0,
         observer: {
             motion: true,
             distance: 11.0,

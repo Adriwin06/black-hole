@@ -60,6 +60,9 @@ function setupGUI() {
         var animPanel = document.getElementById('anim-panel');
         if (!animPanel) return;
         animPanel.classList.toggle('controls-closed', !!gui.closed);
+        if (typeof animPanel._syncPanelWidth === 'function') {
+            animPanel._syncPanelWidth();
+        }
     }
 
     function ensureMobileGuiToggleButton() {
@@ -1154,6 +1157,11 @@ function setupGUI() {
         name: 'time scale',
         help: 'Simulation clock multiplier.'
     });
+    var resetSimObj = { 'reset simulation': function() {
+        observer.time = 0.0;
+        shader.needsUpdate = true;
+    }};
+    folder.add(resetSimObj, 'reset simulation').name('↺ reset simulation');
     //folder.open();
 
 
@@ -1212,6 +1220,11 @@ function setupGUI() {
     // Switching between modes is safe: startDive() aborts any active hover and
     // startHover() aborts any active dive before saving state.
     (function setupAnimationsPanel() {
+        var ANIM_PANEL_WIDTH_STORAGE_KEY = 'black-hole.anim-panel.width';
+        var ANIM_PANEL_DEFAULT_WIDTH = 420;
+        var ANIM_PANEL_MIN_WIDTH = 340;
+        var ANIM_PANEL_MAX_WIDTH = 680;
+
         var panel = document.createElement('div');
         panel.id = 'anim-panel';
         panel.innerHTML =
@@ -1297,8 +1310,138 @@ function setupGUI() {
             (typeof createPresentationAnimationSectionHtml === 'function'
                 ? createPresentationAnimationSectionHtml()
                 : '');
+        var panelResizer = document.createElement('div');
+        panelResizer.id = 'anim-panel-resizer';
+        panelResizer.className = 'anim-panel-resizer';
+        panelResizer.setAttribute('role', 'separator');
+        panelResizer.setAttribute('aria-label', 'Resize animations panel');
+        panelResizer.setAttribute('aria-orientation', 'vertical');
+        panel.appendChild(panelResizer);
         document.body.appendChild(panel);
         syncOverlayPanelsWithGuiState();
+
+        function isMobileAnimationsPanelViewport() {
+            return !!(window.matchMedia && window.matchMedia('(max-width: 960px)').matches);
+        }
+
+        function readStoredAnimationsPanelWidth() {
+            var stored = null;
+            try {
+                stored = window.localStorage
+                    ? window.localStorage.getItem(ANIM_PANEL_WIDTH_STORAGE_KEY)
+                    : null;
+            } catch (err) {
+                stored = null;
+            }
+            var parsed = parseFloat(stored);
+            return isFinite(parsed) ? parsed : null;
+        }
+
+        function writeStoredAnimationsPanelWidth(width) {
+            try {
+                if (!window.localStorage) return;
+                window.localStorage.setItem(ANIM_PANEL_WIDTH_STORAGE_KEY, String(Math.round(width)));
+            } catch (err) {
+                // Ignore storage issues (private mode/quota).
+            }
+        }
+
+        function getAnimationsPanelMaxWidth() {
+            var computedRight = parseFloat(window.getComputedStyle(panel).right);
+            var rightInset = isFinite(computedRight) ? computedRight : 0;
+            var maxByViewport = Math.max(ANIM_PANEL_MIN_WIDTH, (window.innerWidth || 0) - rightInset - 12);
+            return Math.max(ANIM_PANEL_MIN_WIDTH, Math.min(ANIM_PANEL_MAX_WIDTH, maxByViewport));
+        }
+
+        function applyAnimationsPanelWidth(width, persist) {
+            if (isMobileAnimationsPanelViewport()) {
+                panel.style.removeProperty('width');
+                return;
+            }
+            var clamped = Math.round(Math.max(
+                ANIM_PANEL_MIN_WIDTH,
+                Math.min(getAnimationsPanelMaxWidth(), width || ANIM_PANEL_DEFAULT_WIDTH)
+            ));
+            panel.style.width = clamped + 'px';
+            if (persist) writeStoredAnimationsPanelWidth(clamped);
+        }
+
+        panel._syncPanelWidth = function() {
+            var currentWidth = parseFloat(panel.style.width);
+            if (!isFinite(currentWidth) || currentWidth <= 0) {
+                currentWidth = panel.getBoundingClientRect().width || ANIM_PANEL_DEFAULT_WIDTH;
+            }
+            applyAnimationsPanelWidth(currentWidth, false);
+        };
+
+        applyAnimationsPanelWidth(readStoredAnimationsPanelWidth() || ANIM_PANEL_DEFAULT_WIDTH, false);
+
+        var resizingPanel = false;
+        var resizePointerId = null;
+        var resizeStartX = 0;
+        var resizeStartWidth = ANIM_PANEL_DEFAULT_WIDTH;
+
+        function finishPanelResize() {
+            if (!resizingPanel) return;
+            resizingPanel = false;
+            panel.classList.remove('is-resizing');
+            panelResizer.classList.remove('is-active');
+            document.body.classList.remove('anim-panel-resizing');
+            document.removeEventListener('pointermove', handlePanelResizeMove);
+            document.removeEventListener('pointerup', handlePanelResizeEnd);
+            document.removeEventListener('pointercancel', handlePanelResizeEnd);
+            if (panelResizer.releasePointerCapture && resizePointerId !== null) {
+                try {
+                    panelResizer.releasePointerCapture(resizePointerId);
+                } catch (err) {
+                    // Ignore if capture already released.
+                }
+            }
+            var finalWidth = parseFloat(panel.style.width) || panel.getBoundingClientRect().width || ANIM_PANEL_DEFAULT_WIDTH;
+            applyAnimationsPanelWidth(finalWidth, true);
+            resizePointerId = null;
+        }
+
+        function handlePanelResizeMove(event) {
+            if (!resizingPanel) return;
+            if (resizePointerId !== null && event.pointerId !== resizePointerId) return;
+            var dx = resizeStartX - event.clientX;
+            applyAnimationsPanelWidth(resizeStartWidth + dx, false);
+            event.preventDefault();
+        }
+
+        function handlePanelResizeEnd(event) {
+            if (!resizingPanel) return;
+            if (resizePointerId !== null && event.pointerId !== resizePointerId) return;
+            finishPanelResize();
+            event.preventDefault();
+        }
+
+        panelResizer.addEventListener('pointerdown', function(event) {
+            if (isMobileAnimationsPanelViewport()) return;
+            if (event.button !== 0) return;
+            resizingPanel = true;
+            resizePointerId = event.pointerId;
+            resizeStartX = event.clientX;
+            resizeStartWidth = panel.getBoundingClientRect().width || ANIM_PANEL_DEFAULT_WIDTH;
+            panel.classList.add('is-resizing');
+            panelResizer.classList.add('is-active');
+            document.body.classList.add('anim-panel-resizing');
+            if (panelResizer.setPointerCapture) {
+                panelResizer.setPointerCapture(event.pointerId);
+            }
+            document.addEventListener('pointermove', handlePanelResizeMove);
+            document.addEventListener('pointerup', handlePanelResizeEnd);
+            document.addEventListener('pointercancel', handlePanelResizeEnd);
+            event.preventDefault();
+        });
+
+        window.addEventListener('resize', function() {
+            panel._syncPanelWidth();
+            if (isMobileAnimationsPanelViewport()) {
+                finishPanelResize();
+            }
+        });
 
         var openBtn = document.createElement('button');
         openBtn.id = 'anim-open-btn';

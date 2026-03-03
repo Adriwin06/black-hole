@@ -459,6 +459,8 @@ function init(glslSource, textures) {
 
     var uniforms = {
         time: { type: "f", value: 0 },
+        turbulence_loop_enabled: { type: "f", value: 0.0 },
+        turbulence_loop_seconds: { type: "f", value: 20.0 },
         resolution: { type: "v2", value: new THREE.Vector2() },
         cam_pos: { type: "v3", value: new THREE.Vector3() },
         cam_x: { type: "v3", value: new THREE.Vector3() },
@@ -594,6 +596,12 @@ function init(glslSource, textures) {
         uniforms.grmhd_turbulence_amp.value = shader.parameters.grmhd.turbulence_amp;
         uniforms.grmhd_electron_kappa.value = shader.parameters.grmhd.electron_kappa;
         uniforms.grmhd_magnetic_field_str.value = shader.parameters.grmhd.magnetic_field_str;
+        uniforms.turbulence_loop_enabled.value =
+            shader.parameters.turbulence_loop_enabled ? 1.0 : 0.0;
+        uniforms.turbulence_loop_seconds.value = Math.max(
+            1e-4,
+            parseFloat(shader.parameters.turbulence_loop_seconds) || 20.0
+        );
 
         uniforms.resolution.value.x = renderer.domElement.width;
         uniforms.resolution.value.y = renderer.domElement.height;

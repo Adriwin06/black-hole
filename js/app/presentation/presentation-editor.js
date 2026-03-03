@@ -16,6 +16,8 @@ var PRESENTATION_EDITOR_COMMON_PATHS = [
     'jet.enabled',
     'jet.mode',
     'grmhd.enabled',
+    'turbulence_loop_enabled',
+    'turbulence_loop_seconds',
     'cameraPan.x',
     'cameraPan.y',
     'camera.position.x',
@@ -54,6 +56,20 @@ function createPresentationEditorHtml() {
                 '<button id="presentation-editor-apply-btn" class="presentation-btn presentation-btn-primary" type="button">APPLY</button>' +
             '</div>' +
 
+            '<details class="presentation-editor-section">' +
+                '<summary class="presentation-editor-section-title">Simulation loop</summary>' +
+                '<div class="presentation-editor-section-body">' +
+                    '<div class="presentation-row presentation-toggles">' +
+                        '<label><input id="presentation-editor-turbulence-loop-enabled" type="checkbox"> Loop turbulence</label>' +
+                    '</div>' +
+                    '<div class="presentation-row">' +
+                        '<label for="presentation-editor-turbulence-loop-seconds">Period</label>' +
+                        '<input id="presentation-editor-turbulence-loop-seconds" type="number" min="0.25" max="240" step="0.25" value="20">' +
+                        '<label class="presentation-inline-label">s</label>' +
+                    '</div>' +
+                '</div>' +
+            '</details>' +
+
             '<details class="presentation-editor-section" open>' +
                 '<summary class="presentation-editor-section-title">Tracks / keyframes</summary>' +
                 '<div class="presentation-editor-section-body">' +
@@ -85,6 +101,10 @@ function createPresentationEditorHtml() {
                     '</div>' +
                     '<div class="presentation-btn-row presentation-btn-row-tight">' +
                         '<button id="presentation-editor-auto-keyframe-btn" class="presentation-btn presentation-btn-primary" type="button">AUTO KEYFRAME (FROM CONTROLS)</button>' +
+                    '</div>' +
+                    '<div class="presentation-editor-list-toolbar">' +
+                        '<button id="presentation-editor-track-list-expand-btn" class="presentation-mini-btn" type="button" aria-pressed="false">EXPAND LIST</button>' +
+                        '<span class="presentation-editor-list-hint">Drag bottom edge to resize</span>' +
                     '</div>' +
 
                     '<div id="presentation-editor-track-list" class="presentation-editor-list"></div>' +
@@ -200,6 +220,8 @@ function bindPresentationTimelineEditor(section, hooks) {
     var newBtn = section.querySelector('#presentation-editor-new-btn');
     var fromLoadedBtn = section.querySelector('#presentation-editor-from-loaded-btn');
     var applyBtn = section.querySelector('#presentation-editor-apply-btn');
+    var turbulenceLoopEnabledInput = section.querySelector('#presentation-editor-turbulence-loop-enabled');
+    var turbulenceLoopSecondsInput = section.querySelector('#presentation-editor-turbulence-loop-seconds');
     var trackPathInput = section.querySelector('#presentation-editor-track-path');
     var keyTimeInput = section.querySelector('#presentation-editor-key-time');
     var keyEaseSelect = section.querySelector('#presentation-editor-key-ease');
@@ -209,6 +231,7 @@ function bindPresentationTimelineEditor(section, hooks) {
     var keyAddBtn = section.querySelector('#presentation-editor-key-add-btn');
     var keyRemoveBtn = section.querySelector('#presentation-editor-key-remove-btn');
     var autoKeyframeBtn = section.querySelector('#presentation-editor-auto-keyframe-btn');
+    var trackListExpandBtn = section.querySelector('#presentation-editor-track-list-expand-btn');
     var trackList = section.querySelector('#presentation-editor-track-list');
     var eventTimeInput = section.querySelector('#presentation-editor-event-time');
     var eventActionSelect = section.querySelector('#presentation-editor-event-action');
@@ -235,6 +258,7 @@ function bindPresentationTimelineEditor(section, hooks) {
 
     var draft = null;
     var draftDirty = false;
+    var trackListExpanded = false;
     var autoKeyframeState = {
         lastSnapshot: null
     };
@@ -290,6 +314,19 @@ function bindPresentationTimelineEditor(section, hooks) {
     function setMainStatus(text, mode) {
         if (hooks && typeof hooks.setStatus === 'function') hooks.setStatus(text, mode);
     }
+    function setTrackListExpanded(expanded) {
+        trackListExpanded = !!expanded;
+        if (trackList) {
+            trackList.classList.toggle('is-expanded', trackListExpanded);
+        }
+        if (trackListExpandBtn) {
+            trackListExpandBtn.textContent = trackListExpanded ? 'COLLAPSE LIST' : 'EXPAND LIST';
+            trackListExpandBtn.setAttribute('aria-pressed', trackListExpanded ? 'true' : 'false');
+            trackListExpandBtn.title = trackListExpanded
+                ? 'Collapse keyframe list height'
+                : 'Expand keyframe list height';
+        }
+    }
     function importJsonTextIntoDraft(rawText, sourceLabel) {
         var text = (rawText || '').trim();
         if (!text) {
@@ -341,6 +378,38 @@ function bindPresentationTimelineEditor(section, hooks) {
             return window.blackHolePresentation.getPathValue(path);
         }
         return undefined;
+    }
+    function setPathValue(path, value) {
+        if (typeof setPresentationPathValue === 'function') return !!setPresentationPathValue(path, value);
+        if (typeof shader === 'undefined' || !shader || !shader.parameters) return false;
+
+        if (path === 'turbulence_loop_enabled') {
+            var nextEnabled = !!value;
+            var enabledChanged = shader.parameters.turbulence_loop_enabled !== nextEnabled;
+            shader.parameters.turbulence_loop_enabled = nextEnabled;
+            if (enabledChanged) shader.needsUpdate = true;
+            return enabledChanged;
+        }
+        if (path === 'turbulence_loop_seconds') {
+            var nextSeconds = clamp(parseFloat(value) || 20.0, 0.25, 240.0);
+            var prevSeconds = parseFloat(shader.parameters.turbulence_loop_seconds) || 20.0;
+            var secondsChanged = Math.abs(prevSeconds - nextSeconds) > 1e-8;
+            shader.parameters.turbulence_loop_seconds = nextSeconds;
+            if (secondsChanged) shader.needsUpdate = true;
+            return secondsChanged;
+        }
+        return false;
+    }
+    function syncTurbulenceLoopInputs() {
+        if (!turbulenceLoopEnabledInput || !turbulenceLoopSecondsInput) return;
+        var enabled = !!getPathValue('turbulence_loop_enabled');
+        var period = parseFloat(getPathValue('turbulence_loop_seconds'));
+        if (!isFinite(period)) period = 20.0;
+        period = clamp(period, 0.25, 240.0);
+
+        turbulenceLoopEnabledInput.checked = enabled;
+        turbulenceLoopSecondsInput.value = period.toFixed(2);
+        turbulenceLoopSecondsInput.disabled = !enabled;
     }
     function normalizeTimeline(raw) {
         var src = (raw && typeof raw === 'object') ? clonePlain(raw) : {};
@@ -693,6 +762,28 @@ function bindPresentationTimelineEditor(section, hooks) {
             section.dispatchEvent(new CustomEvent('presentation:timeline-loaded', { detail: { source: 'editor' } }));
         }
     });
+    if (turbulenceLoopEnabledInput) {
+        turbulenceLoopEnabledInput.addEventListener('change', function() {
+            var enabled = !!turbulenceLoopEnabledInput.checked;
+            setPathValue('turbulence_loop_enabled', enabled);
+            if (turbulenceLoopSecondsInput) {
+                turbulenceLoopSecondsInput.disabled = !enabled;
+            }
+            if (typeof refreshAllControllersGlobal === 'function') {
+                refreshAllControllersGlobal();
+            }
+        });
+    }
+    if (turbulenceLoopSecondsInput) {
+        turbulenceLoopSecondsInput.addEventListener('change', function() {
+            var seconds = clamp(parseFloat(turbulenceLoopSecondsInput.value) || 20.0, 0.25, 240.0);
+            turbulenceLoopSecondsInput.value = seconds.toFixed(2);
+            setPathValue('turbulence_loop_seconds', seconds);
+            if (typeof refreshAllControllersGlobal === 'function') {
+                refreshAllControllersGlobal();
+            }
+        });
+    }
 
     nameInput.addEventListener('input', function() {
         if (!draft) return;
@@ -732,6 +823,11 @@ function bindPresentationTimelineEditor(section, hooks) {
     if (autoKeyframeBtn) {
         autoKeyframeBtn.addEventListener('click', function() {
             addAutoKeyframeFromControls();
+        });
+    }
+    if (trackListExpandBtn) {
+        trackListExpandBtn.addEventListener('click', function() {
+            setTrackListExpanded(!trackListExpanded);
         });
     }
     keyAddBtn.addEventListener('click', function() {
@@ -973,6 +1069,7 @@ function bindPresentationTimelineEditor(section, hooks) {
     });
 
     function syncFromRuntime(force) {
+        syncTurbulenceLoopInputs();
         if (draftDirty && !force) return;
         var runtime = getRuntimeTimeline();
         if (runtime) {
@@ -989,6 +1086,8 @@ function bindPresentationTimelineEditor(section, hooks) {
     trackPathInput.value = 'observer.distance';
     eventPathInput.value = 'accretion_mode';
     eventValueInput.value = 'thin';
+    syncTurbulenceLoopInputs();
+    setTrackListExpanded(false);
     setOpen(false);
     setVisible(false);
 

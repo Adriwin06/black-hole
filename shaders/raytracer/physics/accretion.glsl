@@ -2,6 +2,22 @@
 //       ADAF/RIAF thick torus, and super-Eddington slim disk. Also computes the
 //       gravitational redshift factor and the planet irradiation temperature.
 
+float loopable_turbulence_time(float t) {
+    // Always wrap to prevent float32 precision loss in fbm/value_noise.
+    // Without wrapping, large t values cause fract()/floor() to lose
+    // sub-grid-cell resolution in the highest FBM octaves, flattening
+    // fine turbulence detail over time (most visible after ~1 hour).
+    // When the explicit loop is off, use a long prime period (10007 s
+    // ≈ 2.78 h) so the wrap is imperceptible; when on, use the user
+    // period for seamless video loops.
+    float period = (turbulence_loop_enabled < 0.5)
+        ? 10007.0
+        : max(turbulence_loop_seconds, 1e-4);
+    float wrapped = mod(t, period);
+    if (wrapped < 0.0) wrapped += period;
+    return wrapped;
+}
+
 float accretion_turbulence(float radius, float angle, float t) {
     float orbit_phase = angle - 0.45*t / pow(max(radius, 1.001), 1.5);
     vec2 orbit_unit = vec2(cos(orbit_phase), sin(orbit_phase));
