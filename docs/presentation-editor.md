@@ -114,7 +114,8 @@ After `APPLY`:
 
 Inside the editor:
 - `EXPORT`: write draft JSON to the JSON text box
-- `IMPORT`: parse JSON text into draft
+- `IMPORT FILE`: open file picker and import a `.json` timeline file into draft
+- `IMPORT TEXT`: parse JSON text from the JSON text box into draft
 - `DOWNLOAD`: save draft as a `.json` file
 
 Use this to move between UI editing and raw JSON editing.

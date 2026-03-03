@@ -1604,7 +1604,42 @@ function drawPresentationCaptureFrame() {
     var w = targetCanvas.width;
     var h = targetCanvas.height;
     ctx.clearRect(0, 0, w, h);
-    ctx.drawImage(source, 0, 0, w, h);
+
+    var sourceWidth = Math.max(1,
+        source.width || source.videoWidth || source.naturalWidth || source.clientWidth || w);
+    var sourceHeight = Math.max(1,
+        source.height || source.videoHeight || source.naturalHeight || source.clientHeight || h);
+
+    var sourceAspect = sourceWidth / sourceHeight;
+    var targetAspect = w / h;
+    var epsilon = 1e-6;
+
+    if (Math.abs(sourceAspect - targetAspect) <= epsilon) {
+        ctx.drawImage(source, 0, 0, sourceWidth, sourceHeight, 0, 0, w, h);
+        return true;
+    }
+
+    // Keep source aspect ratio when recording to a different output aspect.
+    // This prevents visible flattening/stretching when, for example, recording
+    // 16:10 viewport content to a 16:9 file.
+    var drawWidth = w;
+    var drawHeight = h;
+    var drawX = 0;
+    var drawY = 0;
+
+    if (sourceAspect > targetAspect) {
+        drawWidth = w;
+        drawHeight = Math.max(1, Math.round(w / sourceAspect));
+        drawY = Math.round((h - drawHeight) * 0.5);
+    } else {
+        drawHeight = h;
+        drawWidth = Math.max(1, Math.round(h * sourceAspect));
+        drawX = Math.round((w - drawWidth) * 0.5);
+    }
+
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(source, 0, 0, sourceWidth, sourceHeight, drawX, drawY, drawWidth, drawHeight);
     return true;
 }
 

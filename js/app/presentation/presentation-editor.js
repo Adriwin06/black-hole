@@ -156,9 +156,11 @@ function createPresentationEditorHtml() {
             '<textarea id="presentation-editor-json" class="presentation-editor-json" rows="5" spellcheck="false"></textarea>' +
             '<div class="presentation-btn-row presentation-btn-row-tight">' +
                 '<button id="presentation-editor-json-export-btn" class="presentation-btn" type="button">EXPORT</button>' +
-                '<button id="presentation-editor-json-import-btn" class="presentation-btn" type="button">IMPORT</button>' +
+                '<button id="presentation-editor-json-import-file-btn" class="presentation-btn" type="button">IMPORT FILE</button>' +
+                '<button id="presentation-editor-json-import-btn" class="presentation-btn" type="button">IMPORT TEXT</button>' +
                 '<button id="presentation-editor-json-download-btn" class="presentation-btn" type="button">DOWNLOAD</button>' +
             '</div>' +
+            '<input id="presentation-editor-json-file-input" type="file" accept=".json,application/json" hidden>' +
 
             '<div id="presentation-editor-status" class="presentation-editor-status">No draft loaded.</div>' +
             '<datalist id="presentation-editor-path-list"></datalist>' +
@@ -207,8 +209,10 @@ function bindPresentationTimelineEditor(section, hooks) {
     var eventList = section.querySelector('#presentation-editor-event-list');
     var jsonTextarea = section.querySelector('#presentation-editor-json');
     var jsonExportBtn = section.querySelector('#presentation-editor-json-export-btn');
+    var jsonImportFileBtn = section.querySelector('#presentation-editor-json-import-file-btn');
     var jsonImportBtn = section.querySelector('#presentation-editor-json-import-btn');
     var jsonDownloadBtn = section.querySelector('#presentation-editor-json-download-btn');
+    var jsonFileInput = section.querySelector('#presentation-editor-json-file-input');
     var statusEl = section.querySelector('#presentation-editor-status');
     var pathList = section.querySelector('#presentation-editor-path-list');
 
@@ -268,6 +272,22 @@ function bindPresentationTimelineEditor(section, hooks) {
     }
     function setMainStatus(text, mode) {
         if (hooks && typeof hooks.setStatus === 'function') hooks.setStatus(text, mode);
+    }
+    function importJsonTextIntoDraft(rawText, sourceLabel) {
+        var text = (rawText || '').trim();
+        if (!text) {
+            setEditorStatus('JSON text is empty.', 'is-warning');
+            return false;
+        }
+        try {
+            setDraft(JSON.parse(text), true);
+            var src = sourceLabel ? (' from ' + sourceLabel) : '';
+            setEditorStatus('JSON imported' + src + '. Press APPLY to use it.', 'is-dirty');
+            return true;
+        } catch (err) {
+            setEditorStatus('Invalid JSON: ' + err.message, 'is-error');
+            return false;
+        }
     }
     function setOpen(open) {
         if (!root || !toggleBtn || !body) return;
@@ -853,18 +873,50 @@ function bindPresentationTimelineEditor(section, hooks) {
         jsonTextarea.value = JSON.stringify(normalizeTimeline(draft), null, 2);
         setEditorStatus('Draft exported to JSON text area.', 'is-clean');
     });
+    if (jsonImportFileBtn) {
+        jsonImportFileBtn.addEventListener('click', function() {
+            if (!jsonFileInput) {
+                setEditorStatus('File import is unavailable. Use IMPORT TEXT.', 'is-warning');
+                return;
+            }
+            // Re-selecting the same file should still trigger change.
+            jsonFileInput.value = '';
+            jsonFileInput.click();
+        });
+    }
+    if (jsonFileInput) {
+        jsonFileInput.addEventListener('change', function() {
+            var file = (jsonFileInput.files && jsonFileInput.files[0]) ? jsonFileInput.files[0] : null;
+            if (!file) return;
+
+            if (typeof file.text === 'function') {
+                file.text()
+                    .then(function(text) {
+                        importJsonTextIntoDraft(text, 'file "' + file.name + '"');
+                    })
+                    .catch(function(err) {
+                        setEditorStatus('Failed to read file: ' + (err && err.message ? err.message : err), 'is-error');
+                    });
+                return;
+            }
+
+            if (typeof FileReader === 'undefined') {
+                setEditorStatus('FileReader API is unavailable. Use IMPORT TEXT instead.', 'is-warning');
+                return;
+            }
+
+            var reader = new FileReader();
+            reader.onload = function() {
+                importJsonTextIntoDraft(String(reader.result || ''), 'file "' + file.name + '"');
+            };
+            reader.onerror = function() {
+                setEditorStatus('Failed to read file "' + file.name + '".', 'is-error');
+            };
+            reader.readAsText(file);
+        });
+    }
     jsonImportBtn.addEventListener('click', function() {
-        var text = (jsonTextarea.value || '').trim();
-        if (!text) {
-            setEditorStatus('JSON text is empty.', 'is-warning');
-            return;
-        }
-        try {
-            setDraft(JSON.parse(text), true);
-            setEditorStatus('JSON imported into draft. Press APPLY to use it.', 'is-dirty');
-        } catch (err) {
-            setEditorStatus('Invalid JSON: ' + err.message, 'is-error');
-        }
+        importJsonTextIntoDraft(jsonTextarea.value, 'text area');
     });
     jsonDownloadBtn.addEventListener('click', function() {
         if (!draft) return;
