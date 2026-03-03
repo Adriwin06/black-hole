@@ -17,7 +17,14 @@ var PRESENTATION_EDITOR_COMMON_PATHS = [
     'jet.mode',
     'grmhd.enabled',
     'cameraPan.x',
-    'cameraPan.y'
+    'cameraPan.y',
+    'camera.position.x',
+    'camera.position.y',
+    'camera.position.z',
+    'camera.quaternion.x',
+    'camera.quaternion.y',
+    'camera.quaternion.z',
+    'camera.quaternion.w'
 ];
 
 function createPresentationEditorHtml() {
@@ -47,120 +54,130 @@ function createPresentationEditorHtml() {
                 '<button id="presentation-editor-apply-btn" class="presentation-btn presentation-btn-primary" type="button">APPLY</button>' +
             '</div>' +
 
-            '<div class="presentation-editor-subtitle">Tracks / keyframes</div>' +
+            '<details class="presentation-editor-section" open>' +
+                '<summary class="presentation-editor-section-title">Tracks / keyframes</summary>' +
+                '<div class="presentation-editor-section-body">' +
+                    '<div class="presentation-row">' +
+                        '<label for="presentation-editor-track-path">Path</label>' +
+                        '<input id="presentation-editor-track-path" class="presentation-input-wide" list="presentation-editor-path-list" type="text" placeholder="observer.distance">' +
+                    '</div>' +
 
-            '<div class="presentation-row">' +
-                '<label for="presentation-editor-track-path">Path</label>' +
-                '<input id="presentation-editor-track-path" class="presentation-input-wide" list="presentation-editor-path-list" type="text" placeholder="observer.distance">' +
-            '</div>' +
+                    '<div class="presentation-row">' +
+                        '<label for="presentation-editor-key-time">Key</label>' +
+                        '<input id="presentation-editor-key-time" type="number" min="0" step="0.01" value="0">' +
+                        '<select id="presentation-editor-key-ease" class="presentation-select presentation-editor-compact-select">' +
+                            '<option value="linear">linear</option>' +
+                            '<option value="smooth">smooth</option>' +
+                            '<option value="smoother">smoother</option>' +
+                        '</select>' +
+                    '</div>' +
 
-            '<div class="presentation-row">' +
-                '<label for="presentation-editor-key-time">Key</label>' +
-                '<input id="presentation-editor-key-time" type="number" min="0" step="0.01" value="0">' +
-                '<select id="presentation-editor-key-ease" class="presentation-select presentation-editor-compact-select">' +
-                    '<option value="linear">linear</option>' +
-                    '<option value="smooth">smooth</option>' +
-                    '<option value="smoother">smoother</option>' +
-                '</select>' +
-            '</div>' +
+                    '<div class="presentation-row">' +
+                        '<label for="presentation-editor-key-value">Value</label>' +
+                        '<input id="presentation-editor-key-value" class="presentation-input-wide" type="text" placeholder="11 or true or thin">' +
+                    '</div>' +
 
-            '<div class="presentation-row">' +
-                '<label for="presentation-editor-key-value">Value</label>' +
-                '<input id="presentation-editor-key-value" class="presentation-input-wide" type="text" placeholder="11 or true or thin">' +
-            '</div>' +
+                    '<div class="presentation-btn-row presentation-btn-row-tight">' +
+                        '<button id="presentation-editor-key-time-now-btn" class="presentation-btn" type="button">USE TIME</button>' +
+                        '<button id="presentation-editor-key-capture-btn" class="presentation-btn" type="button">CAPTURE VALUE</button>' +
+                        '<button id="presentation-editor-key-add-btn" class="presentation-btn presentation-btn-primary" type="button">ADD/UPDATE</button>' +
+                        '<button id="presentation-editor-key-remove-btn" class="presentation-btn" type="button">REMOVE</button>' +
+                    '</div>' +
+                    '<div class="presentation-btn-row presentation-btn-row-tight">' +
+                        '<button id="presentation-editor-auto-keyframe-btn" class="presentation-btn presentation-btn-primary" type="button">AUTO KEYFRAME (FROM CONTROLS)</button>' +
+                    '</div>' +
 
-            '<div class="presentation-btn-row presentation-btn-row-tight">' +
-                '<button id="presentation-editor-key-time-now-btn" class="presentation-btn" type="button">USE TIME</button>' +
-                '<button id="presentation-editor-key-capture-btn" class="presentation-btn" type="button">CAPTURE VALUE</button>' +
-                '<button id="presentation-editor-key-add-btn" class="presentation-btn presentation-btn-primary" type="button">ADD/UPDATE</button>' +
-                '<button id="presentation-editor-key-remove-btn" class="presentation-btn" type="button">REMOVE</button>' +
-            '</div>' +
-            '<div class="presentation-btn-row presentation-btn-row-tight">' +
-                '<button id="presentation-editor-auto-keyframe-btn" class="presentation-btn presentation-btn-primary" type="button">AUTO KEYFRAME (FROM CONTROLS)</button>' +
-            '</div>' +
-
-            '<div id="presentation-editor-track-list" class="presentation-editor-list"></div>' +
-
-            '<div class="presentation-editor-subtitle">Events</div>' +
-
-            '<div class="presentation-row">' +
-                '<label for="presentation-editor-event-time">Event</label>' +
-                '<input id="presentation-editor-event-time" type="number" min="0" step="0.01" value="0">' +
-                '<select id="presentation-editor-event-action" class="presentation-select presentation-editor-action-select">' +
-                    '<option value="set">set</option>' +
-                    '<option value="updateShader">updateShader</option>' +
-                    '<option value="startDive">startDive</option>' +
-                    '<option value="pauseDive">pauseDive</option>' +
-                    '<option value="resetDive">resetDive</option>' +
-                    '<option value="startHover">startHover</option>' +
-                    '<option value="pauseHover">pauseHover</option>' +
-                    '<option value="resetHover">resetHover</option>' +
-                    '<option value="annotation">annotation</option>' +
-                    '<option value="clearAnnotation">clearAnnotation</option>' +
-                '</select>' +
-            '</div>' +
-
-            '<div id="presentation-editor-event-set-fields">' +
-                '<div class="presentation-row">' +
-                    '<label for="presentation-editor-event-path">Path</label>' +
-                    '<input id="presentation-editor-event-path" class="presentation-input-wide" list="presentation-editor-path-list" type="text" placeholder="accretion_mode">' +
+                    '<div id="presentation-editor-track-list" class="presentation-editor-list"></div>' +
                 '</div>' +
-                '<div class="presentation-row">' +
-                    '<label for="presentation-editor-event-value">Value</label>' +
-                    '<input id="presentation-editor-event-value" class="presentation-input-wide" type="text" placeholder="thin">' +
-                '</div>' +
-                '<div class="presentation-row presentation-toggles">' +
-                    '<label><input id="presentation-editor-event-compile" type="checkbox"> Force compile</label>' +
-                '</div>' +
-            '</div>' +
+            '</details>' +
 
-            '<div id="presentation-editor-event-annotation-fields" class="presentation-editor-note-fields">' +
-                '<div class="presentation-row">' +
-                    '<label for="presentation-editor-note-title">Title</label>' +
-                    '<input id="presentation-editor-note-title" class="presentation-input-wide" type="text" placeholder="Feature">' +
-                '</div>' +
-                '<div class="presentation-row">' +
-                    '<label for="presentation-editor-note-text">Text</label>' +
-                    '<textarea id="presentation-editor-note-text" class="presentation-editor-note-text" rows="2" placeholder="Explain what changed"></textarea>' +
-                '</div>' +
-                '<div class="presentation-row">' +
-                    '<label for="presentation-editor-note-target">Anchor</label>' +
-                    '<select id="presentation-editor-note-target" class="presentation-select">' +
-                        '<option value="black_hole">black_hole</option>' +
-                        '<option value="disk">disk</option>' +
-                        '<option value="jet_north">jet_north</option>' +
-                        '<option value="jet_south">jet_south</option>' +
-                        '<option value="planet">planet</option>' +
-                    '</select>' +
-                '</div>' +
-                '<div class="presentation-row">' +
-                    '<label for="presentation-editor-note-placement">Placement</label>' +
-                    '<select id="presentation-editor-note-placement" class="presentation-select">' +
-                        '<option value="auto">auto</option>' +
-                        '<option value="left">left</option>' +
-                        '<option value="right">right</option>' +
-                        '<option value="top">top</option>' +
-                        '<option value="bottom">bottom</option>' +
-                    '</select>' +
-                '</div>' +
-            '</div>' +
+            '<details class="presentation-editor-section">' +
+                '<summary class="presentation-editor-section-title">Events</summary>' +
+                '<div class="presentation-editor-section-body">' +
+                    '<div class="presentation-row">' +
+                        '<label for="presentation-editor-event-time">Event</label>' +
+                        '<input id="presentation-editor-event-time" type="number" min="0" step="0.01" value="0">' +
+                        '<select id="presentation-editor-event-action" class="presentation-select presentation-editor-action-select">' +
+                            '<option value="set">set</option>' +
+                            '<option value="updateShader">updateShader</option>' +
+                            '<option value="startDive">startDive</option>' +
+                            '<option value="pauseDive">pauseDive</option>' +
+                            '<option value="resetDive">resetDive</option>' +
+                            '<option value="startHover">startHover</option>' +
+                            '<option value="pauseHover">pauseHover</option>' +
+                            '<option value="resetHover">resetHover</option>' +
+                            '<option value="annotation">annotation</option>' +
+                            '<option value="clearAnnotation">clearAnnotation</option>' +
+                        '</select>' +
+                    '</div>' +
 
-            '<div class="presentation-btn-row presentation-btn-row-tight">' +
-                '<button id="presentation-editor-event-time-now-btn" class="presentation-btn" type="button">USE TIME</button>' +
-                '<button id="presentation-editor-event-add-btn" class="presentation-btn presentation-btn-primary" type="button">ADD EVENT</button>' +
-            '</div>' +
+                    '<div id="presentation-editor-event-set-fields">' +
+                        '<div class="presentation-row">' +
+                            '<label for="presentation-editor-event-path">Path</label>' +
+                            '<input id="presentation-editor-event-path" class="presentation-input-wide" list="presentation-editor-path-list" type="text" placeholder="accretion_mode">' +
+                        '</div>' +
+                        '<div class="presentation-row">' +
+                            '<label for="presentation-editor-event-value">Value</label>' +
+                            '<input id="presentation-editor-event-value" class="presentation-input-wide" type="text" placeholder="thin">' +
+                        '</div>' +
+                        '<div class="presentation-row presentation-toggles">' +
+                            '<label><input id="presentation-editor-event-compile" type="checkbox"> Force compile</label>' +
+                        '</div>' +
+                    '</div>' +
 
-            '<div id="presentation-editor-event-list" class="presentation-editor-list"></div>' +
+                    '<div id="presentation-editor-event-annotation-fields" class="presentation-editor-note-fields">' +
+                        '<div class="presentation-row">' +
+                            '<label for="presentation-editor-note-title">Title</label>' +
+                            '<input id="presentation-editor-note-title" class="presentation-input-wide" type="text" placeholder="Feature">' +
+                        '</div>' +
+                        '<div class="presentation-row">' +
+                            '<label for="presentation-editor-note-text">Text</label>' +
+                            '<textarea id="presentation-editor-note-text" class="presentation-editor-note-text" rows="2" placeholder="Explain what changed"></textarea>' +
+                        '</div>' +
+                        '<div class="presentation-row">' +
+                            '<label for="presentation-editor-note-target">Anchor</label>' +
+                            '<select id="presentation-editor-note-target" class="presentation-select">' +
+                                '<option value="black_hole">black_hole</option>' +
+                                '<option value="disk">disk</option>' +
+                                '<option value="jet_north">jet_north</option>' +
+                                '<option value="jet_south">jet_south</option>' +
+                                '<option value="planet">planet</option>' +
+                            '</select>' +
+                        '</div>' +
+                        '<div class="presentation-row">' +
+                            '<label for="presentation-editor-note-placement">Placement</label>' +
+                            '<select id="presentation-editor-note-placement" class="presentation-select">' +
+                                '<option value="auto">auto</option>' +
+                                '<option value="left">left</option>' +
+                                '<option value="right">right</option>' +
+                                '<option value="top">top</option>' +
+                                '<option value="bottom">bottom</option>' +
+                            '</select>' +
+                        '</div>' +
+                    '</div>' +
 
-            '<div class="presentation-editor-subtitle">JSON</div>' +
-            '<textarea id="presentation-editor-json" class="presentation-editor-json" rows="5" spellcheck="false"></textarea>' +
-            '<div class="presentation-btn-row presentation-btn-row-tight">' +
-                '<button id="presentation-editor-json-export-btn" class="presentation-btn" type="button">EXPORT</button>' +
-                '<button id="presentation-editor-json-import-file-btn" class="presentation-btn" type="button">IMPORT FILE</button>' +
-                '<button id="presentation-editor-json-import-btn" class="presentation-btn" type="button">IMPORT TEXT</button>' +
-                '<button id="presentation-editor-json-download-btn" class="presentation-btn" type="button">DOWNLOAD</button>' +
-            '</div>' +
-            '<input id="presentation-editor-json-file-input" type="file" accept=".json,application/json" hidden>' +
+                    '<div class="presentation-btn-row presentation-btn-row-tight">' +
+                        '<button id="presentation-editor-event-time-now-btn" class="presentation-btn" type="button">USE TIME</button>' +
+                        '<button id="presentation-editor-event-add-btn" class="presentation-btn presentation-btn-primary" type="button">ADD EVENT</button>' +
+                    '</div>' +
+
+                    '<div id="presentation-editor-event-list" class="presentation-editor-list"></div>' +
+                '</div>' +
+            '</details>' +
+
+            '<details class="presentation-editor-section">' +
+                '<summary class="presentation-editor-section-title">JSON</summary>' +
+                '<div class="presentation-editor-section-body">' +
+                    '<textarea id="presentation-editor-json" class="presentation-editor-json" rows="5" spellcheck="false"></textarea>' +
+                    '<div class="presentation-btn-row presentation-btn-row-tight">' +
+                        '<button id="presentation-editor-json-export-btn" class="presentation-btn" type="button">EXPORT</button>' +
+                        '<button id="presentation-editor-json-import-file-btn" class="presentation-btn" type="button">IMPORT FILE</button>' +
+                        '<button id="presentation-editor-json-import-btn" class="presentation-btn" type="button">IMPORT TEXT</button>' +
+                        '<button id="presentation-editor-json-download-btn" class="presentation-btn" type="button">DOWNLOAD</button>' +
+                    '</div>' +
+                    '<input id="presentation-editor-json-file-input" type="file" accept=".json,application/json" hidden>' +
+                '</div>' +
+            '</details>' +
 
             '<div id="presentation-editor-status" class="presentation-editor-status">No draft loaded.</div>' +
             '<datalist id="presentation-editor-path-list"></datalist>' +
@@ -473,6 +490,19 @@ function bindPresentationTimelineEditor(section, hooks) {
         if (typeof cameraPan !== 'undefined' && cameraPan) {
             addValue('cameraPan.x', cameraPan.x);
             addValue('cameraPan.y', cameraPan.y);
+        }
+        if (typeof camera !== 'undefined' && camera) {
+            if (camera.position) {
+                addValue('camera.position.x', camera.position.x);
+                addValue('camera.position.y', camera.position.y);
+                addValue('camera.position.z', camera.position.z);
+            }
+            if (camera.quaternion) {
+                addValue('camera.quaternion.x', camera.quaternion.x);
+                addValue('camera.quaternion.y', camera.quaternion.y);
+                addValue('camera.quaternion.z', camera.quaternion.z);
+                addValue('camera.quaternion.w', camera.quaternion.w);
+            }
         }
 
         return out;

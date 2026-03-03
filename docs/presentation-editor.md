@@ -148,6 +148,6 @@ A keyframe does nothing:
 - Path may be wrong or unsupported.
 - Check path spelling and try `CAPTURE VALUE`.
 
-Camera orientation from free mouse orbit is not fully captured:
-- Current auto capture focuses on control parameters and `cameraPan`.
-- Use observer parameters and explicit tracked paths for reliable reproducible shots.
+Camera rotation was not detected by auto keyframe:
+- Newer builds capture orbit camera transform (`camera.position.*` + `camera.quaternion.*`) in AUTO KEYFRAME.
+- If you still see this, make sure you actually moved the camera between clicks and then press `APPLY`.

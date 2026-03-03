@@ -83,7 +83,7 @@ var QUALITY_PRESETS = {
         standard: { n_steps: 600, sample_count: 6, max_revolutions: 4, rk4_integration: true },
         kerr: { n_steps: 1400, sample_count: 12, max_revolutions: 8, rk4_integration: true },
         cinematic_tonemap: true,
-        resolution_scale: 2.0,
+        resolution_scale: 1.0,
         taa_enabled: false,
         taa: {
             history_weight: 0.88,

@@ -170,9 +170,9 @@ a:hover {
         left: 8px;
         right: auto !important;
         top: 8px;
-        bottom: auto !important;
-        width: min(46vw, 240px) !important;
-        max-height: 70vh;
+        bottom: 68px !important;
+        width: min(64vw, 320px) !important;
+        max-height: none;
         overflow-y: auto;
         z-index: 115;
     }
@@ -181,7 +181,7 @@ a:hover {
         top: 8px;
         left: 8px;
         right: auto;
-        max-width: min(46vw, 240px);
+        max-width: min(64vw, 320px);
         font-size: 11px;
         padding: 8px 12px;
     }
@@ -224,7 +224,7 @@ a:hover {
     position: absolute;
     top: 2px;
     right: 370px;
-    width: 300px;
+    width: 340px;
     background: rgba(10, 10, 14, 0.93);
     border: 1px solid #222230;
     border-radius: 6px;
@@ -238,7 +238,8 @@ a:hover {
     box-shadow: 0 4px 24px rgba(0,0,0,0.6);
     transition: right 0.2s ease;
     box-sizing: border-box;
-    max-height: calc(100vh - 10px);
+    /* Keep animations menu above the fixed Open/Close Controls button. */
+    max-height: calc(100vh - 56px);
     overflow-y: auto;
     overflow-x: hidden;
     overscroll-behavior: contain;
@@ -925,11 +926,79 @@ a:hover {
 
 .presentation-editor-body {
     display: none;
-    padding: 8px;
+    padding: 10px;
 }
 
 .presentation-editor-root.is-open .presentation-editor-body {
     display: block;
+}
+
+.presentation-editor-body .presentation-row {
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.presentation-editor-body .presentation-btn-row {
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.presentation-editor-body .presentation-row input[type="number"] {
+    max-width: 90px;
+}
+
+.presentation-editor-section {
+    margin: 10px 0 12px;
+    border: 1px solid #203550;
+    border-radius: 6px;
+    background: rgba(8, 15, 27, 0.78);
+    overflow: hidden;
+}
+
+.presentation-editor-section-title {
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin: 0;
+    padding: 8px 10px;
+    background: #101d30;
+    border-bottom: 1px solid #1c3049;
+    color: #a7c2e4;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.55px;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+.presentation-editor-section-title::-webkit-details-marker {
+    display: none;
+}
+
+.presentation-editor-section-title::marker {
+    display: none;
+}
+
+.presentation-editor-section-title::before {
+    content: '\25B6';
+    display: inline-block;
+    color: #86b3e9;
+    font-size: 8px;
+    transform: rotate(0deg);
+    transition: transform 0.14s ease;
+}
+
+.presentation-editor-section[open] > .presentation-editor-section-title::before {
+    transform: rotate(90deg);
+}
+
+.presentation-editor-section:not([open]) > .presentation-editor-section-title {
+    border-bottom: none;
+}
+
+.presentation-editor-section-body {
+    padding: 9px;
 }
 
 .presentation-editor-title {
@@ -989,7 +1058,7 @@ a:hover {
     border: 1px solid #223856;
     background: #0b1320;
     border-radius: 4px;
-    max-height: 160px;
+    max-height: 170px;
     overflow: auto;
     padding: 4px;
 }

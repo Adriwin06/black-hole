@@ -789,6 +789,9 @@ function resolvePresentationPath(path) {
     if (clean.indexOf('cameraPan.') === 0) {
         root = cameraPan;
         parts = clean.substring('cameraPan.'.length).split('.');
+    } else if (clean.indexOf('camera.') === 0) {
+        root = camera;
+        parts = clean.substring('camera.'.length).split('.');
     } else if (clean.indexOf('observerState.') === 0) {
         root = observer;
         parts = clean.substring('observerState.'.length).split('.');
@@ -905,10 +908,21 @@ function setPresentationPathValue(path, value) {
 
     var isCameraOrObserverPath =
         resolved.originalPath.indexOf('cameraPan.') === 0 ||
+        resolved.originalPath.indexOf('camera.') === 0 ||
         resolved.originalPath.indexOf('observerState.') === 0 ||
         resolved.originalPath.indexOf('observer.') === 0 ||
         resolved.originalPath.indexOf('params.observer.') === 0 ||
         resolved.originalPath.indexOf('shader.parameters.observer.') === 0;
+
+    if (resolved.originalPath.indexOf('camera.quaternion.') === 0 &&
+        camera && camera.quaternion &&
+        typeof camera.quaternion.normalize === 'function') {
+        camera.quaternion.normalize();
+    }
+    if (resolved.originalPath.indexOf('camera.') === 0 &&
+        camera && typeof camera.updateMatrixWorld === 'function') {
+        camera.updateMatrixWorld(true);
+    }
 
     if (isCameraOrObserverPath && camera && typeof updateCamera === 'function') {
         updateCamera();
