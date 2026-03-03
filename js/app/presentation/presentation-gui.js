@@ -39,6 +39,10 @@ function createPresentationAnimationSectionHtml() {
                     '<button id="presentation-stop-btn" class="presentation-btn" type="button">&#9632; STOP</button>' +
                 '</div>' +
 
+                (typeof createPresentationEditorHtml === 'function'
+                    ? createPresentationEditorHtml()
+                    : '') +
+
                 '<div class="presentation-row">' +
                     '<label for="presentation-record-quality">Rec quality</label>' +
                     '<select id="presentation-record-quality" class="presentation-select"></select>' +
@@ -94,6 +98,8 @@ function bindPresentationAnimationSection(panelRoot) {
     var recordStartBtn = section.querySelector('#presentation-record-start-btn');
     var recordStopBtn = section.querySelector('#presentation-record-stop-btn');
     var statusEl = section.querySelector('#presentation-status');
+    var presentationEditorBinding = null;
+    var NEW_PRESET_OPTION_VALUE = '__new_preset__';
 
     function clamp(v, lo, hi) {
         return Math.max(lo, Math.min(hi, v));
@@ -126,6 +132,11 @@ function bindPresentationAnimationSection(panelRoot) {
             ? listPresentationPresets() : [];
 
         presetSelect.innerHTML = '';
+        var newPresetOpt = document.createElement('option');
+        newPresetOpt.value = NEW_PRESET_OPTION_VALUE;
+        newPresetOpt.textContent = 'New Preset';
+        presetSelect.appendChild(newPresetOpt);
+
         for (var i = 0; i < names.length; i++) {
             var opt = document.createElement('option');
             opt.value = names[i];
@@ -133,11 +144,31 @@ function bindPresentationAnimationSection(panelRoot) {
             presetSelect.appendChild(opt);
         }
 
-        if (!names.length) return;
+        if (!names.length) {
+            presetSelect.value = NEW_PRESET_OPTION_VALUE;
+            return;
+        }
 
         var defaultName = (names.indexOf('Full Feature Tour') !== -1)
             ? 'Full Feature Tour' : names[0];
         presetSelect.value = defaultName;
+    }
+
+    function updateEditorVisibilityForPresetSelection() {
+        if (!presentationEditorBinding) return;
+        var isNewPreset = !!presetSelect && presetSelect.value === NEW_PRESET_OPTION_VALUE;
+        if (typeof presentationEditorBinding.setVisible === 'function') {
+            presentationEditorBinding.setVisible(isNewPreset);
+        }
+        if (!isNewPreset && typeof presentationEditorBinding.setOpen === 'function') {
+            presentationEditorBinding.setOpen(false);
+        }
+    }
+
+    function hasRealPresetOptions() {
+        if (typeof listPresentationPresets !== 'function') return false;
+        var names = listPresentationPresets();
+        return Array.isArray(names) && names.length > 0;
     }
 
     function populateRecordingQualityOptions() {
@@ -240,7 +271,7 @@ function bindPresentationAnimationSection(panelRoot) {
         if (typeof getPresentationState !== 'function') return;
         var state = getPresentationState();
         function setRecordingStatus(text, mode) {
-            if (state.recording && state.recording_background_throttle_risk) {
+            if (state.recording && state.recording_background_throttle_detected) {
                 var reason = state.recording_background_throttle_reason ||
                     'Tab is hidden; browser may throttle rendering.';
                 setStatus(text + ' | Warning: ' + reason, 'is-warning');
@@ -402,10 +433,14 @@ function bindPresentationAnimationSection(panelRoot) {
             setStatus('Playing ' + (state.name || 'timeline'), 'is-playing');
         } else if (state.loaded) {
             setStatus('Loaded: ' + (state.name || 'timeline'), '');
+        } else if (presetSelect && presetSelect.value === NEW_PRESET_OPTION_VALUE) {
+            setStatus('New preset mode: edit timeline then press APPLY.', '');
         } else if (state.presets_loading) {
             setStatus('Loading presets...', '');
-        } else if (presetSelect && presetSelect.options && presetSelect.options.length > 0) {
+        } else if (hasRealPresetOptions()) {
             setStatus('Preset ready. Press PLAY to apply.', '');
+        } else if (presetSelect && presetSelect.options && presetSelect.options.length > 0) {
+            setStatus('No presets found.', 'is-warning');
         } else {
             setStatus('Idle', '');
         }
@@ -417,6 +452,24 @@ function bindPresentationAnimationSection(panelRoot) {
             setStatus('No preset selected.', 'is-warning');
             return;
         }
+
+        if (presetSelect.value === NEW_PRESET_OPTION_VALUE) {
+            if (presentationEditorBinding) {
+                if (typeof presentationEditorBinding.setVisible === 'function') {
+                    presentationEditorBinding.setVisible(true);
+                }
+                if (typeof presentationEditorBinding.startNewPresetDraft === 'function') {
+                    presentationEditorBinding.startNewPresetDraft();
+                } else if (typeof presentationEditorBinding.setOpen === 'function') {
+                    presentationEditorBinding.setOpen(true);
+                }
+            }
+            setStatus('New preset mode: edit timeline then press APPLY.', '');
+            return;
+        }
+
+        updateEditorVisibilityForPresetSelection();
+
         if (!loadPresentationPreset(presetSelect.value)) {
             setStatus('Failed to load preset.', 'is-warning');
             return;
@@ -429,6 +482,14 @@ function bindPresentationAnimationSection(panelRoot) {
         }
         if (typeof setPresentationAnnotationsIncludedInRecording === 'function') {
             setPresentationAnnotationsIncludedInRecording(recordAnnotationsCheckbox.checked);
+        }
+        if (section && typeof CustomEvent === 'function') {
+            section.dispatchEvent(new CustomEvent('presentation:timeline-loaded', {
+                detail: {
+                    source: 'preset',
+                    name: presetSelect.value
+                }
+            }));
         }
         syncFromState();
     }
@@ -472,13 +533,20 @@ function bindPresentationAnimationSection(panelRoot) {
                 if (waitForPresets && typeof waitForPresets.then === 'function') {
                     waitForPresets.then(function() {
                         loadSelectedPreset();
-                        if (typeof playPresentation === 'function') playPresentation(false);
+                        if (presetSelect.value !== NEW_PRESET_OPTION_VALUE &&
+                            typeof playPresentation === 'function') {
+                            playPresentation(false);
+                        }
                         syncFromState();
                     });
                     return;
                 }
             }
             loadSelectedPreset();
+            if (presetSelect.value === NEW_PRESET_OPTION_VALUE) {
+                syncFromState();
+                return;
+            }
         }
         if (typeof playPresentation === 'function') playPresentation(false);
         syncFromState();
@@ -538,7 +606,7 @@ function bindPresentationAnimationSection(panelRoot) {
             if (loading && typeof loading.then === 'function') {
                 loading.then(function() {
                     populatePresets();
-                    if (!presetSelect.options.length) {
+                    if (!hasRealPresetOptions()) {
                         setStatus('No presets found.', 'is-warning');
                     } else {
                         setStatus('Preset ready. Press PLAY to apply.', '');
@@ -552,7 +620,7 @@ function bindPresentationAnimationSection(panelRoot) {
         }
 
         populatePresets();
-        if (!presetSelect.options.length) {
+        if (!hasRealPresetOptions()) {
             setStatus('No presets found.', 'is-warning');
         } else {
             setStatus('Preset ready. Press PLAY to apply.', '');
@@ -561,6 +629,22 @@ function bindPresentationAnimationSection(panelRoot) {
     }
 
     initializePresetsUI();
+
+    if (typeof bindPresentationTimelineEditor === 'function') {
+        presentationEditorBinding = bindPresentationTimelineEditor(section, {
+            setStatus: setStatus,
+            syncFromState: syncFromState,
+            getSelectedPresetName: function() {
+                return presetSelect ? presetSelect.value : '';
+            },
+            loadSelectedPreset: loadSelectedPreset
+        });
+    }
+
+    if (presentationEditorBinding && typeof presentationEditorBinding.syncFromRuntime === 'function') {
+        presentationEditorBinding.syncFromRuntime(true);
+    }
+    updateEditorVisibilityForPresetSelection();
 
     if (section._presentationSyncTimer) {
         clearInterval(section._presentationSyncTimer);

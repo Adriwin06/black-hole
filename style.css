@@ -237,6 +237,11 @@ a:hover {
     -webkit-backdrop-filter: blur(10px);
     box-shadow: 0 4px 24px rgba(0,0,0,0.6);
     transition: right 0.2s ease;
+    box-sizing: border-box;
+    max-height: calc(100vh - 10px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
 }
 
 #anim-panel.controls-closed {
@@ -872,6 +877,271 @@ a:hover {
 .presentation-status.is-warning {
     color: #ffd48f;
     border-color: #835f2a;
+}
+
+.presentation-editor-root {
+    margin: 8px 0 10px;
+    border: 1px solid #243954;
+    border-radius: 5px;
+    background: #0b1422;
+    overflow: hidden;
+}
+
+.presentation-editor-root.is-hidden {
+    display: none;
+}
+
+.presentation-editor-toggle {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 9px;
+    border: none;
+    border-bottom: 1px solid #1a2c43;
+    background: #101c2e;
+    color: #dbe9ff;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.7px;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+.presentation-editor-toggle:hover {
+    background: #17263d;
+}
+
+.presentation-editor-toggle-arrow {
+    display: inline-block;
+    font-size: 9px;
+    color: #9dc6ff;
+    transition: transform 0.14s ease;
+}
+
+.presentation-editor-root.is-open .presentation-editor-toggle-arrow {
+    transform: rotate(90deg);
+}
+
+.presentation-editor-body {
+    display: none;
+    padding: 8px;
+}
+
+.presentation-editor-root.is-open .presentation-editor-body {
+    display: block;
+}
+
+.presentation-editor-title {
+    color: #dbe9ff;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.7px;
+    text-transform: uppercase;
+    margin-bottom: 7px;
+}
+
+.presentation-editor-subtitle {
+    color: #9eb9dd;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    margin: 8px 0 6px;
+}
+
+.presentation-btn-row-tight .presentation-btn {
+    min-height: 24px;
+    font-size: 10px;
+    letter-spacing: 0.45px;
+}
+
+.presentation-input-wide {
+    flex: 1;
+    min-width: 0;
+    height: 24px;
+    background: #0f1524;
+    color: #d8e4f7;
+    border: 1px solid #2f4363;
+    border-radius: 4px;
+    font-size: 11px;
+    padding: 0 6px;
+    outline: none;
+}
+
+.presentation-inline-toggle {
+    min-width: 54px;
+    color: #c6d7ef;
+    font-size: 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.presentation-editor-compact-select {
+    max-width: 90px;
+}
+
+.presentation-editor-action-select {
+    max-width: 130px;
+}
+
+.presentation-editor-list {
+    border: 1px solid #223856;
+    background: #0b1320;
+    border-radius: 4px;
+    max-height: 160px;
+    overflow: auto;
+    padding: 4px;
+}
+
+.presentation-editor-empty {
+    color: #7f96b5;
+    font-size: 10px;
+    padding: 5px 6px;
+}
+
+.presentation-editor-item {
+    border: 1px solid #1e334e;
+    border-radius: 4px;
+    margin-bottom: 4px;
+    background: #0f1a2b;
+}
+
+.presentation-editor-item:last-child {
+    margin-bottom: 0;
+}
+
+.presentation-editor-item-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 5px;
+    border-bottom: 1px solid #1a2c43;
+}
+
+.presentation-editor-item-title {
+    flex: 1;
+    min-width: 0;
+    color: #d2e3ff;
+    font-size: 10px;
+    font-family: Consolas, "Courier New", monospace;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.presentation-editor-entry {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 5px;
+    border-bottom: 1px solid rgba(42, 67, 102, 0.35);
+}
+
+.presentation-editor-entry:last-child {
+    border-bottom: none;
+}
+
+.presentation-editor-entry-time {
+    min-width: 42px;
+    color: #8cb7e9;
+    font-size: 10px;
+    font-family: Consolas, "Courier New", monospace;
+}
+
+.presentation-editor-entry-value {
+    flex: 1;
+    min-width: 0;
+    color: #c8d8ef;
+    font-size: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.presentation-editor-entry-ease {
+    min-width: 44px;
+    color: #90a9ca;
+    font-size: 9px;
+    text-transform: uppercase;
+}
+
+.presentation-mini-btn {
+    border: 1px solid #2f4363;
+    border-radius: 3px;
+    background: #16273d;
+    color: #d7e8ff;
+    font-size: 9px;
+    line-height: 1;
+    padding: 2px 5px;
+    cursor: pointer;
+}
+
+.presentation-mini-btn:hover {
+    background: #22344f;
+}
+
+.presentation-editor-note-fields {
+    border-top: 1px solid #1d2f47;
+    margin-top: 4px;
+    padding-top: 4px;
+}
+
+.presentation-editor-note-text {
+    flex: 1;
+    min-width: 0;
+    background: #0f1524;
+    color: #d8e4f7;
+    border: 1px solid #2f4363;
+    border-radius: 4px;
+    font-size: 11px;
+    padding: 5px 6px;
+    resize: vertical;
+}
+
+.presentation-editor-json {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid #2f4363;
+    border-radius: 4px;
+    background: #08111d;
+    color: #d9e6f9;
+    font-size: 10px;
+    line-height: 1.35;
+    padding: 6px;
+    resize: vertical;
+    margin-bottom: 6px;
+    font-family: Consolas, "Courier New", monospace;
+}
+
+.presentation-editor-status {
+    margin-top: 5px;
+    padding: 4px 6px;
+    border-radius: 4px;
+    border: 1px solid #2f4363;
+    background: #0f1524;
+    color: #90a8c8;
+    font-size: 10px;
+}
+
+.presentation-editor-status.is-clean {
+    color: #9dd0ff;
+    border-color: #375e95;
+}
+
+.presentation-editor-status.is-dirty {
+    color: #ffd19a;
+    border-color: #86623b;
+}
+
+.presentation-editor-status.is-warning {
+    color: #ffd19a;
+    border-color: #86623b;
+}
+
+.presentation-editor-status.is-error {
+    color: #ffb3b3;
+    border-color: #944242;
 }
 
 #presentation-annotation-layer {

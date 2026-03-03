@@ -5,6 +5,7 @@ This document explains the JSON format used by the presentation timeline system.
 - Controller: `js/app/presentation/presentation-controller.js`
 - Presets folder: `js/app/presentation/presets/`
 - Preset manifest: `js/app/presentation/presets/manifest.json`
+- UI workflow guide: `docs/presentation-editor.md`
 
 ## 1. Minimal Preset
 

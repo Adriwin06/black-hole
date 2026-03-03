@@ -147,6 +147,7 @@ var presentationCaptureState = {
     resolutionPreset: 'current',
     outputWidth: 0,
     outputHeight: 0,
+    backgroundThrottleDetected: false,
     restoreQualitySnapshot: null,
     includeAnnotationsInRecording: false,
     captureCanvas: null,
@@ -917,6 +918,29 @@ function setPresentationPathValue(path, value) {
     return true;
 }
 
+function getPresentationPathValue(path) {
+    var resolved = resolvePresentationPath(path);
+    if (!resolved) return undefined;
+
+    var obj = resolved.root;
+    var parts = resolved.parts;
+    for (var i = 0; i < parts.length - 1; i++) {
+        var key = parts[i];
+        if (!obj || typeof obj !== 'object' || !(key in obj)) return undefined;
+        obj = obj[key];
+    }
+    if (!obj || typeof obj !== 'object') return undefined;
+
+    var leaf = parts[parts.length - 1];
+    if (!(leaf in obj)) return undefined;
+
+    var value = obj[leaf];
+    if (value && typeof value === 'object') {
+        return clonePresentationData(value);
+    }
+    return value;
+}
+
 function flushPresentationShaderCompile() {
     if (!presentationState.compileRequested) return;
     if (scene && typeof scene.updateShader === 'function') {
@@ -1040,6 +1064,11 @@ function setPresentationTimeline(timeline) {
 
 function listPresentationPresets() {
     return PRESENTATION_PRESET_ORDER.slice();
+}
+
+function getPresentationTimeline() {
+    if (!presentationState.timeline) return null;
+    return clonePresentationData(presentationState.timeline);
 }
 
 function loadPresentationPreset(name) {
@@ -1167,6 +1196,15 @@ function getPresentationBackgroundThrottleState() {
 function getPresentationState() {
     var offlineJob = presentationCaptureState.offlineJob;
     var backgroundState = getPresentationBackgroundThrottleState();
+    if (presentationCaptureState.active && backgroundState.throttleRisk) {
+        presentationCaptureState.backgroundThrottleDetected = true;
+    }
+    var backgroundThrottleDetected =
+        !!backgroundState.throttleRisk || !!presentationCaptureState.backgroundThrottleDetected;
+    var backgroundThrottleReason = backgroundState.reason || '';
+    if (!backgroundThrottleReason && presentationCaptureState.backgroundThrottleDetected) {
+        backgroundThrottleReason = 'Background throttling was detected during this recording.';
+    }
     var offlineFramesDone = offlineJob ? (offlineJob.frameCount || 0) : 0;
     var offlineFramesTotal = offlineJob ? (offlineJob.totalFrames || 0) : 0;
     var offlineElapsedSeconds = 0;
@@ -1220,7 +1258,8 @@ function getPresentationState() {
         recording_background_visible: !!backgroundState.visible,
         recording_background_focused: !!backgroundState.focused,
         recording_background_throttle_risk: !!backgroundState.throttleRisk,
-        recording_background_throttle_reason: backgroundState.reason || '',
+        recording_background_throttle_detected: backgroundThrottleDetected,
+        recording_background_throttle_reason: backgroundThrottleReason,
         recording_offline_phase: offlinePhase,
         recording_offline_frames_done: offlineFramesDone,
         recording_offline_frames_total: offlineFramesTotal,
@@ -1637,6 +1676,7 @@ function cleanupPresentationRecordingState() {
     presentationCaptureState.captureCtx = null;
     presentationCaptureState.outputWidth = 0;
     presentationCaptureState.outputHeight = 0;
+    presentationCaptureState.backgroundThrottleDetected = false;
     presentationCaptureState.offlineJob = null;
 
     restorePresentationQualitySnapshot(presentationCaptureState.restoreQualitySnapshot);
@@ -2124,6 +2164,7 @@ function startPresentationRecording(options) {
     presentationCaptureState.restoreQualitySnapshot =
         qualityOverridden ? previousQualitySnapshot : null;
     presentationCaptureState.includeAnnotationsInRecording = includeAnnotationsInRecording;
+    presentationCaptureState.backgroundThrottleDetected = false;
     presentationCaptureState.offlineJob = offlineJob;
 
     if (recordingMode === 'offline') {
@@ -2209,6 +2250,7 @@ if (typeof window !== 'undefined') {
         listPresets: listPresentationPresets,
         ensurePresetsLoaded: ensurePresentationPresetsLoaded,
         loadPreset: loadPresentationPreset,
+        getTimeline: getPresentationTimeline,
         setTimeline: setPresentationTimeline,
         play: playPresentation,
         pause: pausePresentation,
@@ -2221,6 +2263,7 @@ if (typeof window !== 'undefined') {
         annotationState: getPresentationAnnotationsState,
         showAnnotation: setPresentationAnnotation,
         clearAnnotation: clearPresentationAnnotation,
+        getPathValue: getPresentationPathValue,
         startRecording: startPresentationRecording,
         stopRecording: stopPresentationRecording
     };
