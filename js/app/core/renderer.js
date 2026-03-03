@@ -1267,6 +1267,8 @@ function onWindowResize( event ) {
 }
 
 var lastCameraMat = new THREE.Matrix4().identity();
+var resetRendererFrameClock = function() {};
+var rendererOfflineSteppingActive = false;
 
 // ─── Frame timing ─────────────────────────────────────────────────────────────
 // Always called once per RAF tick (inside animate()), never inside render().
@@ -1280,6 +1282,7 @@ var getFrameDuration = (function() {
     var lastTimestamp = _now();
 
     function resetClock() { lastTimestamp = _now(); }
+    resetRendererFrameClock = resetClock;
 
     // Reset on tab-show so the first resumed frame gets ~0 dt, not accumulated time.
     document.addEventListener('visibilitychange', function() {
@@ -1299,16 +1302,7 @@ var getFrameDuration = (function() {
 })();
 // ─────────────────────────────────────────────────────────────────────────────
 
-function animate() {
-    requestAnimationFrame( animate );
-
-    // ── Advance simulation time unconditionally every RAF frame ───────────────
-    // This MUST happen outside the lazy-render gate so observer.time (and the
-    // shader's time uniform) always tracks real-world elapsed time, even when
-    // nothing in the scene changes visually (static camera, no orbital motion).
-    // Before this was inside render(), so hidden-tab pauses or post-dive states
-    // with hasMovingParts()==false silently froze the disk animation.
-    var dt = getFrameDuration();
+function stepRendererSimulation(dt, skipBenchmark) {
     if (typeof getPresentationState === 'function' &&
         typeof updatePresentation === 'function') {
         var presentationRuntimeState = getPresentationState();
@@ -1326,9 +1320,12 @@ function animate() {
         observer.move(dt);
         if (shader.parameters.observer.motion) updateCamera();
     }
-    advanceQualityBenchmark(dt);
-    // ─────────────────────────────────────────────────────────────────────────
+    if (!skipBenchmark) {
+        advanceQualityBenchmark(dt);
+    }
+}
 
+function drawRendererFrame(forceRender) {
     camera.updateMatrixWorld();
     camera.matrixWorldInverse.getInverse( camera.matrixWorld );
 
@@ -1336,7 +1333,7 @@ function animate() {
         updatePresentationOverlay();
     }
 
-    if (shader.needsUpdate || shader.hasMovingParts() ||
+    if (forceRender || shader.needsUpdate || shader.hasMovingParts() ||
         frobeniusDistance(camera.matrixWorldInverse, lastCameraMat) > 1e-10) {
 
         shader.needsUpdate = false;
@@ -1344,6 +1341,40 @@ function animate() {
         lastCameraMat = camera.matrixWorldInverse.clone();
     }
     stats.update();
+}
+
+function setRendererOfflineSteppingActive(active) {
+    rendererOfflineSteppingActive = !!active;
+    if (!rendererOfflineSteppingActive) {
+        resetRendererFrameClock();
+    }
+}
+
+function stepRendererForOfflineRecording(dt) {
+    var frameDt = parseFloat(dt);
+    if (!isFinite(frameDt) || frameDt <= 0) frameDt = 1.0 / 60.0;
+    stepRendererSimulation(frameDt, true);
+    drawRendererFrame(true);
+}
+
+function animate() {
+    requestAnimationFrame( animate );
+
+    if (rendererOfflineSteppingActive) {
+        stats.update();
+        return;
+    }
+
+    // ── Advance simulation time unconditionally every RAF frame ───────────────
+    // This MUST happen outside the lazy-render gate so observer.time (and the
+    // shader's time uniform) always tracks real-world elapsed time, even when
+    // nothing in the scene changes visually (static camera, no orbital motion).
+    // Before this was inside render(), so hidden-tab pauses or post-dive states
+    // with hasMovingParts()==false silently froze the disk animation.
+    var dt = getFrameDuration();
+    stepRendererSimulation(dt, false);
+    // ─────────────────────────────────────────────────────────────────────────
+    drawRendererFrame(false);
 }
 
 function renderSceneToTarget(target) {
@@ -1385,4 +1416,14 @@ function render() {
         lastTaaCameraMat.copy(camera.matrixWorldInverse);
     }
     updateAxesGizmo();
+}
+
+if (typeof window !== 'undefined') {
+    window.blackHoleRendererRuntime = {
+        setOfflineSteppingActive: setRendererOfflineSteppingActive,
+        stepOfflineFrame: stepRendererForOfflineRecording,
+        resetFrameClock: function() {
+            resetRendererFrameClock();
+        }
+    };
 }

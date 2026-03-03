@@ -136,17 +136,26 @@ var presentationCaptureState = {
     recorder: null,
     stream: null,
     chunks: [],
+    mode: 'realtime',
+    preferredMode: 'offline',
     fps: 60,
     bitrateMbps: 20.0,
     filenamePrefix: 'black-hole-presentation',
     autoStopOnPresentationEnd: true,
     mimeType: '',
     qualityPreset: 'current',
+    resolutionPreset: 'current',
+    outputWidth: 0,
+    outputHeight: 0,
     restoreQualitySnapshot: null,
     includeAnnotationsInRecording: false,
+    captureCanvas: null,
+    captureCtx: null,
     compositeCanvas: null,
     compositeCtx: null,
-    compositeRaf: 0
+    compositeRaf: 0,
+    offlineJob: null,
+    offlineUnavailableReason: ''
 };
 
 var presentationAnnotationState = {
@@ -1121,7 +1130,79 @@ function setPresentationLoop(enabled) {
     return presentationState.loop;
 }
 
+function getPresentationBackgroundThrottleState() {
+    var visible = true;
+    var focused = true;
+
+    if (typeof document !== 'undefined') {
+        if (typeof document.visibilityState === 'string') {
+            visible = (document.visibilityState === 'visible');
+        } else if (typeof document.hidden === 'boolean') {
+            visible = !document.hidden;
+        }
+
+        if (typeof document.hasFocus === 'function') {
+            try {
+                focused = !!document.hasFocus();
+            } catch (err) {
+                focused = true;
+            }
+        }
+    }
+
+    var throttleRisk = !visible;
+    var reason = '';
+    if (throttleRisk) {
+        reason = 'Tab/window is hidden or minimized; browser may throttle or pause rendering.';
+    }
+
+    return {
+        visible: visible,
+        focused: focused,
+        throttleRisk: throttleRisk,
+        reason: reason
+    };
+}
+
 function getPresentationState() {
+    var offlineJob = presentationCaptureState.offlineJob;
+    var backgroundState = getPresentationBackgroundThrottleState();
+    var offlineFramesDone = offlineJob ? (offlineJob.frameCount || 0) : 0;
+    var offlineFramesTotal = offlineJob ? (offlineJob.totalFrames || 0) : 0;
+    var offlineElapsedSeconds = 0;
+    if (offlineJob && offlineJob.wallStartMs) {
+        offlineElapsedSeconds = Math.max(0.0, (Date.now() - offlineJob.wallStartMs) / 1000.0);
+    }
+    var offlineSinceLastFrameSeconds = 0;
+    if (offlineJob && offlineJob.lastFrameWallMs) {
+        offlineSinceLastFrameSeconds = Math.max(0.0, (Date.now() - offlineJob.lastFrameWallMs) / 1000.0);
+    }
+    var offlineRenderFps = (offlineElapsedSeconds > 0.0)
+        ? (offlineFramesDone / offlineElapsedSeconds)
+        : 0.0;
+    var offlineProgress = (offlineFramesTotal > 0)
+        ? presentationClamp(offlineFramesDone / offlineFramesTotal, 0.0, 1.0)
+        : 0.0;
+    var offlineEtaSeconds = -1;
+    if (offlineFramesTotal > 0 && offlineRenderFps > 1e-6) {
+        offlineEtaSeconds = Math.max(0.0, (offlineFramesTotal - offlineFramesDone) / offlineRenderFps);
+    }
+    var offlinePhase = (offlineJob && offlineJob.phase) ? offlineJob.phase : 'idle';
+    var offlineFinalizingProgress = -1;
+    if (offlineJob && offlinePhase === 'finalizing-encode') {
+        var q = (offlineJob.encoder && typeof offlineJob.encoder.encodeQueueSize === 'number')
+            ? offlineJob.encoder.encodeQueueSize
+            : 0;
+        var q0 = Math.max(1, offlineJob.finalizingStartQueue || q || 1);
+        offlineFinalizingProgress = 0.1 + 0.7 * (1.0 - presentationClamp(q / q0, 0.0, 1.0));
+    } else if (offlineJob && offlinePhase === 'finalizing-mux') {
+        offlineFinalizingProgress = 0.9;
+    } else if (offlineJob && offlinePhase === 'finalizing-download') {
+        offlineFinalizingProgress = 0.97;
+    } else if (offlineJob && offlinePhase === 'done') {
+        offlineFinalizingProgress = 1.0;
+    }
+
     return {
         loaded: !!presentationState.timeline,
         name: presentationState.timeline ? presentationState.timeline.name : '',
@@ -1132,7 +1213,35 @@ function getPresentationState() {
         time: presentationState.time,
         duration: presentationState.duration,
         recording: !!presentationCaptureState.active,
+        recording_mode: presentationCaptureState.mode || 'realtime',
+        recording_mode_preferred: presentationCaptureState.preferredMode || 'offline',
+        recording_offline_supported: isOfflinePresentationRecordingSupported(),
+        recording_offline_unavailable_reason: presentationCaptureState.offlineUnavailableReason || '',
+        recording_background_visible: !!backgroundState.visible,
+        recording_background_focused: !!backgroundState.focused,
+        recording_background_throttle_risk: !!backgroundState.throttleRisk,
+        recording_background_throttle_reason: backgroundState.reason || '',
+        recording_offline_phase: offlinePhase,
+        recording_offline_frames_done: offlineFramesDone,
+        recording_offline_frames_total: offlineFramesTotal,
+        recording_offline_progress: offlineProgress,
+        recording_offline_finalizing_progress: offlineFinalizingProgress,
+        recording_offline_elapsed_s: offlineElapsedSeconds,
+        recording_offline_since_last_frame_s: offlineSinceLastFrameSeconds,
+        recording_offline_render_fps: offlineRenderFps,
+        recording_offline_eta_s: offlineEtaSeconds,
+        recording_offline_encode_queue: (offlineJob && offlineJob.encoder &&
+            typeof offlineJob.encoder.encodeQueueSize === 'number')
+            ? offlineJob.encoder.encodeQueueSize
+            : 0,
+        recording_offline_timeline_done_s: offlineFramesDone / Math.max(presentationCaptureState.fps || 60, 1),
+        recording_offline_timeline_total_s: (offlineFramesTotal > 0)
+            ? (offlineFramesTotal / Math.max(presentationCaptureState.fps || 60, 1))
+            : 0,
         recording_quality_preset: presentationCaptureState.qualityPreset || 'current',
+        recording_resolution_preset: presentationCaptureState.resolutionPreset || 'current',
+        recording_output_width: presentationCaptureState.outputWidth || 0,
+        recording_output_height: presentationCaptureState.outputHeight || 0,
         annotations_enabled: !!presentationAnnotationState.enabled,
         annotations_in_recording: !!presentationAnnotationState.includeInRecording
     };
@@ -1222,6 +1331,115 @@ function normalizePresentationRecordingQualityPreset(value) {
     return 'current';
 }
 
+function normalizePresentationRecordingMode(value) {
+    if (typeof value !== 'string') return 'offline';
+    var clean = value.trim().toLowerCase();
+    if (clean === 'realtime' || clean === 'screen' || clean === 'live') {
+        return 'realtime';
+    }
+    return 'offline';
+}
+
+function normalizePresentationRecordingResolutionPreset(value) {
+    if (typeof value !== 'string') return 'current';
+    var clean = value.trim().toLowerCase();
+    if (!clean || clean === 'current') return 'current';
+    var match = /^(\d{3,5})x(\d{3,5})$/.exec(clean);
+    if (!match) return 'current';
+
+    var w = parseInt(match[1], 10);
+    var h = parseInt(match[2], 10);
+    if (!isFinite(w) || !isFinite(h)) return 'current';
+    if (w < 160 || h < 90 || w > 8192 || h > 8192) return 'current';
+    return w + 'x' + h;
+}
+
+function resolvePresentationRecordingResolution(preset) {
+    var normalized = normalizePresentationRecordingResolutionPreset(preset);
+    if (normalized === 'current') {
+        var currentWidth = Math.max(1, renderer && renderer.domElement ? (renderer.domElement.width || 1) : 1);
+        var currentHeight = Math.max(1, renderer && renderer.domElement ? (renderer.domElement.height || 1) : 1);
+        if ((currentWidth % 2) !== 0 && currentWidth > 2) currentWidth -= 1;
+        if ((currentHeight % 2) !== 0 && currentHeight > 2) currentHeight -= 1;
+        return {
+            preset: 'current',
+            width: currentWidth,
+            height: currentHeight
+        };
+    }
+
+    var match = /^(\d{3,5})x(\d{3,5})$/.exec(normalized);
+    var width = match ? parseInt(match[1], 10) : 1920;
+    var height = match ? parseInt(match[2], 10) : 1080;
+    width = Math.max(160, Math.min(8192, width));
+    height = Math.max(90, Math.min(8192, height));
+
+    // Keep encoder compatibility high: many hardware paths expect even dimensions.
+    if ((width % 2) !== 0) width -= 1;
+    if ((height % 2) !== 0) height -= 1;
+    width = Math.max(160, width);
+    height = Math.max(90, height);
+
+    return {
+        preset: normalized,
+        width: width,
+        height: height
+    };
+}
+
+function getPresentationRendererRuntimeApi() {
+    if (typeof window === 'undefined' || !window.blackHoleRendererRuntime) return null;
+    var runtimeApi = window.blackHoleRendererRuntime;
+    if (typeof runtimeApi.setOfflineSteppingActive !== 'function') return null;
+    if (typeof runtimeApi.stepOfflineFrame !== 'function') return null;
+    return runtimeApi;
+}
+
+function getPresentationWebMMuxerApi() {
+    if (typeof window === 'undefined' || !window.WebMMuxer) return null;
+    var muxApi = window.WebMMuxer;
+    if (typeof muxApi.Muxer !== 'function') return null;
+    if (typeof muxApi.ArrayBufferTarget !== 'function') return null;
+    return muxApi;
+}
+
+function getOfflinePresentationRecordingSupportState() {
+    if (!renderer || !renderer.domElement) {
+        return { supported: false, reason: 'Renderer not initialized yet.' };
+    }
+    if (typeof VideoFrame === 'undefined') {
+        return { supported: false, reason: 'VideoFrame API is unavailable.' };
+    }
+    if (typeof VideoEncoder === 'undefined') {
+        return { supported: false, reason: 'VideoEncoder API is unavailable.' };
+    }
+    if (!getPresentationWebMMuxerApi()) {
+        return { supported: false, reason: 'WebM muxer library is unavailable.' };
+    }
+    if (!getPresentationRendererRuntimeApi()) {
+        return { supported: false, reason: 'Renderer offline stepping API is unavailable.' };
+    }
+    return { supported: true, reason: '' };
+}
+
+function isOfflinePresentationRecordingSupported() {
+    return getOfflinePresentationRecordingSupportState().supported;
+}
+
+function setPresentationRendererOfflineStepping(enabled) {
+    var runtimeApi = getPresentationRendererRuntimeApi();
+    if (!runtimeApi) return false;
+    runtimeApi.setOfflineSteppingActive(!!enabled);
+    return true;
+}
+
+function stepPresentationRendererOfflineFrame(dt) {
+    var runtimeApi = getPresentationRendererRuntimeApi();
+    if (!runtimeApi) return false;
+    runtimeApi.stepOfflineFrame(dt);
+    return true;
+}
+
 function capturePresentationQualitySnapshot() {
     if (!shader || !shader.parameters) return null;
     var p = shader.parameters;
@@ -1289,6 +1507,90 @@ function applyPresentationRecordingQualityPreset(presetName) {
     return true;
 }
 
+function syncPresentationCompositeSize(canvas) {
+    if (!canvas || !renderer || !renderer.domElement) return;
+    canvas.width = Math.max(1, renderer.domElement.width || 1);
+    canvas.height = Math.max(1, renderer.domElement.height || 1);
+}
+
+function ensurePresentationCaptureCanvas(width, height) {
+    if (!presentationCaptureState.captureCanvas || !presentationCaptureState.captureCtx) {
+        presentationCaptureState.captureCanvas = document.createElement('canvas');
+        presentationCaptureState.captureCtx = presentationCaptureState.captureCanvas.getContext('2d');
+    }
+
+    if (!presentationCaptureState.captureCtx) return false;
+    presentationCaptureState.captureCanvas.width = Math.max(1, Math.floor(width || 1));
+    presentationCaptureState.captureCanvas.height = Math.max(1, Math.floor(height || 1));
+    presentationCaptureState.outputWidth = presentationCaptureState.captureCanvas.width;
+    presentationCaptureState.outputHeight = presentationCaptureState.captureCanvas.height;
+    return true;
+}
+
+function syncPresentationCaptureCanvasForCurrentResolution() {
+    if (!presentationCaptureState.captureCanvas || !renderer || !renderer.domElement) return;
+    if (presentationCaptureState.resolutionPreset !== 'current') return;
+    if (presentationCaptureState.active && presentationCaptureState.mode === 'offline') return;
+
+    var width = Math.max(1, renderer.domElement.width || 1);
+    var height = Math.max(1, renderer.domElement.height || 1);
+    if (presentationCaptureState.captureCanvas.width !== width ||
+        presentationCaptureState.captureCanvas.height !== height) {
+        presentationCaptureState.captureCanvas.width = width;
+        presentationCaptureState.captureCanvas.height = height;
+    }
+    presentationCaptureState.outputWidth = presentationCaptureState.captureCanvas.width;
+    presentationCaptureState.outputHeight = presentationCaptureState.captureCanvas.height;
+}
+
+function drawPresentationCaptureFrame() {
+    if (!presentationCaptureState.captureCanvas || !presentationCaptureState.captureCtx) return false;
+    if (!renderer || !renderer.domElement) return false;
+
+    syncPresentationCaptureCanvasForCurrentResolution();
+
+    var source = renderer.domElement;
+    if (presentationCaptureState.includeAnnotationsInRecording) {
+        if (!drawPresentationCompositeFrame(
+            presentationCaptureState.compositeCanvas,
+            presentationCaptureState.compositeCtx
+        )) {
+            return false;
+        }
+        source = presentationCaptureState.compositeCanvas;
+    }
+
+    var targetCanvas = presentationCaptureState.captureCanvas;
+    var ctx = presentationCaptureState.captureCtx;
+    var w = targetCanvas.width;
+    var h = targetCanvas.height;
+    ctx.clearRect(0, 0, w, h);
+    ctx.drawImage(source, 0, 0, w, h);
+    return true;
+}
+
+function drawPresentationCompositeFrame(canvas, ctx) {
+    if (!canvas || !ctx || !renderer || !renderer.domElement) return false;
+
+    if (canvas.width !== renderer.domElement.width ||
+        canvas.height !== renderer.domElement.height) {
+        syncPresentationCompositeSize(canvas);
+    }
+
+    if (typeof updatePresentationOverlay === 'function') {
+        updatePresentationOverlay();
+    }
+
+    var w = canvas.width;
+    var h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+    ctx.drawImage(renderer.domElement, 0, 0, w, h);
+    if (presentationAnnotationState.enabled && presentationAnnotationState.canvas) {
+        ctx.drawImage(presentationAnnotationState.canvas, 0, 0, w, h);
+    }
+    return true;
+}
+
 function stopPresentationCompositeCapture() {
     if (presentationCaptureState.compositeRaf) {
         cancelAnimationFrame(presentationCaptureState.compositeRaf);
@@ -1298,32 +1600,272 @@ function stopPresentationCompositeCapture() {
     presentationCaptureState.compositeCtx = null;
 }
 
+function stopPresentationCaptureStreamTracks(stream) {
+    if (!stream || typeof stream.getTracks !== 'function') return;
+    var tracks = stream.getTracks();
+    for (var i = 0; i < tracks.length; i++) {
+        if (tracks[i] && typeof tracks[i].stop === 'function') {
+            tracks[i].stop();
+        }
+    }
+}
+
+function downloadPresentationRecordingBlob(blob, mime, filenamePrefix) {
+    if (!blob || blob.size <= 0) return;
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = presentationCaptureFilename(filenamePrefix, mime);
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function() { URL.revokeObjectURL(url); }, 1500);
+}
+
+function cleanupPresentationRecordingState() {
+    stopPresentationCaptureStreamTracks(presentationCaptureState.stream);
+
+    setPresentationRendererOfflineStepping(false);
+    stopPresentationCompositeCapture();
+
+    presentationCaptureState.active = false;
+    presentationCaptureState.recorder = null;
+    presentationCaptureState.stream = null;
+    presentationCaptureState.chunks = [];
+    presentationCaptureState.includeAnnotationsInRecording = false;
+    presentationCaptureState.captureCanvas = null;
+    presentationCaptureState.captureCtx = null;
+    presentationCaptureState.outputWidth = 0;
+    presentationCaptureState.outputHeight = 0;
+    presentationCaptureState.offlineJob = null;
+
+    restorePresentationQualitySnapshot(presentationCaptureState.restoreQualitySnapshot);
+    presentationCaptureState.restoreQualitySnapshot = null;
+}
+
+function finalizeOfflinePresentationRecording() {
+    var offlineJob = presentationCaptureState.offlineJob;
+    if (!offlineJob || offlineJob.finalizing) return;
+    offlineJob.finalizing = true;
+    if (offlineJob.failed) {
+        offlineJob.phase = 'failed';
+    } else {
+        offlineJob.phase = 'finalizing-encode';
+        offlineJob.finalizingStartQueue =
+            (offlineJob.encoder && typeof offlineJob.encoder.encodeQueueSize === 'number')
+                ? offlineJob.encoder.encodeQueueSize
+                : 0;
+    }
+    refreshPresentationUiBindings();
+
+    function finishCleanup() {
+        if (offlineJob && !offlineJob.failed) {
+            offlineJob.phase = 'done';
+            refreshPresentationUiBindings();
+        }
+        cleanupPresentationRecordingState();
+        refreshPresentationUiBindings();
+    }
+
+    if (offlineJob.failed) {
+        if (offlineJob.encoder && typeof offlineJob.encoder.close === 'function') {
+            try { offlineJob.encoder.close(); } catch (closeErr) {}
+        }
+        finishCleanup();
+        return;
+    }
+
+    function finalizeMuxedOutput() {
+        if (!offlineJob.encoder || typeof offlineJob.encoder.flush !== 'function') {
+            finishCleanup();
+            return;
+        }
+
+        Promise.resolve(offlineJob.encoder.flush()).then(function() {
+            offlineJob.phase = 'finalizing-mux';
+            refreshPresentationUiBindings();
+
+            // Yield one tick so the UI can paint the finalization phase
+            setTimeout(function() {
+                try {
+                    if (offlineJob.muxer && typeof offlineJob.muxer.finalize === 'function') {
+                        offlineJob.muxer.finalize();
+                    }
+                    offlineJob.phase = 'finalizing-download';
+                    refreshPresentationUiBindings();
+
+                    setTimeout(function() {
+                        try {
+                            var buffer = offlineJob.target && offlineJob.target.buffer;
+                            if (buffer) {
+                                var mime = 'video/webm';
+                                var blob = new Blob([buffer], { type: mime });
+                                downloadPresentationRecordingBlob(
+                                    blob,
+                                    mime,
+                                    presentationCaptureState.filenamePrefix
+                                );
+                            }
+                        } catch (downloadErr) {
+                            console.warn('Offline recording download preparation failed:', downloadErr);
+                            offlineJob.failed = true;
+                        }
+                        if (offlineJob.encoder && typeof offlineJob.encoder.close === 'function') {
+                            try { offlineJob.encoder.close(); } catch (closeErr) {}
+                        }
+                        finishCleanup();
+                    }, 0);
+                } catch (muxErr) {
+                    console.warn('Offline recording finalize failed:', muxErr);
+                    offlineJob.failed = true;
+                    if (offlineJob.encoder && typeof offlineJob.encoder.close === 'function') {
+                        try { offlineJob.encoder.close(); } catch (closeErr2) {}
+                    }
+                    finishCleanup();
+                }
+            }, 0);
+        }).catch(function(flushErr) {
+            console.warn('Offline encoder flush failed:', flushErr);
+            offlineJob.failed = true;
+            offlineJob.phase = 'failed';
+            refreshPresentationUiBindings();
+            if (offlineJob.encoder && typeof offlineJob.encoder.close === 'function') {
+                try { offlineJob.encoder.close(); } catch (closeErr3) {}
+            }
+            finishCleanup();
+        });
+    }
+
+    if (offlineJob.encoder && typeof offlineJob.encoder.flush === 'function') {
+        finalizeMuxedOutput();
+        return;
+    }
+
+    finishCleanup();
+}
+
+function runOfflinePresentationRecordingLoop() {
+    var offlineJob = presentationCaptureState.offlineJob;
+    if (!presentationCaptureState.active || !offlineJob) return;
+
+    var frameDt = 1.0 / Math.max(presentationCaptureState.fps, 1);
+    var yieldEveryNFrames = 2;
+
+    function encodeNextFrame() {
+        if (!presentationCaptureState.active || !presentationCaptureState.offlineJob ||
+            presentationCaptureState.offlineJob !== offlineJob) {
+            return;
+        }
+
+        if (offlineJob.stopRequested || offlineJob.failed) {
+            finalizeOfflinePresentationRecording();
+            return;
+        }
+
+        if (!stepPresentationRendererOfflineFrame(frameDt)) {
+            console.warn('Offline recording aborted: renderer stepping API unavailable.');
+            offlineJob.failed = true;
+            finalizeOfflinePresentationRecording();
+            return;
+        }
+
+        if (!drawPresentationCaptureFrame()) {
+            console.warn('Offline recording aborted: failed to draw capture frame.');
+            offlineJob.failed = true;
+            finalizeOfflinePresentationRecording();
+            return;
+        }
+
+        if (!offlineJob.encoder || offlineJob.encoder.state === 'closed') {
+            offlineJob.failed = true;
+            finalizeOfflinePresentationRecording();
+            return;
+        }
+
+        var frame = null;
+        try {
+            frame = new VideoFrame(presentationCaptureState.captureCanvas, {
+                timestamp: offlineJob.nextTimestampUs,
+                duration: offlineJob.frameDurationUs
+            });
+        } catch (err) {
+            console.warn('Offline recording aborted: failed to create video frame.', err);
+            offlineJob.failed = true;
+            finalizeOfflinePresentationRecording();
+            return;
+        }
+
+        try {
+            var keyEvery = Math.max(1, Math.round(presentationCaptureState.fps));
+            offlineJob.encoder.encode(frame, {
+                keyFrame: (offlineJob.frameCount % keyEvery) === 0
+            });
+        } catch (encodeErr) {
+            console.warn('Offline recording aborted: failed to encode frame.', encodeErr);
+            frame.close();
+            offlineJob.failed = true;
+            finalizeOfflinePresentationRecording();
+            return;
+        }
+        frame.close();
+
+        offlineJob.frameCount += 1;
+        offlineJob.nextTimestampUs += offlineJob.frameDurationUs;
+        offlineJob.lastFrameWallMs = Date.now();
+
+        if (offlineJob.totalFrames > 0 && offlineJob.frameCount >= offlineJob.totalFrames) {
+            offlineJob.stopRequested = true;
+            finalizeOfflinePresentationRecording();
+            return;
+        }
+
+        var autoStopReachedEnd = false;
+        if (offlineJob.totalFrames <= 0 &&
+            presentationCaptureState.autoStopOnPresentationEnd &&
+            typeof getPresentationState === 'function') {
+            var state = getPresentationState();
+            autoStopReachedEnd = !!state.loaded && !state.playing;
+        }
+
+        if (offlineJob.stopRequested || autoStopReachedEnd) {
+            finalizeOfflinePresentationRecording();
+            return;
+        }
+
+        if (offlineJob.encoder.encodeQueueSize >= 6 ||
+            (offlineJob.frameCount % yieldEveryNFrames) === 0) {
+            setTimeout(encodeNextFrame, 0);
+        } else {
+            encodeNextFrame();
+        }
+    }
+
+    encodeNextFrame();
+}
+
 function stopPresentationRecording() {
-    if (!presentationCaptureState.active || !presentationCaptureState.recorder) return false;
+    if (!presentationCaptureState.active) return false;
+
+    if (presentationCaptureState.mode === 'offline' && presentationCaptureState.offlineJob) {
+        presentationCaptureState.offlineJob.stopRequested = true;
+        return true;
+    }
+
+    if (!presentationCaptureState.recorder) {
+        cleanupPresentationRecordingState();
+        return true;
+    }
 
     if (presentationCaptureState.recorder.state !== 'inactive') {
         presentationCaptureState.recorder.stop();
-    } else if (presentationCaptureState.stream) {
-        var tracks = presentationCaptureState.stream.getTracks();
-        for (var i = 0; i < tracks.length; i++) tracks[i].stop();
-        presentationCaptureState.active = false;
-        presentationCaptureState.recorder = null;
-        presentationCaptureState.stream = null;
-        presentationCaptureState.chunks = [];
-        presentationCaptureState.includeAnnotationsInRecording = false;
-        stopPresentationCompositeCapture();
-        restorePresentationQualitySnapshot(presentationCaptureState.restoreQualitySnapshot);
-        presentationCaptureState.restoreQualitySnapshot = null;
+    } else {
+        cleanupPresentationRecordingState();
     }
     return true;
 }
 
 function startPresentationRecording(options) {
-    if (!renderer || !renderer.domElement ||
-        typeof renderer.domElement.captureStream !== 'function' ||
-        typeof MediaRecorder === 'undefined') {
-        return false;
-    }
+    if (!renderer || !renderer.domElement) return false;
     if (presentationCaptureState.active) return false;
 
     options = options || {};
@@ -1339,10 +1881,48 @@ function startPresentationRecording(options) {
         ? presentationAnnotationState.includeInRecording
         : !!options.includeAnnotationsInRecording;
 
+    var requestedMode = normalizePresentationRecordingMode(
+        (options.recordingMode === undefined)
+            ? presentationCaptureState.preferredMode
+            : options.recordingMode
+    );
+    presentationCaptureState.preferredMode = requestedMode;
+
+    var recordingMode = requestedMode;
+    presentationCaptureState.offlineUnavailableReason = '';
+
+    if (recordingMode === 'offline') {
+        var offlineSupportState = getOfflinePresentationRecordingSupportState();
+        if (!offlineSupportState.supported) {
+            presentationCaptureState.offlineUnavailableReason = offlineSupportState.reason;
+            console.warn('Offline recording unavailable:', offlineSupportState.reason);
+            refreshPresentationUiBindings();
+            return false;
+        }
+        if (!presentationState.timeline) {
+            presentationCaptureState.offlineUnavailableReason =
+                'Offline recording requires a loaded presentation timeline.';
+            console.warn('Offline recording unavailable:',
+                presentationCaptureState.offlineUnavailableReason);
+            refreshPresentationUiBindings();
+            return false;
+        }
+    } else if (typeof MediaRecorder === 'undefined') {
+        presentationCaptureState.offlineUnavailableReason =
+            'Realtime capture requires the MediaRecorder API.';
+        refreshPresentationUiBindings();
+        return false;
+    }
+
     var qualityPreset = normalizePresentationRecordingQualityPreset(
         (options.qualityPreset === undefined)
             ? presentationCaptureState.qualityPreset
             : options.qualityPreset
+    );
+    var resolutionPreset = normalizePresentationRecordingResolutionPreset(
+        (options.recordingResolution === undefined)
+            ? presentationCaptureState.resolutionPreset
+            : options.recordingResolution
     );
     var previousQualitySnapshot = null;
     var qualityOverridden = false;
@@ -1369,89 +1949,219 @@ function startPresentationRecording(options) {
 
     var stream = null;
     var compositeTick = null;
+    var recorder = null;
+    var mimeType = 'video/webm';
+    var offlineJob = null;
     if (includeAnnotationsInRecording) {
         ensurePresentationAnnotationCanvas();
         updatePresentationOverlay();
 
-        var compositeCanvas = document.createElement('canvas');
-        var compositeCtx = compositeCanvas.getContext('2d');
-        if (!compositeCtx) {
+        var overlayCompositeCanvas = document.createElement('canvas');
+        var overlayCompositeCtx = overlayCompositeCanvas.getContext('2d');
+        if (!overlayCompositeCtx) {
             rollbackRecordingQualityOverride();
             return false;
         }
-
-        function syncCompositeSize() {
-            compositeCanvas.width = Math.max(1, renderer.domElement.width || 1);
-            compositeCanvas.height = Math.max(1, renderer.domElement.height || 1);
-        }
-
-        syncCompositeSize();
-        stream = compositeCanvas.captureStream(fps);
-        presentationCaptureState.compositeCanvas = compositeCanvas;
-        presentationCaptureState.compositeCtx = compositeCtx;
-
-        compositeTick = function() {
-            if (!presentationCaptureState.active || !presentationCaptureState.compositeCtx) return;
-
-            if (compositeCanvas.width !== renderer.domElement.width ||
-                compositeCanvas.height !== renderer.domElement.height) {
-                syncCompositeSize();
-            }
-
-            if (typeof updatePresentationOverlay === 'function') updatePresentationOverlay();
-
-            var ctx = presentationCaptureState.compositeCtx;
-            var w = compositeCanvas.width;
-            var h = compositeCanvas.height;
-            ctx.clearRect(0, 0, w, h);
-            ctx.drawImage(renderer.domElement, 0, 0, w, h);
-            if (presentationAnnotationState.enabled && presentationAnnotationState.canvas) {
-                ctx.drawImage(presentationAnnotationState.canvas, 0, 0, w, h);
-            }
-
-            presentationCaptureState.compositeRaf = requestAnimationFrame(compositeTick);
-        };
+        syncPresentationCompositeSize(overlayCompositeCanvas);
+        presentationCaptureState.compositeCanvas = overlayCompositeCanvas;
+        presentationCaptureState.compositeCtx = overlayCompositeCtx;
     } else {
-        stream = renderer.domElement.captureStream(fps);
         stopPresentationCompositeCapture();
     }
 
-    var mimeType = choosePresentationMimeType();
-    var recorderConfig = {};
-    if (mimeType) recorderConfig.mimeType = mimeType;
-    recorderConfig.videoBitsPerSecond = Math.round(bitrate * 1000000.0);
+    var resolvedResolution = resolvePresentationRecordingResolution(resolutionPreset);
+    if (!ensurePresentationCaptureCanvas(resolvedResolution.width, resolvedResolution.height)) {
+        rollbackRecordingQualityOverride();
+        return false;
+    }
+    presentationCaptureState.resolutionPreset = resolvedResolution.preset;
+    if (!drawPresentationCaptureFrame()) {
+        rollbackRecordingQualityOverride();
+        return false;
+    }
 
-    var recorder;
-    try {
-        recorder = new MediaRecorder(stream, recorderConfig);
-    } catch (err) {
-        // Retry without explicit config if browser rejects codec/bitrate hints
-        try {
-            recorder = new MediaRecorder(stream);
-            mimeType = recorder.mimeType || '';
-        } catch (err2) {
-            stream.getTracks().forEach(function(track) { track.stop(); });
-            stopPresentationCompositeCapture();
+    if (recordingMode === 'offline') {
+        var width = Math.max(1, presentationCaptureState.captureCanvas.width || 1);
+        var height = Math.max(1, presentationCaptureState.captureCanvas.height || 1);
+        var muxApi = getPresentationWebMMuxerApi();
+        var codecVariants = [
+            { encoder: 'vp09.00.10.08', muxer: 'V_VP9' },
+            { encoder: 'vp8', muxer: 'V_VP8' },
+            { encoder: 'av01.0.08M.08', muxer: 'V_AV1' }
+        ];
+
+        var selectedVariant = null;
+        var encoder = null;
+        var muxer = null;
+        var target = null;
+        for (var cv = 0; cv < codecVariants.length; cv++) {
+            var variant = codecVariants[cv];
+            try {
+                target = new muxApi.ArrayBufferTarget();
+                muxer = new muxApi.Muxer({
+                    target: target,
+                    video: {
+                        codec: variant.muxer,
+                        width: width,
+                        height: height,
+                        frameRate: fps
+                    }
+                });
+                encoder = new VideoEncoder({
+                    output: function(chunk, meta) {
+                        try {
+                            if (offlineJob && offlineJob.muxer) {
+                                offlineJob.muxer.addVideoChunk(chunk, meta);
+                            }
+                        } catch (muxErr) {
+                            console.warn('Offline recording mux error:', muxErr);
+                            if (offlineJob) offlineJob.failed = true;
+                        }
+                    },
+                    error: function(err) {
+                        console.warn('Offline recording encoder error:', err);
+                        if (offlineJob) offlineJob.failed = true;
+                    }
+                });
+                encoder.configure({
+                    codec: variant.encoder,
+                    width: width,
+                    height: height,
+                    bitrate: Math.round(bitrate * 1000000.0),
+                    framerate: fps
+                });
+                selectedVariant = variant;
+                break;
+            } catch (codecErr) {
+                if (encoder && typeof encoder.close === 'function') {
+                    try { encoder.close(); } catch (closeErr) {}
+                }
+                encoder = null;
+                muxer = null;
+            }
+        }
+
+        if (!selectedVariant || !encoder || !muxer) {
+            presentationCaptureState.offlineUnavailableReason =
+                'No supported WebCodecs video encoder was found for offline rendering.';
+            rollbackRecordingQualityOverride();
+            refreshPresentationUiBindings();
+            return false;
+        }
+
+        offlineJob = {
+            stopRequested: false,
+            finalizing: false,
+            failed: false,
+            phase: 'preparing',
+            encoder: encoder,
+            muxer: muxer,
+            target: target,
+            codec: selectedVariant.encoder,
+            frameDurationUs: Math.max(1, Math.round(1000000.0 / fps)),
+            nextTimestampUs: 0,
+            frameCount: 0,
+            totalFrames: 0,
+            totalTimelineSeconds: 0,
+            wallStartMs: 0,
+            lastFrameWallMs: 0,
+            finalizingStartQueue: 0,
+            compositeCanvas: presentationCaptureState.compositeCanvas,
+            compositeCtx: presentationCaptureState.compositeCtx,
+            captureCanvas: presentationCaptureState.captureCanvas
+        };
+    } else {
+        if (!presentationCaptureState.captureCanvas ||
+            typeof presentationCaptureState.captureCanvas.captureStream !== 'function') {
             rollbackRecordingQualityOverride();
             return false;
         }
+        stream = presentationCaptureState.captureCanvas.captureStream(fps);
+        compositeTick = function() {
+            if (!presentationCaptureState.active) return;
+            if (!drawPresentationCaptureFrame()) return;
+            presentationCaptureState.compositeRaf = requestAnimationFrame(compositeTick);
+        };
+
+        mimeType = choosePresentationMimeType();
+        var recorderConfig = {};
+        if (mimeType) recorderConfig.mimeType = mimeType;
+        recorderConfig.videoBitsPerSecond = Math.round(bitrate * 1000000.0);
+
+        try {
+            recorder = new MediaRecorder(stream, recorderConfig);
+        } catch (err) {
+            try {
+                recorder = new MediaRecorder(stream);
+                mimeType = recorder.mimeType || '';
+            } catch (err2) {
+                stopPresentationCaptureStreamTracks(stream);
+                rollbackRecordingQualityOverride();
+                return false;
+            }
+        }
+        mimeType = mimeType || recorder.mimeType || 'video/webm';
     }
 
     presentationCaptureState.active = true;
     presentationCaptureState.recorder = recorder;
     presentationCaptureState.stream = stream;
     presentationCaptureState.chunks = [];
+    presentationCaptureState.mode = recordingMode;
     presentationCaptureState.fps = fps;
     presentationCaptureState.bitrateMbps = bitrate;
     presentationCaptureState.filenamePrefix = filenamePrefix;
     presentationCaptureState.autoStopOnPresentationEnd = autoStop;
-    presentationCaptureState.mimeType = mimeType || recorder.mimeType || 'video/webm';
+    presentationCaptureState.mimeType = mimeType;
     presentationCaptureState.qualityPreset = qualityPreset;
+    presentationCaptureState.resolutionPreset = resolvedResolution.preset;
+    presentationCaptureState.outputWidth = presentationCaptureState.captureCanvas
+        ? presentationCaptureState.captureCanvas.width
+        : resolvedResolution.width;
+    presentationCaptureState.outputHeight = presentationCaptureState.captureCanvas
+        ? presentationCaptureState.captureCanvas.height
+        : resolvedResolution.height;
     presentationCaptureState.restoreQualitySnapshot =
         qualityOverridden ? previousQualitySnapshot : null;
     presentationCaptureState.includeAnnotationsInRecording = includeAnnotationsInRecording;
+    presentationCaptureState.offlineJob = offlineJob;
 
-    if (includeAnnotationsInRecording && compositeTick) {
+    if (recordingMode === 'offline') {
+        setPresentationRendererOfflineStepping(true);
+        if (typeof playPresentation === 'function') {
+            var playState = getPresentationState();
+            if (playState.loaded && !playState.playing) {
+                playPresentation(false);
+            }
+        }
+        if (offlineJob) {
+            var startTimelineTime = presentationState.time;
+            var totalDuration = Math.max(presentationState.duration, 0.0);
+            var totalTimelineSeconds = 0.0;
+            if (presentationCaptureState.autoStopOnPresentationEnd) {
+                if (presentationState.loop) {
+                    totalTimelineSeconds = totalDuration;
+                } else {
+                    totalTimelineSeconds = Math.max(0.0, totalDuration - startTimelineTime);
+                }
+                if (totalTimelineSeconds <= 1e-6) totalTimelineSeconds = 1.0 / Math.max(fps, 1);
+                offlineJob.totalTimelineSeconds = totalTimelineSeconds;
+                offlineJob.totalFrames = Math.max(1, Math.ceil(totalTimelineSeconds * fps));
+            } else {
+                offlineJob.totalTimelineSeconds = 0.0;
+                offlineJob.totalFrames = 0;
+            }
+            offlineJob.wallStartMs = Date.now();
+            offlineJob.lastFrameWallMs = offlineJob.wallStartMs;
+            offlineJob.phase = 'rendering';
+        }
+        runOfflinePresentationRecordingLoop();
+        shader.needsUpdate = true;
+        refreshPresentationUiBindings();
+        return true;
+    }
+
+    if (compositeTick) {
         presentationCaptureState.compositeRaf = requestAnimationFrame(compositeTick);
     }
 
@@ -1462,40 +2172,33 @@ function startPresentationRecording(options) {
     };
 
     recorder.onstop = function() {
-        var mime = presentationCaptureState.mimeType || 'video/webm';
+        var finalMime = presentationCaptureState.mimeType || 'video/webm';
         if (presentationCaptureState.chunks.length > 0) {
-            var blob = new Blob(presentationCaptureState.chunks, { type: mime });
-            var url = URL.createObjectURL(blob);
-            var a = document.createElement('a');
-            a.href = url;
-            a.download = presentationCaptureFilename(filenamePrefix, mime);
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            setTimeout(function() { URL.revokeObjectURL(url); }, 1500);
+            var blob = new Blob(presentationCaptureState.chunks, { type: finalMime });
+            downloadPresentationRecordingBlob(
+                blob,
+                finalMime,
+                presentationCaptureState.filenamePrefix
+            );
         }
-
-        if (presentationCaptureState.stream) {
-            var tracks = presentationCaptureState.stream.getTracks();
-            for (var i = 0; i < tracks.length; i++) tracks[i].stop();
-        }
-
-        presentationCaptureState.active = false;
-        presentationCaptureState.recorder = null;
-        presentationCaptureState.stream = null;
-        presentationCaptureState.chunks = [];
-        presentationCaptureState.includeAnnotationsInRecording = false;
-        stopPresentationCompositeCapture();
-        restorePresentationQualitySnapshot(presentationCaptureState.restoreQualitySnapshot);
-        presentationCaptureState.restoreQualitySnapshot = null;
+        cleanupPresentationRecordingState();
+        refreshPresentationUiBindings();
     };
 
     recorder.onerror = function(err) {
         console.warn('Presentation recorder error:', err);
     };
 
-    recorder.start(250);
+    try {
+        recorder.start(250);
+    } catch (startErr) {
+        console.warn('Presentation recorder failed to start:', startErr);
+        cleanupPresentationRecordingState();
+        return false;
+    }
+
     shader.needsUpdate = true;
+    refreshPresentationUiBindings();
     return true;
 }
 

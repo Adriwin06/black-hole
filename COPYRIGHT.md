@@ -9,6 +9,7 @@
    - [three.js](https://threejs.org) + components `Detector.js` and `OrbitControls.js`
    - [stats.js](https://github.com/mrdoob/stats.js)
    - [mustache.js](https://github.com/janl/mustache.js)
+   - [webm-muxer](https://github.com/Vanilagy/webm-muxer)
    - [ShaderLoader.js](https://github.com/codecruzer/webgl-shader-loader-js)
  * The Milky Way image `img/milkyway.jpg` is from [Stellarium](http://www.stellarium.org/wiki/index.php/Textures) and "based on Nick Risinger's [Photopic Sky Survey](http://skysurvey.org/) image under [CC-BY-NC 2.0](http://creativecommons.org/licenses/by-nc/2.0/)."
  * All other files in this repository, https://github.com/oseiskar/black-hole, are hereby licensed under the MIT license:
