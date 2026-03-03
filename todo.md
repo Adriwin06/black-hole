@@ -1,4 +1,4 @@
 - Add mass scaling 
 - Add time dilation effects with comparison to a distant observer's clock
 - Add sound effects (gravitational waves, accretion disk noise, jet emissions)
-- Update physics docs
+- Fix recording fps + encoding

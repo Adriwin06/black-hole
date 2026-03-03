@@ -1,184 +1,221 @@
 {
-  "duration": 26,
+  "name": "Orbit Showcase",
+  "duration": 42,
   "loop": false,
   "tracks": [
     {
-      "path": "observer.motion",
-      "keys": [
-        {
-          "t": 0,
-          "v": true
-        }
-      ]
-    },
-    {
       "path": "observer.distance",
       "keys": [
-        {
-          "t": 0,
-          "v": 14
-        },
-        {
-          "t": 8,
-          "v": 9.5,
-          "ease": "smooth"
-        },
-        {
-          "t": 17,
-          "v": 6.8,
-          "ease": "smooth"
-        },
-        {
-          "t": 26,
-          "v": 8.5
-        }
+        { "t": 0, "v": 13.5 },
+        { "t": 8, "v": 11.8, "ease": "smooth" },
+        { "t": 18, "v": 9.2, "ease": "smoother" },
+        { "t": 30, "v": 7.4, "ease": "smoother" },
+        { "t": 42, "v": 9.8, "ease": "smooth" }
       ]
     },
     {
       "path": "observer.orbital_inclination",
       "keys": [
-        {
-          "t": 0,
-          "v": -12
-        },
-        {
-          "t": 10,
-          "v": 7,
-          "ease": "smooth"
-        },
-        {
-          "t": 21,
-          "v": 20
-        },
-        {
-          "t": 26,
-          "v": 4
-        }
+        { "t": 0, "v": -14 },
+        { "t": 10, "v": 4, "ease": "smooth" },
+        { "t": 24, "v": 17, "ease": "smoother" },
+        { "t": 34, "v": 8, "ease": "smooth" },
+        { "t": 42, "v": 2, "ease": "smooth" }
       ]
     },
     {
       "path": "look.exposure",
       "keys": [
-        {
-          "t": 0,
-          "v": 0.88
-        },
-        {
-          "t": 13,
-          "v": 1.18,
-          "ease": "smooth"
-        },
-        {
-          "t": 26,
-          "v": 1.05
-        }
+        { "t": 0, "v": 0.88 },
+        { "t": 14, "v": 1.08, "ease": "smoother" },
+        { "t": 27, "v": 1.22, "ease": "smooth" },
+        { "t": 42, "v": 1.0, "ease": "smoother" }
       ]
     },
     {
       "path": "look.disk_gain",
       "keys": [
-        {
-          "t": 0,
-          "v": 0.95
-        },
-        {
-          "t": 12,
-          "v": 1.35,
-          "ease": "smooth"
-        },
-        {
-          "t": 26,
-          "v": 1.18
-        }
+        { "t": 0, "v": 0.98 },
+        { "t": 18, "v": 1.3, "ease": "smoother" },
+        { "t": 30, "v": 1.55, "ease": "smooth" },
+        { "t": 42, "v": 1.18, "ease": "smooth" }
       ]
     },
     {
       "path": "look.glow",
       "keys": [
-        {
-          "t": 0,
-          "v": 0.05
-        },
-        {
-          "t": 12,
-          "v": 0.45,
-          "ease": "smooth"
-        },
-        {
-          "t": 26,
-          "v": 0.18
-        }
+        { "t": 0, "v": 0.05 },
+        { "t": 18, "v": 0.24, "ease": "smoother" },
+        { "t": 30, "v": 0.42, "ease": "smooth" },
+        { "t": 42, "v": 0.16, "ease": "smooth" }
+      ]
+    },
+    {
+      "path": "look.doppler_boost",
+      "keys": [
+        { "t": 0, "v": 1.05 },
+        { "t": 22, "v": 1.45, "ease": "smoother" },
+        { "t": 42, "v": 1.2, "ease": "smooth" }
+      ]
+    },
+    {
+      "path": "look.aberration_strength",
+      "keys": [
+        { "t": 0, "v": 0.9 },
+        { "t": 24, "v": 1.35, "ease": "smoother" },
+        { "t": 42, "v": 1.0, "ease": "smooth" }
       ]
     },
     {
       "path": "black_hole.spin",
       "keys": [
-        {
-          "t": 0,
-          "v": 0.58
-        },
-        {
-          "t": 26,
-          "v": 0.92
-        }
+        { "t": 0, "v": 0.7 },
+        { "t": 42, "v": 0.86, "ease": "smooth" }
       ]
     },
     {
       "path": "disk_temperature",
       "keys": [
-        {
-          "t": 0,
-          "v": 5600
-        },
-        {
-          "t": 26,
-          "v": 13200
-        }
+        { "t": 0, "v": 5400 },
+        { "t": 25, "v": 9800, "ease": "smoother" },
+        { "t": 42, "v": 8200, "ease": "smooth" }
       ]
     },
     {
       "path": "cameraPan.x",
       "keys": [
-        {
-          "t": 0,
-          "v": 0
-        },
-        {
-          "t": 10,
-          "v": 0.1
-        },
-        {
-          "t": 19,
-          "v": -0.08
-        },
-        {
-          "t": 26,
-          "v": 0.03
-        }
+        { "t": 0, "v": 0.0 },
+        { "t": 12, "v": 0.1, "ease": "smoother" },
+        { "t": 28, "v": -0.06, "ease": "smooth" },
+        { "t": 42, "v": 0.03, "ease": "smooth" }
       ]
     },
     {
       "path": "cameraPan.y",
       "keys": [
-        {
-          "t": 0,
-          "v": 0
-        },
-        {
-          "t": 9,
-          "v": 0.06
-        },
-        {
-          "t": 17,
-          "v": -0.04
-        },
-        {
-          "t": 26,
-          "v": 0.01
-        }
+        { "t": 0, "v": 0.02 },
+        { "t": 11, "v": 0.07, "ease": "smoother" },
+        { "t": 27, "v": -0.05, "ease": "smooth" },
+        { "t": 42, "v": 0.0, "ease": "smooth" }
+      ]
+    },
+    {
+      "path": "bloom.strength",
+      "keys": [
+        { "t": 0, "v": 0.3 },
+        { "t": 26, "v": 0.45, "ease": "smooth" },
+        { "t": 42, "v": 0.35, "ease": "smooth" }
+      ]
+    },
+    {
+      "path": "bloom.threshold",
+      "keys": [
+        { "t": 0, "v": 0.66 },
+        { "t": 26, "v": 0.58, "ease": "smooth" },
+        { "t": 42, "v": 0.62, "ease": "smooth" }
+      ]
+    },
+    {
+      "path": "bloom.radius",
+      "keys": [
+        { "t": 0, "v": 0.82 },
+        { "t": 26, "v": 0.94, "ease": "smooth" },
+        { "t": 42, "v": 0.88, "ease": "smooth" }
+      ]
+    },
+    {
+      "path": "time_scale",
+      "keys": [
+        { "t": 0, "v": 1.0 },
+        { "t": 12, "v": 1.2, "ease": "smooth" },
+        { "t": 24, "v": 1.35, "ease": "smoother" },
+        { "t": 42, "v": 1.05, "ease": "smooth" }
       ]
     }
   ],
-  "events": [],
-  "name": "Orbit Showcase"
+  "events": [
+    { "t": 0, "action": "set", "path": "observer.motion", "value": true },
+    { "t": 0, "action": "set", "path": "observer.distance", "value": 13.5 },
+    { "t": 0, "action": "set", "path": "black_hole.spin_enabled", "value": true },
+    { "t": 0, "action": "set", "path": "kerr_mode", "value": "realtime_full_kerr_core" },
+    { "t": 0, "action": "set", "path": "accretion_disk", "value": true },
+    { "t": 0, "action": "set", "path": "accretion_mode", "value": "thin_disk" },
+    { "t": 0, "action": "set", "path": "disk_self_irradiation", "value": true },
+    { "t": 0, "action": "set", "path": "jet.enabled", "value": false },
+    { "t": 0, "action": "set", "path": "grmhd.enabled", "value": true },
+    { "t": 0, "action": "set", "path": "planet.enabled", "value": false },
+    { "t": 0, "action": "set", "path": "beaming", "value": true },
+    { "t": 0, "action": "set", "path": "physical_beaming", "value": true },
+    { "t": 0, "action": "set", "path": "aberration", "value": true },
+    { "t": 0, "action": "set", "path": "doppler_shift", "value": true },
+    { "t": 0, "action": "set", "path": "cinematic_tonemap", "value": true },
+    { "t": 0, "action": "set", "path": "look.tonemap_mode", "value": 1 },
+    { "t": 0, "action": "set", "path": "cameraPan.x", "value": 0.0 },
+    { "t": 0, "action": "set", "path": "cameraPan.y", "value": 0.02 },
+    { "t": 0.02, "action": "updateShader" },
+    {
+      "t": 0.4,
+      "action": "annotation",
+      "note": {
+        "title": "Orbit Showcase",
+        "text": "A continuous orbital pass with rising orbital velocity, stronger beaming, and evolving lensing geometry.",
+        "anchor": { "mode": "world", "target": "black_hole" },
+        "placement": "right",
+        "offset": 54,
+        "color": "#7cc5ff",
+        "width": 330
+      }
+    },
+    {
+      "t": 14,
+      "action": "annotation",
+      "note": {
+        "title": "Relativistic Crescent",
+        "text": "As the camera closes in, the approaching side of the disk brightens from Doppler beaming and spectral boosting.",
+        "anchor": { "mode": "world", "target": "disk" },
+        "placement": "auto",
+        "color": "#8bceff",
+        "width": 330
+      }
+    },
+    {
+      "t": 24,
+      "action": "annotation",
+      "note": {
+        "title": "Closest Pass",
+        "text": "At smaller radius the photon ring thickens and frame dragging skews the lensed image around the shadow edge.",
+        "anchor": { "mode": "world", "target": "black_hole" },
+        "placement": "auto",
+        "color": "#75c0ff",
+        "width": 330
+      }
+    },
+    { "t": 32, "action": "set", "path": "look.tonemap_mode", "value": 0 },
+    {
+      "t": 32.2,
+      "action": "annotation",
+      "note": {
+        "title": "ACES Interlude",
+        "text": "Brief switch to ACES tone mapping for broader highlight roll-off during the brightest part of the orbit.",
+        "anchor": { "mode": "world", "target": "black_hole" },
+        "placement": "auto",
+        "color": "#9ad6ff",
+        "width": 320
+      }
+    },
+    { "t": 36, "action": "set", "path": "look.tonemap_mode", "value": 1 },
+    {
+      "t": 36.2,
+      "action": "annotation",
+      "note": {
+        "title": "Back To AGX",
+        "text": "AGX restores stable saturation handling as the sequence eases back out from the strongest lensing region.",
+        "anchor": { "mode": "world", "target": "black_hole" },
+        "placement": "auto",
+        "color": "#7fc8ff",
+        "width": 320
+      }
+    },
+    { "t": 41.5, "action": "clearAnnotation" }
+  ]
 }

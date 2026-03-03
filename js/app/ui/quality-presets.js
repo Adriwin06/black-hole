@@ -63,6 +63,36 @@ var QUALITY_PRESETS = {
             motion_clip_scale: 0.8
         },
         hide_planet_controls: false
+    },
+    ultra: {
+        standard: { n_steps: 600, sample_count: 4, max_revolutions: 4, rk4_integration: true },
+        kerr: { n_steps: 1400, sample_count: 6, max_revolutions: 6, rk4_integration: true },
+        cinematic_tonemap: true,
+        resolution_scale: 1.0,
+        taa_enabled: false,
+        taa: {
+            history_weight: 0.88,
+            clip_box: 0.06,
+            motion_rejection: 8.0,
+            max_camera_delta: 0.08,
+            motion_clip_scale: 0.6
+        },
+        hide_planet_controls: false
+    },
+    cinematic: {
+        standard: { n_steps: 600, sample_count: 6, max_revolutions: 4, rk4_integration: true },
+        kerr: { n_steps: 1400, sample_count: 12, max_revolutions: 8, rk4_integration: true },
+        cinematic_tonemap: true,
+        resolution_scale: 2.0,
+        taa_enabled: false,
+        taa: {
+            history_weight: 0.88,
+            clip_box: 0.06,
+            motion_rejection: 8.0,
+            max_camera_delta: 0.08,
+            motion_clip_scale: 0.6
+        },
+        hide_planet_controls: false
     }
 };
 
@@ -97,8 +127,10 @@ var QUALITY_PRESET_LABELS = {
     'Custom': 'custom',
     'Mobile (fastest)': 'mobile',
     'Optimal (recommended)': 'optimal',
-    'High (full resolution)': 'medium',
-    'Ultra (max quality)': 'high'
+    'Medium (balanced full resolution)': 'medium',
+    'High (full resolution)': 'high',
+    'Ultra (max quality)': 'ultra',
+    'Cinematic (offline rendering)': 'cinematic'
 };
 
 var KERR_MODE_LABELS = {

@@ -141,6 +141,8 @@ var presentationCaptureState = {
     filenamePrefix: 'black-hole-presentation',
     autoStopOnPresentationEnd: true,
     mimeType: '',
+    qualityPreset: 'current',
+    restoreQualitySnapshot: null,
     includeAnnotationsInRecording: false,
     compositeCanvas: null,
     compositeCtx: null,
@@ -296,6 +298,43 @@ function clampAnnotationAnchorToViewport(x, y, viewWidth, viewHeight) {
     };
 }
 
+function rectIntersectsCircle(rx, ry, rw, rh, cx, cy, radius) {
+    var nearestX = presentationClamp(cx, rx, rx + rw);
+    var nearestY = presentationClamp(cy, ry, ry + rh);
+    var dx = nearestX - cx;
+    var dy = nearestY - cy;
+    return (dx * dx + dy * dy) <= (radius * radius);
+}
+
+function getPresentationOverlaySafeMargins(viewWidth) {
+    var safe = { left: 14, right: 14 };
+    if (typeof document === 'undefined') return safe;
+
+    function includeRect(rect) {
+        if (!rect || rect.width < 8 || rect.height < 8) return;
+        var gap = 12;
+        if (rect.left >= viewWidth * 0.5) {
+            safe.right = Math.max(safe.right, Math.max(0, viewWidth - rect.left) + gap);
+        } else if (rect.right <= viewWidth * 0.5) {
+            safe.left = Math.max(safe.left, Math.max(0, rect.right) + gap);
+        }
+    }
+
+    var animPanel = document.getElementById('anim-panel');
+    if (animPanel && !animPanel.classList.contains('is-collapsed')) {
+        includeRect(animPanel.getBoundingClientRect());
+    }
+
+    var guiPanel = document.querySelector('.dg.main');
+    if (guiPanel) {
+        var guiList = guiPanel.querySelector('ul');
+        var guiClosed = guiList && guiList.classList.contains('closed');
+        if (!guiClosed) includeRect(guiPanel.getBoundingClientRect());
+    }
+
+    return safe;
+}
+
 function getPresentationAnchorWorldPosition(anchor) {
     if (typeof THREE === 'undefined') return null;
 
@@ -309,6 +348,16 @@ function getPresentationAnchorWorldPosition(anchor) {
     if (target === 'disk') {
         var diskR = (params && params.torus && typeof params.torus.r0 === 'number')
             ? params.torus.r0 : 3.4;
+        var facing = null;
+        if (camera && camera.position) {
+            facing = new THREE.Vector3(camera.position.x, camera.position.y, 0.0);
+        } else if (typeof observer !== 'undefined' && observer && observer.position) {
+            facing = new THREE.Vector3(observer.position.x, observer.position.y, 0.0);
+        }
+        if (facing && facing.lengthSq() > 1e-6) {
+            facing.normalize().multiplyScalar(diskR);
+            return facing;
+        }
         return new THREE.Vector3(diskR, 0.0, 0.0);
     }
     if (target === 'jet_north') {
@@ -351,34 +400,57 @@ function getPresentationAnchorWorldPosition(anchor) {
     );
 }
 
+function projectPresentationWorldPoint(worldPoint) {
+    if (!worldPoint || typeof THREE === 'undefined' || !camera) return null;
+    var projected = worldPoint.clone().project(camera);
+    if (!projected ||
+        !isFinite(projected.x) ||
+        !isFinite(projected.y) ||
+        !isFinite(projected.z)) {
+        return null;
+    }
+    var offscreen = projected.z < -1.0 || projected.z > 1.0 ||
+        projected.x < -1.0 || projected.x > 1.0 ||
+        projected.y < -1.0 || projected.y > 1.0;
+    return {
+        x: projected.x,
+        y: projected.y,
+        z: projected.z,
+        offscreen: offscreen
+    };
+}
+
 function getAnnotationAnchorPoint(note, viewWidth, viewHeight) {
     var anchor = note.anchor || {};
     if (anchor.mode === 'world' && typeof THREE !== 'undefined' && camera) {
         var worldPoint = getPresentationAnchorWorldPosition(anchor);
-        var projected = worldPoint ? worldPoint.clone().project(camera) : null;
-        if (projected &&
-            isFinite(projected.x) &&
-            isFinite(projected.y) &&
-            isFinite(projected.z)) {
+        var projected = projectPresentationWorldPoint(worldPoint);
+        if (projected) {
             var ndcX = projected.x;
             var ndcY = projected.y;
-            var offscreen = projected.z < -1.0 || projected.z > 1.0 ||
-                ndcX < -1.0 || ndcX > 1.0 || ndcY < -1.0 || ndcY > 1.0;
 
-            if (offscreen) {
-                var ndcLen = Math.sqrt(ndcX * ndcX + ndcY * ndcY);
-                if (!isFinite(ndcLen) || ndcLen < 1e-5) {
-                    ndcX = 0.0;
-                    ndcY = 0.0;
+            if (projected.offscreen) {
+                // If the symbolic target is off-screen, fall back to the black-hole center.
+                var centerProjected = projectPresentationWorldPoint(new THREE.Vector3(0.0, 0.0, 0.0));
+                if (centerProjected && !centerProjected.offscreen) {
+                    ndcX = centerProjected.x;
+                    ndcY = centerProjected.y;
                 } else {
-                    ndcX /= ndcLen;
-                    ndcY /= ndcLen;
+                    var ndcLen = Math.sqrt(ndcX * ndcX + ndcY * ndcY);
+                    if (!isFinite(ndcLen) || ndcLen < 1e-5) {
+                        ndcX = 0.0;
+                        ndcY = 0.0;
+                    } else {
+                        ndcX /= ndcLen;
+                        ndcY /= ndcLen;
+                    }
+                    // Keep fallback anchors away from hard viewport edges.
+                    ndcX *= 0.72;
+                    ndcY *= 0.72;
                 }
-                ndcX *= 0.94;
-                ndcY *= 0.94;
             } else {
-                ndcX = presentationClamp(ndcX, -0.96, 0.96);
-                ndcY = presentationClamp(ndcY, -0.96, 0.96);
+                ndcX = presentationClamp(ndcX, -0.90, 0.90);
+                ndcY = presentationClamp(ndcY, -0.90, 0.90);
             }
 
             var projectedPx = (ndcX * 0.5 + 0.5) * viewWidth;
@@ -415,17 +487,27 @@ function buildPresentationNoteLayout(ctx, note, viewWidth, viewHeight) {
     var height = paddingY + titleSpace + bodySpace + paddingY;
 
     var anchor = getAnnotationAnchorPoint(note, viewWidth, viewHeight);
+    var safeMargins = getPresentationOverlaySafeMargins(viewWidth);
     var placement = (note.placement || 'right').toLowerCase();
+    var sideInset = parseFloat(note.sideInset);
+    if (!isFinite(sideInset)) sideInset = 26;
+    sideInset = presentationClamp(sideInset, 0, Math.max(0, viewWidth * 0.18));
+    var sideDockLeft = safeMargins.left + sideInset;
+    var sideDockRight = Math.max(sideDockLeft, viewWidth - safeMargins.right - width - sideInset);
     if (placement === 'auto') {
-        placement = (anchor.x >= viewWidth * 0.55) ? 'left' : 'right';
+        var usableCenterX = safeMargins.left +
+            (viewWidth - safeMargins.left - safeMargins.right) * 0.5;
+        placement = (anchor.x >= usableCenterX) ? 'left' : 'right';
     }
     var offset = parseFloat(note.offset);
-    if (!isFinite(offset)) offset = 38;
+    if (!isFinite(offset)) offset = 56;
+    offset = Math.max(16, offset);
     var x = anchor.x;
     var y = anchor.y;
 
     if (placement === 'left') {
-        x -= width + offset;
+        x = sideDockLeft;
+        x = Math.min(x, anchor.x - width - offset);
         y -= height * 0.45;
     } else if (placement === 'top') {
         x -= width * 0.5;
@@ -434,15 +516,66 @@ function buildPresentationNoteLayout(ctx, note, viewWidth, viewHeight) {
         x -= width * 0.5;
         y += offset;
     } else {
-        x += offset;
+        x = sideDockRight;
+        x = Math.max(x, anchor.x + offset);
         y -= height * 0.45;
     }
 
-    var margin = 14;
-    x = presentationClamp(x, margin, Math.max(margin, viewWidth - width - margin));
-    y = presentationClamp(y, margin, Math.max(margin, viewHeight - height - margin));
-    var lineEndX = presentationClamp(anchor.x, x + 6, x + width - 6);
-    var lineEndY = presentationClamp(anchor.y, y + 6, y + height - 6);
+    // Keep the center action clear by pushing notes away from the projected black-hole region.
+    var bhProj = projectPresentationWorldPoint((typeof THREE !== 'undefined') ? new THREE.Vector3(0.0, 0.0, 0.0) : null);
+    if (bhProj && !bhProj.offscreen) {
+        var bhX = (bhProj.x * 0.5 + 0.5) * viewWidth;
+        var bhY = (-bhProj.y * 0.5 + 0.5) * viewHeight;
+        var protectRadius = presentationClamp(Math.min(viewWidth, viewHeight) * 0.24, 140, 340);
+        var centerGap = Math.max(18, parseFloat(note.centerGap) || 24);
+
+        if (placement === 'left') {
+            var leftMaxX = bhX - protectRadius - width - centerGap;
+            if (isFinite(leftMaxX)) x = Math.min(x, leftMaxX);
+        } else if (placement === 'right') {
+            var rightMinX = bhX + protectRadius + centerGap;
+            if (isFinite(rightMinX)) x = Math.max(x, rightMinX);
+        } else if (placement === 'top') {
+            var topMaxY = bhY - protectRadius - height - centerGap;
+            if (isFinite(topMaxY)) y = Math.min(y, topMaxY);
+        } else if (placement === 'bottom') {
+            var bottomMinY = bhY + protectRadius + centerGap;
+            if (isFinite(bottomMinY)) y = Math.max(y, bottomMinY);
+        }
+
+        // If still intersecting the protected center, force to the far outer side.
+        if (rectIntersectsCircle(x, y, width, height, bhX, bhY, protectRadius)) {
+            if (placement === 'left' || placement === 'right') {
+                x = (anchor.x >= bhX) ? sideDockLeft : sideDockRight;
+            } else {
+                y = (anchor.y >= bhY)
+                    ? Math.max(14, bhY - protectRadius - height - centerGap)
+                    : Math.min(viewHeight - height - 14, bhY + protectRadius + centerGap);
+            }
+        }
+    }
+
+    x = presentationClamp(
+        x,
+        safeMargins.left,
+        Math.max(safeMargins.left, viewWidth - width - safeMargins.right)
+    );
+    y = presentationClamp(y, 14, Math.max(14, viewHeight - height - 14));
+    var lineEndX;
+    var lineEndY;
+    if (placement === 'left') {
+        lineEndX = x + width - 8;
+        lineEndY = presentationClamp(anchor.y, y + 8, y + height - 8);
+    } else if (placement === 'top') {
+        lineEndX = presentationClamp(anchor.x, x + 8, x + width - 8);
+        lineEndY = y + height - 8;
+    } else if (placement === 'bottom') {
+        lineEndX = presentationClamp(anchor.x, x + 8, x + width - 8);
+        lineEndY = y + 8;
+    } else {
+        lineEndX = x + 8;
+        lineEndY = presentationClamp(anchor.y, y + 8, y + height - 8);
+    }
 
     return {
         title: title,
@@ -999,6 +1132,7 @@ function getPresentationState() {
         time: presentationState.time,
         duration: presentationState.duration,
         recording: !!presentationCaptureState.active,
+        recording_quality_preset: presentationCaptureState.qualityPreset || 'current',
         annotations_enabled: !!presentationAnnotationState.enabled,
         annotations_in_recording: !!presentationAnnotationState.includeInRecording
     };
@@ -1078,6 +1212,83 @@ function presentationCaptureFilename(prefix, mimeType) {
     return (prefix || 'black-hole-presentation') + '-' + stamp + '.' + ext;
 }
 
+function normalizePresentationRecordingQualityPreset(value) {
+    if (typeof value !== 'string') return 'current';
+    var clean = value.trim().toLowerCase();
+    if (!clean || clean === 'current') return 'current';
+    if (typeof QUALITY_PRESETS !== 'undefined' && QUALITY_PRESETS && QUALITY_PRESETS[clean]) {
+        return clean;
+    }
+    return 'current';
+}
+
+function capturePresentationQualitySnapshot() {
+    if (!shader || !shader.parameters) return null;
+    var p = shader.parameters;
+    return {
+        quality: p.quality,
+        n_steps: p.n_steps,
+        sample_count: p.sample_count,
+        max_revolutions: p.max_revolutions,
+        rk4_integration: p.rk4_integration,
+        cinematic_tonemap: p.cinematic_tonemap,
+        resolution_scale: p.resolution_scale,
+        taa_enabled: p.taa_enabled,
+        taa: {
+            history_weight: p.taa.history_weight,
+            clip_box: p.taa.clip_box,
+            motion_rejection: p.taa.motion_rejection,
+            max_camera_delta: p.taa.max_camera_delta,
+            motion_clip_scale: p.taa.motion_clip_scale
+        }
+    };
+}
+
+function restorePresentationQualitySnapshot(snapshot) {
+    if (!snapshot || !shader || !shader.parameters) return false;
+    var p = shader.parameters;
+    p.quality = snapshot.quality;
+    p.n_steps = snapshot.n_steps;
+    p.sample_count = snapshot.sample_count;
+    p.max_revolutions = snapshot.max_revolutions;
+    p.rk4_integration = snapshot.rk4_integration;
+    p.cinematic_tonemap = snapshot.cinematic_tonemap;
+    p.resolution_scale = snapshot.resolution_scale;
+    p.taa_enabled = snapshot.taa_enabled;
+    p.taa.history_weight = snapshot.taa.history_weight;
+    p.taa.clip_box = snapshot.taa.clip_box;
+    p.taa.motion_rejection = snapshot.taa.motion_rejection;
+    p.taa.max_camera_delta = snapshot.taa.max_camera_delta;
+    p.taa.motion_clip_scale = snapshot.taa.motion_clip_scale;
+
+    if (typeof applyRenderScaleFromSettings === 'function') {
+        applyRenderScaleFromSettings();
+    }
+    if (scene && typeof scene.updateShader === 'function') {
+        scene.updateShader();
+    }
+    refreshPresentationUiBindings();
+    return true;
+}
+
+function applyPresentationRecordingQualityPreset(presetName) {
+    if (!presetName || presetName === 'current') return false;
+    if (!shader || !shader.parameters) return false;
+    if (typeof applyQualityPresetValues !== 'function') return false;
+
+    var preset = applyQualityPresetValues(shader.parameters, presetName);
+    if (!preset) return false;
+
+    if (typeof applyRenderScaleFromSettings === 'function') {
+        applyRenderScaleFromSettings();
+    }
+    if (scene && typeof scene.updateShader === 'function') {
+        scene.updateShader();
+    }
+    refreshPresentationUiBindings();
+    return true;
+}
+
 function stopPresentationCompositeCapture() {
     if (presentationCaptureState.compositeRaf) {
         cancelAnimationFrame(presentationCaptureState.compositeRaf);
@@ -1101,6 +1312,8 @@ function stopPresentationRecording() {
         presentationCaptureState.chunks = [];
         presentationCaptureState.includeAnnotationsInRecording = false;
         stopPresentationCompositeCapture();
+        restorePresentationQualitySnapshot(presentationCaptureState.restoreQualitySnapshot);
+        presentationCaptureState.restoreQualitySnapshot = null;
     }
     return true;
 }
@@ -1126,6 +1339,29 @@ function startPresentationRecording(options) {
         ? presentationAnnotationState.includeInRecording
         : !!options.includeAnnotationsInRecording;
 
+    var qualityPreset = normalizePresentationRecordingQualityPreset(
+        (options.qualityPreset === undefined)
+            ? presentationCaptureState.qualityPreset
+            : options.qualityPreset
+    );
+    var previousQualitySnapshot = null;
+    var qualityOverridden = false;
+    if (qualityPreset !== 'current') {
+        previousQualitySnapshot = capturePresentationQualitySnapshot();
+        qualityOverridden = !!previousQualitySnapshot &&
+            applyPresentationRecordingQualityPreset(qualityPreset);
+        if (!qualityOverridden) {
+            previousQualitySnapshot = null;
+            qualityPreset = 'current';
+        }
+    }
+
+    function rollbackRecordingQualityOverride() {
+        if (qualityOverridden && previousQualitySnapshot) {
+            restorePresentationQualitySnapshot(previousQualitySnapshot);
+        }
+    }
+
     var filenamePrefix = options.filenamePrefix || presentationCaptureState.filenamePrefix;
     var autoStop = (options.autoStopOnPresentationEnd === undefined)
         ? presentationCaptureState.autoStopOnPresentationEnd
@@ -1139,7 +1375,10 @@ function startPresentationRecording(options) {
 
         var compositeCanvas = document.createElement('canvas');
         var compositeCtx = compositeCanvas.getContext('2d');
-        if (!compositeCtx) return false;
+        if (!compositeCtx) {
+            rollbackRecordingQualityOverride();
+            return false;
+        }
 
         function syncCompositeSize() {
             compositeCanvas.width = Math.max(1, renderer.domElement.width || 1);
@@ -1193,6 +1432,7 @@ function startPresentationRecording(options) {
         } catch (err2) {
             stream.getTracks().forEach(function(track) { track.stop(); });
             stopPresentationCompositeCapture();
+            rollbackRecordingQualityOverride();
             return false;
         }
     }
@@ -1206,6 +1446,9 @@ function startPresentationRecording(options) {
     presentationCaptureState.filenamePrefix = filenamePrefix;
     presentationCaptureState.autoStopOnPresentationEnd = autoStop;
     presentationCaptureState.mimeType = mimeType || recorder.mimeType || 'video/webm';
+    presentationCaptureState.qualityPreset = qualityPreset;
+    presentationCaptureState.restoreQualitySnapshot =
+        qualityOverridden ? previousQualitySnapshot : null;
     presentationCaptureState.includeAnnotationsInRecording = includeAnnotationsInRecording;
 
     if (includeAnnotationsInRecording && compositeTick) {
@@ -1243,6 +1486,8 @@ function startPresentationRecording(options) {
         presentationCaptureState.chunks = [];
         presentationCaptureState.includeAnnotationsInRecording = false;
         stopPresentationCompositeCapture();
+        restorePresentationQualitySnapshot(presentationCaptureState.restoreQualitySnapshot);
+        presentationCaptureState.restoreQualitySnapshot = null;
     };
 
     recorder.onerror = function(err) {

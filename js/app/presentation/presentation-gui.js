@@ -40,6 +40,11 @@ function createPresentationAnimationSectionHtml() {
                 '</div>' +
 
                 '<div class="presentation-row">' +
+                    '<label for="presentation-record-quality">Rec quality</label>' +
+                    '<select id="presentation-record-quality" class="presentation-select"></select>' +
+                '</div>' +
+
+                '<div class="presentation-row">' +
                     '<label for="presentation-fps">Rec FPS</label>' +
                     '<input id="presentation-fps" type="number" min="24" max="120" step="1" value="60">' +
                     '<label for="presentation-bitrate" class="presentation-inline-label">Mbps</label>' +
@@ -71,6 +76,7 @@ function bindPresentationAnimationSection(panelRoot) {
     var playBtn = section.querySelector('#presentation-play-btn');
     var pauseBtn = section.querySelector('#presentation-pause-btn');
     var stopBtn = section.querySelector('#presentation-stop-btn');
+    var recordQualitySelect = section.querySelector('#presentation-record-quality');
     var fpsInput = section.querySelector('#presentation-fps');
     var bitrateInput = section.querySelector('#presentation-bitrate');
     var recordStartBtn = section.querySelector('#presentation-record-start-btn');
@@ -112,6 +118,38 @@ function bindPresentationAnimationSection(panelRoot) {
         presetSelect.value = defaultName;
     }
 
+    function populateRecordingQualityOptions() {
+        if (!recordQualitySelect) return;
+
+        var options = [
+            { label: 'Current (no override)', value: 'current' }
+        ];
+        var order = ['optimal', 'high', 'ultra', 'cinematic', 'medium', 'mobile'];
+        var labels = {
+            mobile: 'Mobile (fastest)',
+            medium: 'Medium',
+            high: 'High',
+            optimal: 'Optimal (recommended)',
+            ultra: 'Ultra',
+            cinematic: 'Cinematic (offline)'
+        };
+        for (var i = 0; i < order.length; i++) {
+            var id = order[i];
+            if (typeof QUALITY_PRESETS !== 'undefined' && QUALITY_PRESETS && QUALITY_PRESETS[id]) {
+                options.push({ label: labels[id] || id, value: id });
+            }
+        }
+
+        recordQualitySelect.innerHTML = '';
+        for (var j = 0; j < options.length; j++) {
+            var opt = document.createElement('option');
+            opt.value = options[j].value;
+            opt.textContent = options[j].label;
+            recordQualitySelect.appendChild(opt);
+        }
+        recordQualitySelect.value = 'current';
+    }
+
     function syncFromState() {
         if (typeof getPresentationState !== 'function') return;
         var state = getPresentationState();
@@ -133,6 +171,20 @@ function bindPresentationAnimationSection(panelRoot) {
         }
         if (typeof state.annotations_in_recording === 'boolean') {
             recordAnnotationsCheckbox.checked = state.annotations_in_recording;
+        }
+        if (recordQualitySelect) {
+            if (state.recording) {
+                var desiredQuality = state.recording_quality_preset || 'current';
+                var hasDesired = false;
+                for (var i = 0; i < recordQualitySelect.options.length; i++) {
+                    if (recordQualitySelect.options[i].value === desiredQuality) {
+                        hasDesired = true;
+                        break;
+                    }
+                }
+                if (hasDesired) recordQualitySelect.value = desiredQuality;
+            }
+            recordQualitySelect.disabled = !!state.recording;
         }
 
         if (state.recording) {
@@ -243,6 +295,7 @@ function bindPresentationAnimationSection(panelRoot) {
             fps: fps,
             bitrateMbps: bitrate,
             autoStopOnPresentationEnd: true,
+            qualityPreset: recordQualitySelect ? recordQualitySelect.value : 'current',
             includeAnnotationsInRecording: !!recordAnnotationsCheckbox.checked
         });
         syncFromState();
@@ -256,6 +309,7 @@ function bindPresentationAnimationSection(panelRoot) {
     });
 
     function initializePresetsUI() {
+        populateRecordingQualityOptions();
         if (typeof ensurePresentationPresetsLoaded === 'function') {
             setStatus('Loading presets...', '');
             var loading = ensurePresentationPresetsLoaded();
