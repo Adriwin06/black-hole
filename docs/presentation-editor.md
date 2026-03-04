@@ -149,12 +149,15 @@ The timeline panel responds to keyboard shortcuts when it is focused:
 |---|---|
 | `Space` | Play / Pause |
 | `Delete` or `Backspace` | Delete all selected keyframes |
-| `Ctrl+A` | Select all keyframes on the active track (press again to select all keyframes across all tracks) |
+| `Ctrl+A` | Select all keyframes on the active track; with `Shift` held (`Ctrl+Shift+A`), select all keyframes across all tracks |
 | Double-click keyframe | Select all keyframes across all tracks at that same time |
+| `Ctrl+C` | Copy selected keyframes to clipboard |
+| `Ctrl+V` | Paste copied keyframes at the current playhead time |
 | `Ctrl+Z` | Undo last edit |
 | `Ctrl+Y` / `Ctrl+Shift+Z` | Redo |
+| `Escape` | Close the Motion Functions panel (if open) |
 | `Home` | Seek to `0.00` |
-| `End` | Seek to the last keyframe on the active track |
+| `End` | Seek to the end of the timeline (duration) |
 | `←` / `→` | Nudge playhead by ±0.1 s |
 | `Shift+←` / `Shift+→` | Nudge playhead by ±1.0 s |
 

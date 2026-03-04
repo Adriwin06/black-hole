@@ -203,6 +203,7 @@
                 <li><a href="#sec-grmhd-synchrotron">Thermal Synchrotron Emission</a></li>
                 <li><a href="#sec-grmhd-mri">MRI Turbulence &amp; MAD State</a></li>
                 <li><a href="#sec-grmhd-fishbone">Fishbone-Moncrief Torus</a></li>
+                <li><a href="#sec-grmhd-turbulence-temperature">High-Frequency Chaos &amp; Dynamic Thermal Bands</a></li>
                 <li><a href="#sec-grmhd-nonthermal">Non-Thermal Electrons (κ-distribution)</a></li>
                 <li><a href="#sec-grmhd-isco">Non-Zero ISCO Stress</a></li>
                 <li><a href="#sec-grmhd-bz">Blandford-Znajek Jet Power</a></li>
@@ -1520,7 +1521,7 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     most vigorous.
 </p>
 
-<h3 id="sec-grmhd-isco">16.6 Non-Zero ISCO Stress</h3>
+<h3 id="sec-grmhd-isco">16.7 Non-Zero ISCO Stress</h3>
 
 <p>
     The classical Novikov-Thorne model assumes zero torque at the ISCO (innermost stable circular
@@ -1536,7 +1537,7 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     stronger magnetic fields near the horizon.
 </p>
 
-<h3 id="sec-grmhd-bz">16.7 Blandford-Znajek Jet Power</h3>
+<h3 id="sec-grmhd-bz">16.8 Blandford-Znajek Jet Power</h3>
 
 <p>
     The jet luminosity in GRMHD mode is modulated by the <strong>Blandford &amp; Znajek (1977)</strong>
@@ -2267,8 +2268,12 @@ newR = max(r + k2,  r_min)</code></pre>
         but is <strong>work-in-progress</strong> and not yet exposed in the UI.
         The "Realtime Kerr core" mode uses exact Kerr angular velocities for disk matter
         but still traces photon paths with the perturbative Binet equation.</li>
-    <li><strong>No returning radiation:</strong> Photons that are gravitationally lensed back onto
-        the accretion disk are not tracked (would require recursive ray tracing).</li>
+    <li><strong>Returning radiation is analytical, not ray-traced:</strong> Photons gravitationally
+        lensed back onto the accretion disk are not individually tracked (that would require
+        recursive ray tracing). Instead, an analytical flux enhancement model based on
+        Cunningham (1976) is applied (see <a href="#sec-self-irradiation">Section 7.4</a>),
+        correctly capturing the enhanced inner-disk emission without the cost of recursive
+        raytracing.</li>
     <li><strong>Disk is not self-consistent:</strong> The disk temperature, density, and velocity profiles are
         prescribed analytically rather than evolved from MHD equations.</li>
     <li><strong>No polarization:</strong> The simulation does not track photon polarization, which is
