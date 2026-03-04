@@ -1805,7 +1805,7 @@ body.tl-resizing, body.tl-resizing * {
     border: 2px solid #4080c0;
     background: #1a3050;
     border-radius: 2px;
-    cursor: pointer;
+    cursor: grab;
     z-index: 2;
     transition: background 0.1s, border-color 0.1s, box-shadow 0.1s;
     padding: 0;
@@ -1819,6 +1819,16 @@ body.tl-resizing, body.tl-resizing * {
     background: #2e5a8c;
     border-color: #f0b840;
     box-shadow: 0 0 8px rgba(240, 184, 64, 0.45);
+}
+
+/* During keyframe drag: grabbing cursor on lanes, suppress hover transitions */
+.tl-lanes--dragging {
+    cursor: grabbing;
+    user-select: none;
+}
+.tl-lanes--dragging .tl-diamond {
+    cursor: grabbing;
+    transition: none;
 }
 
 /* -- Inspector (right) -- */

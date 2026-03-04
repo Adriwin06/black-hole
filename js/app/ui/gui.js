@@ -1221,6 +1221,7 @@ function setupGUI() {
         var slimDiskEnabled = diskEnabled && p.accretion_mode === 'slim_disk';
 
         setControlVisible(accretionModeCtrl, diskEnabled);
+        setControlVisible(diskSelfIrradiationCtrl, diskEnabled);
         setControlVisible(diskTempCtrl, diskEnabled);
         setControlsVisible(torusRows, thickTorusEnabled);
         setControlsVisible(slimRows, slimDiskEnabled);

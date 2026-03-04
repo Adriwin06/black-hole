@@ -291,6 +291,14 @@ function buildTimelinePanel() {
     var PANEL_STATE_KEY   = 'black-hole.tl-panel.state';
     var PANEL_DEFAULT_H   = 320;
 
+    // ── Clipboard (copy/paste keyframes) ───────────────────────────────────
+    // Array of { path, t, v, ease } with anchorT = min(t) in the set
+    var clipboard = null;
+
+    // ── Key drag state ──────────────────────────────────────────────────────
+    // Set when the user starts dragging a diamond; reset on pointerup/cancel
+    var keyDragState = null;
+
     // ── Undo/Redo history ───────────────────────────────────────────────────
     var undoStack = [];
     var redoStack = [];
@@ -813,7 +821,11 @@ function buildTimelinePanel() {
         }
     });
 
+    var dragJustCommitted = false;
+
     lanesEl.addEventListener('click', function(e) {
+        // Ignore the synthetic click that fires after a drag commit
+        if (dragJustCommitted) { dragJustCommitted = false; return; }
         var diamond = e.target.closest('.tl-diamond');
         if (diamond) {
             var path = diamond.getAttribute('data-path');
@@ -864,6 +876,115 @@ function buildTimelinePanel() {
             rebuildLanes();
             updateInspector();
         }
+    });
+
+    // ── Keyframe drag (move diamonds by dragging) ────────────────────────────
+    lanesEl.addEventListener('pointerdown', function(e) {
+        if (e.button !== 0) return;
+        var diamond = e.target.closest('.tl-diamond');
+        if (!diamond) return;
+        var path = diamond.getAttribute('data-path');
+        var ki   = parseInt(diamond.getAttribute('data-ki'), 10);
+        var track = getTrackByPath(path);
+        if (!track || !track.keys[ki]) return;
+
+        var clickedT = track.keys[ki].t;
+        // If the clicked diamond isn't in the current multi-select, replace selection
+        if (!isKeyMultiSelected(path, clickedT)) {
+            clearMultiSelect();
+            addToMultiSelect(path, clickedT);
+            selectedTrack = path;
+            selectedKeyT  = clickedT;
+            rebuildTrackList();
+            rebuildLanes();
+            if (selectedKeys.length === 1) fillInspector(track, ki);
+        }
+
+        // Collect all selected keys with their original positions
+        var rect = lanesEl.getBoundingClientRect();
+        var dur  = getDuration();
+        var dragKeys = [];
+        for (var s = 0; s < selectedKeys.length; s++) {
+            var sk = selectedKeys[s];
+            var tr = getTrackByPath(sk.path);
+            if (!tr) continue;
+            var trKi = getKeyAt(tr, sk.t);
+            if (trKi < 0) continue;
+            dragKeys.push({ path: sk.path, origT: sk.t, ki: trKi });
+        }
+        keyDragState = {
+            pointerId : e.pointerId,
+            startX    : e.clientX,
+            rect      : rect,
+            duration  : dur,
+            keys      : dragKeys,
+            dragging  : false
+        };
+        lanesEl.setPointerCapture(e.pointerId);
+        e.preventDefault();
+    });
+
+    lanesEl.addEventListener('pointermove', function(e) {
+        if (!keyDragState) return;
+        var dx = e.clientX - keyDragState.startX;
+        if (!keyDragState.dragging && Math.abs(dx) > 4) {
+            keyDragState.dragging = true;
+            lanesEl.classList.add('tl-lanes--dragging');
+        }
+        if (!keyDragState.dragging) return;
+        var dt = (dx / keyDragState.rect.width) * keyDragState.duration;
+        var dur = keyDragState.duration;
+        for (var i = 0; i < keyDragState.keys.length; i++) {
+            var dk = keyDragState.keys[i];
+            var newT = clamp(dk.origT + dt, 0, dur);
+            var pct  = (newT / Math.max(dur, 0.001) * 100).toFixed(3) + '%';
+            var escaped = dk.path.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+            var el = lanesEl.querySelector('.tl-diamond[data-path="' + escaped + '"][data-ki="' + dk.ki + '"]');
+            if (el) el.style.left = pct;
+        }
+        e.preventDefault();
+    });
+
+    lanesEl.addEventListener('pointerup', function(e) {
+        if (!keyDragState || keyDragState.pointerId !== e.pointerId) return;
+        var wasDragging = keyDragState.dragging;
+        var drKeys = keyDragState.keys;
+        var dx = e.clientX - keyDragState.startX;
+        var dt = (dx / keyDragState.rect.width) * keyDragState.duration;
+        var dur = keyDragState.duration;
+        lanesEl.classList.remove('tl-lanes--dragging');
+        keyDragState = null;
+
+        if (wasDragging && draft) {
+            pushUndo();
+            clearMultiSelect();
+            var affectedPaths = {};
+            for (var i = 0; i < drKeys.length; i++) {
+                var dk = drKeys[i];
+                var tr  = getTrackByPath(dk.path);
+                if (!tr || !tr.keys[dk.ki]) continue;
+                var newT = clamp(dk.origT + dt, 0, dur);
+                tr.keys[dk.ki].t = newT;
+                addToMultiSelect(dk.path, newT);
+                affectedPaths[dk.path] = 1;
+            }
+            for (var ap in affectedPaths) {
+                var tr2 = getTrackByPath(ap);
+                if (tr2) tr2.keys.sort(function(a, b) { return a.t - b.t; });
+            }
+            applyDraft();
+            rebuildAll();
+            dragJustCommitted = true;
+            var count = drKeys.length;
+            setStatus(count + ' key' + (count > 1 ? 's' : '') + ' moved.', '');
+        }
+    });
+
+    lanesEl.addEventListener('pointercancel', function(e) {
+        if (!keyDragState) return;
+        lanesEl.classList.remove('tl-lanes--dragging');
+        keyDragState = null;
+        rebuildLanes(); // restore visual positions
     });
 
     // ── Playhead live-update ────────────────────────────────────────────────
@@ -1749,6 +1870,57 @@ function buildTimelinePanel() {
         inspSummary.textContent = selectedKeys.length + ' keyframes selected (all).';
     }
 
+    // ── Copy / Paste keyframes ──────────────────────────────────────────────
+    function copySelectedKeys() {
+        if (!draft || !selectedKeys.length) return;
+        var anchorT = Infinity;
+        for (var s = 0; s < selectedKeys.length; s++) {
+            if (selectedKeys[s].t < anchorT) anchorT = selectedKeys[s].t;
+        }
+        var entries = [];
+        for (var s = 0; s < selectedKeys.length; s++) {
+            var sk = selectedKeys[s];
+            var tr = getTrackByPath(sk.path);
+            if (!tr) continue;
+            var ki = getKeyAt(tr, sk.t);
+            if (ki < 0) continue;
+            var key = tr.keys[ki];
+            entries.push({ path: sk.path, relT: sk.t - anchorT, v: clonePlain(key.v), ease: key.ease });
+        }
+        if (!entries.length) return;
+        clipboard = { anchorT: anchorT, entries: entries };
+        setStatus(entries.length + ' key' + (entries.length > 1 ? 's' : '') + ' copied.', '');
+    }
+
+    function pasteKeys() {
+        if (!draft || !clipboard) return;
+        var pasteT = currentTime();
+        pushUndo();
+        clearMultiSelect();
+        for (var i = 0; i < clipboard.entries.length; i++) {
+            var entry = clipboard.entries[i];
+            var t = clamp(pasteT + entry.relT, 0, getDuration());
+            var track = getTrackByPath(entry.path);
+            if (!track) {
+                track = { path: entry.path, compile: false, keys: [] };
+                draft.tracks.push(track);
+                draft.tracks.sort(function(a, b) { return a.path.localeCompare(b.path); });
+            }
+            var existing = getKeyAt(track, t);
+            if (existing >= 0) {
+                track.keys[existing] = { t: t, v: clonePlain(entry.v), ease: entry.ease };
+            } else {
+                track.keys.push({ t: t, v: clonePlain(entry.v), ease: entry.ease });
+                track.keys.sort(function(a, b) { return a.t - b.t; });
+            }
+            draft.duration = Math.max(draft.duration, t);
+            addToMultiSelect(entry.path, t);
+        }
+        applyDraft();
+        rebuildAll();
+        setStatus(clipboard.entries.length + ' key' + (clipboard.entries.length > 1 ? 's' : '') + ' pasted.', '');
+    }
+
     window.addEventListener('keydown', function(e) {
         if (!panelOpen) return;
         // Don't capture when typing in input/textarea (except for specific shortcuts)
@@ -1799,6 +1971,20 @@ function buildTimelinePanel() {
             e.preventDefault();
             if (selectedTrack && !e.shiftKey) selectAllKeysOnTrack();
             else selectAllKeys();
+            return;
+        }
+
+        // Ctrl+C → copy selected keyframes to clipboard
+        if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.code === 'KeyC') {
+            e.preventDefault();
+            copySelectedKeys();
+            return;
+        }
+
+        // Ctrl+V → paste keyframes at current time
+        if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.code === 'KeyV') {
+            e.preventDefault();
+            pasteKeys();
             return;
         }
 
