@@ -98,6 +98,7 @@ function buildTimelinePanel() {
                 '<select id="tl-preset-select" class="tl-preset-select"></select>' +
                 '<span class="tl-transport-sep"></span>' +
                 '<button id="tl-btn-motion" class="tl-btn tl-btn--motion" type="button" title="Insert a predefined motion function">⊕&nbsp;FX</button>' +
+                '<button id="tl-btn-rec" class="tl-btn tl-btn--rec" type="button" title="Recording settings">&#9679;&nbsp;REC</button>' +
                 '<span class="tl-transport-sep"></span>' +
                 '<button id="tl-btn-auto-key" class="tl-btn tl-btn--warn" type="button" title="Auto Keyframe: capture changes">AUTO KEY</button>' +
                 '<button id="tl-btn-add-track" class="tl-btn" type="button" title="Add a new track">+ TRACK</button>' +
@@ -181,6 +182,45 @@ function buildTimelinePanel() {
             '</div>' +
         '</div>' +
 
+        // ── REC modal (floats above panel) ──
+        '<div id="tl-rec-modal" class="tl-rec-modal">' +
+            '<div class="tl-rec-hdr">' +
+                '<span class="tl-rec-title">RECORDING</span>' +
+                '<button id="tl-rec-close" class="tl-btn" type="button" title="Close">&times;</button>' +
+            '</div>' +
+            '<div class="tl-rec-body">' +
+                '<div class="tl-rec-checks">' +
+                    '<label class="tl-rec-check"><input type="checkbox" id="tl-rec-loop"> Loop timeline</label>' +
+                    '<label class="tl-rec-check"><input type="checkbox" id="tl-rec-annotations" checked> Show explanations</label>' +
+                    '<label class="tl-rec-check"><input type="checkbox" id="tl-rec-annot-record"> Include text in recording</label>' +
+                    '<label class="tl-rec-check"><input type="checkbox" id="tl-rec-reset-sim" checked> Reset simulation on rec start</label>' +
+                '</div>' +
+                '<div class="tl-rec-row">' +
+                    '<label>Quality</label>' +
+                    '<select id="tl-rec-quality" class="tl-rec-select"></select>' +
+                '</div>' +
+                '<div class="tl-rec-row">' +
+                    '<label>Mode</label>' +
+                    '<select id="tl-rec-mode" class="tl-rec-select"></select>' +
+                '</div>' +
+                '<div class="tl-rec-row">' +
+                    '<label>Resolution</label>' +
+                    '<select id="tl-rec-resolution" class="tl-rec-select"></select>' +
+                '</div>' +
+                '<div class="tl-rec-row">' +
+                    '<label>FPS</label>' +
+                    '<input id="tl-rec-fps" class="tl-rec-num" type="number" min="24" max="120" step="1" value="60">' +
+                    '<label style="margin-left:8px">Mbps</label>' +
+                    '<input id="tl-rec-bitrate" class="tl-rec-num" type="number" min="4" max="80" step="1" value="20">' +
+                '</div>' +
+            '</div>' +
+            '<div class="tl-rec-actions">' +
+                '<button id="tl-rec-start" class="tl-mini-btn tl-mini-btn--accent" type="button">&#9679; START REC</button>' +
+                '<button id="tl-rec-stop" class="tl-mini-btn tl-mini-btn--danger" type="button">&#9632; STOP REC</button>' +
+            '</div>' +
+            '<div id="tl-rec-status" class="tl-rec-status">Idle</div>' +
+        '</div>' +
+
         // ── Status bar ──
         '<div id="tl-status" class="tl-status"></div>';
 
@@ -222,6 +262,21 @@ function buildTimelinePanel() {
     var motionTypeEl   = panel.querySelector('#tl-motion-type');
     var motionParamsEl = panel.querySelector('#tl-motion-params');
     var motionApplyBtn = panel.querySelector('#tl-motion-apply');
+    var recBtn           = panel.querySelector('#tl-btn-rec');
+    var recModal         = panel.querySelector('#tl-rec-modal');
+    var recCloseBtn      = panel.querySelector('#tl-rec-close');
+    var recLoopCb        = panel.querySelector('#tl-rec-loop');
+    var recAnnotCb       = panel.querySelector('#tl-rec-annotations');
+    var recAnnotRecordCb = panel.querySelector('#tl-rec-annot-record');
+    var recResetSimCb    = panel.querySelector('#tl-rec-reset-sim');
+    var recQualitySelect = panel.querySelector('#tl-rec-quality');
+    var recModeSelect    = panel.querySelector('#tl-rec-mode');
+    var recResSelect     = panel.querySelector('#tl-rec-resolution');
+    var recFpsInput      = panel.querySelector('#tl-rec-fps');
+    var recBitrateInput  = panel.querySelector('#tl-rec-bitrate');
+    var recStartBtn      = panel.querySelector('#tl-rec-start');
+    var recStopBtn       = panel.querySelector('#tl-rec-stop');
+    var recStatusEl      = panel.querySelector('#tl-rec-status');
 
     // ── State ───────────────────────────────────────────────────────────────
     var draft          = null;
@@ -546,6 +601,7 @@ function buildTimelinePanel() {
             updateTimeInputs();
             updateScrubber();
             updatePlayheads();
+            syncRecModal();
         }, 80);
     }
     function stopSync() { clearInterval(syncTimer); syncTimer = null; }
@@ -1426,6 +1482,228 @@ function buildTimelinePanel() {
         }
     }, true);
 
+    // ── Recording modal ─────────────────────────────────────────────────────
+    function clampNum(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+
+    function formatRecDuration(s) {
+        if (isNaN(s) || s < 0) return '--:--';
+        var m = Math.floor(s / 60), sec = Math.floor(s % 60);
+        return (m < 10 ? '0' : '') + m + ':' + (sec < 10 ? '0' : '') + sec;
+    }
+
+    function setRecStatus(text, cls) {
+        recStatusEl.textContent = text;
+        recStatusEl.className   = 'tl-rec-status' + (cls ? ' ' + cls : '');
+    }
+
+    function populateRecQuality() {
+        if (!recQualitySelect) return;
+        var cur = recQualitySelect.value;
+        recQualitySelect.innerHTML = '';
+        var presets = (typeof QUALITY_PRESETS !== 'undefined' && QUALITY_PRESETS)
+            ? Object.keys(QUALITY_PRESETS) : [];
+        var keys = presets.length ? presets : ['optimal', 'high', 'ultra', 'cinematic', 'medium', 'mobile'];
+        for (var i = 0; i < keys.length; i++) {
+            var o = document.createElement('option');
+            o.value = keys[i];
+            o.textContent = keys[i].charAt(0).toUpperCase() + keys[i].slice(1);
+            recQualitySelect.appendChild(o);
+        }
+        if (cur) recQualitySelect.value = cur;
+        if (!recQualitySelect.value && recQualitySelect.options.length) {
+            recQualitySelect.value = recQualitySelect.options[0].value;
+        }
+    }
+
+    function populateRecMode() {
+        if (!recModeSelect) return;
+        var cur = recModeSelect.value;
+        recModeSelect.innerHTML = '';
+        var state = (typeof getPresentationState === 'function') ? getPresentationState() : {};
+        var modes = [
+            { v: 'offline',  l: 'Offline (fixed FPS)' },
+            { v: 'realtime', l: 'Realtime (screen capture)' }
+        ];
+        for (var i = 0; i < modes.length; i++) {
+            var o = document.createElement('option');
+            o.value = modes[i].v;
+            o.textContent = modes[i].l;
+            recModeSelect.appendChild(o);
+        }
+        if (cur) recModeSelect.value = cur;
+        if (!recModeSelect.value) recModeSelect.value = 'offline';
+    }
+
+    function refreshRecResolutionLabel() {
+        if (!recResSelect) return;
+        var state = (typeof getPresentationState === 'function') ? getPresentationState() : {};
+        for (var i = 0; i < recResSelect.options.length; i++) {
+            var opt = recResSelect.options[i];
+            if (opt.value === 'current') {
+                var w = (state.recording_output_width || window.innerWidth);
+                var h = (state.recording_output_height || window.innerHeight);
+                opt.textContent = 'Current viewport (' + w + '\xd7' + h + ')';
+                break;
+            }
+        }
+    }
+
+    function populateRecResolution() {
+        if (!recResSelect) return;
+        var cur = recResSelect.value;
+        recResSelect.innerHTML = '';
+        var opts = [
+            { v: 'current',   l: 'Current viewport' },
+            { v: '1280x720',  l: '1280\xd7720 (HD)' },
+            { v: '1920x1080', l: '1920\xd71080 (Full HD)' },
+            { v: '2560x1440', l: '2560\xd71440 (2K)' },
+            { v: '3840x2160', l: '3840\xd72160 (4K)' }
+        ];
+        for (var i = 0; i < opts.length; i++) {
+            var o = document.createElement('option');
+            o.value = opts[i].v;
+            o.textContent = opts[i].l;
+            recResSelect.appendChild(o);
+        }
+        if (cur) recResSelect.value = cur;
+        if (!recResSelect.value) recResSelect.value = 'current';
+        refreshRecResolutionLabel();
+    }
+
+    function syncRecModal() {
+        if (!recModal || !recModal.classList.contains('is-open')) {
+            if (recBtn) {
+                var st = (typeof getPresentationState === 'function') ? getPresentationState() : {};
+                recBtn.classList.toggle('is-recording', !!st.recording);
+            }
+            return;
+        }
+        if (typeof getPresentationState !== 'function') return;
+        var s = getPresentationState();
+
+        // Sync loop / annotations checkboxes from state
+        if (recLoopCb)        recLoopCb.checked        = !!s.loop;
+        if (recAnnotCb)       recAnnotCb.checked       = !!s.annotations_enabled;
+        if (recAnnotRecordCb) recAnnotRecordCb.checked = !!s.annotations_in_recording;
+
+        // Refresh resolution label with live viewport size
+        refreshRecResolutionLabel();
+
+        // Keep REC button indicator in sync
+        if (recBtn) recBtn.classList.toggle('is-recording', !!s.recording);
+
+        if (!s.recording) {
+            recStartBtn.disabled = false;
+            recStopBtn.disabled  = true;
+            setRecStatus('Idle', '');
+            return;
+        }
+
+        recStartBtn.disabled = true;
+        recStopBtn.disabled  = false;
+
+        if (s.recording_mode === 'realtime') {
+            if (s.recording_background_throttle_detected) {
+                setRecStatus('\u26a0 Background throttle detected \u2014 keep window focused!', 'is-warning');
+            } else {
+                setRecStatus('Recording\u2026 (realtime)', 'is-recording');
+            }
+            return;
+        }
+
+        // Offline mode
+        var phase = s.recording_offline_phase || '';
+        if (phase === 'rendering') {
+            var pct  = Math.round((s.recording_offline_progress || 0) * 100);
+            var done = s.recording_offline_frames_done || 0;
+            var total= s.recording_offline_frames_total || 0;
+            var fps  = s.recording_offline_render_fps ? (' @ ' + s.recording_offline_render_fps.toFixed(1) + ' fps') : '';
+            var eta  = (s.recording_offline_eta_s != null && s.recording_offline_eta_s >= 0)
+                ? (' ETA ' + formatRecDuration(s.recording_offline_eta_s)) : '';
+            setRecStatus('Rendering ' + pct + '% (' + done + '/' + total + ')' + fps + eta, 'is-recording');
+        } else if (phase === 'finalizing') {
+            var fp = s.recording_offline_finalizing_progress;
+            var sub = s.recording_offline_finalizing_sub || '';
+            var label = sub === 'encode' ? 'Encoding' : sub === 'mux' ? 'Muxing' : sub === 'download' ? 'Downloading' : 'Finalizing';
+            var pctStr = (fp != null && fp >= 0) ? (' ' + Math.round(fp * 100) + '%') : '\u2026';
+            setRecStatus(label + pctStr, 'is-recording');
+        } else {
+            setRecStatus('Recording\u2026', 'is-recording');
+        }
+    }
+
+    function openRecModal() {
+        populateRecQuality();
+        populateRecMode();
+        populateRecResolution();
+        syncRecModal();
+        recModal.classList.add('is-open');
+        recBtn.classList.add('is-active');
+    }
+    function closeRecModal() {
+        recModal.classList.remove('is-open');
+        recBtn.classList.remove('is-active');
+    }
+
+    recBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (recModal.classList.contains('is-open')) closeRecModal();
+        else openRecModal();
+    });
+    recCloseBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        closeRecModal();
+    });
+
+    recLoopCb.addEventListener('change', function() {
+        if (typeof setPresentationLoop === 'function') setPresentationLoop(recLoopCb.checked);
+    });
+    recAnnotCb.addEventListener('change', function() {
+        if (typeof setPresentationAnnotationsEnabled === 'function') setPresentationAnnotationsEnabled(recAnnotCb.checked);
+    });
+    recAnnotRecordCb.addEventListener('change', function() {
+        if (typeof setPresentationAnnotationsIncludedInRecording === 'function') setPresentationAnnotationsIncludedInRecording(recAnnotRecordCb.checked);
+    });
+
+    recStartBtn.addEventListener('click', function() {
+        if (typeof startPresentationRecording !== 'function') return;
+        if (recResetSimCb && recResetSimCb.checked) {
+            if (typeof observer !== 'undefined' && observer) observer.time = 0.0;
+            if (typeof shader !== 'undefined' && shader) shader.needsUpdate = true;
+        }
+        var fps     = clampNum(parseFloat(recFpsInput.value) || 60, 24, 120);
+        var bitrate = clampNum(parseFloat(recBitrateInput.value) || 20, 4, 80);
+        recFpsInput.value     = Math.round(fps);
+        recBitrateInput.value = Math.round(bitrate);
+        var started = startPresentationRecording({
+            fps: fps,
+            bitrateMbps: bitrate,
+            autoStopOnPresentationEnd: true,
+            recordingMode:       recModeSelect    ? recModeSelect.value    : 'offline',
+            recordingResolution: recResSelect     ? recResSelect.value     : 'current',
+            qualityPreset:       recQualitySelect ? recQualitySelect.value : 'optimal',
+            includeAnnotationsInRecording: !!recAnnotRecordCb.checked
+        });
+        if (!started) {
+            var st = (typeof getPresentationState === 'function') ? getPresentationState() : {};
+            setRecStatus(st.recording_offline_unavailable_reason || 'Failed to start recording.', 'is-warning');
+        }
+        syncRecModal();
+    });
+    recStopBtn.addEventListener('click', function() {
+        if (typeof stopPresentationRecording === 'function') stopPresentationRecording();
+        syncRecModal();
+    });
+
+    // Close REC modal on click outside
+    panel.addEventListener('click', function(e) {
+        if (recModal.classList.contains('is-open') &&
+            !recModal.contains(e.target) &&
+            e.target !== recBtn) {
+            closeRecModal();
+        }
+    }, true);
+
     // ── Keyboard shortcuts ──────────────────────────────────────────────────
     function deleteSelectedKeys() {
         if (!draft || !selectedKeys.length) return;
@@ -1559,7 +1837,8 @@ function buildTimelinePanel() {
         toggle: toggle,
         isOpen: function() { return panelOpen; },
         sync: syncFromRuntime,
-        loadPreset: loadPresetByName
+        loadPreset: loadPresetByName,
+        syncRecState: syncRecModal
     };
     return timelinePanelBinding;
 }
