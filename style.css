@@ -65,61 +65,16 @@ a:hover {
 
 }
 
-.dg.main {
-    z-index: 120 !important;
-}
-
-#mobile-gui-toggle {
-    display: block;
-    position: fixed;
-    left: auto;
-    right: 15px;
-    bottom: 8px;
-    width: min(360px, calc(100vw - 16px));
-    height: 28px;
-    border: 1px solid #2f4f8a;
-    border-radius: 6px;
-    background: rgba(6, 18, 42, 0.92);
-    color: #dbe8ff;
-    font-family: 'Lucida Grande', 'Segoe UI', sans-serif;
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 0.35px;
-    z-index: 132;
-    pointer-events: auto;
-}
-
-.dg.main .close-button {
-    display: none !important;
-}
-
-@media screen and (min-width: 961px) {
-    /* Keep the desktop panel above the custom toggle button. */
-    .dg.main {
-        max-height: calc(100vh - 44px) !important;
-        overflow-y: auto;
-        box-sizing: border-box;
-        padding-bottom: 0;
-    }
-
-    .dg.main > ul {
-        max-height: calc(100vh - 44px) !important;
-        overflow-y: auto;
-    }
-}
+/* dat.GUI: hide built-in close button (we wrap in our own panel) */
+.dg.main .close-button { display: none !important; }
 
 @media screen and (max-width: 960px) {
-    .dg.ac {
-        z-index: 130 !important;
-    }
-
     #hint-text {
         top: 6px;
         padding: 0 8px;
         font-size: 11px;
         box-sizing: border-box;
     }
-
     .link-bar {
         bottom: 6px;
         font-size: 11px;
@@ -127,71 +82,15 @@ a:hover {
         padding: 0 8px;
         box-sizing: border-box;
     }
-
-    .dg.main {
-        position: fixed !important;
-        left: 8px;
-        right: 8px;
-        top: auto !important;
-        bottom: 68px;
-        width: auto !important;
-        height: auto;
-        max-height: 56vh;
-        overflow: visible;
-    }
-
-    .dg.main > ul {
-        height: auto;
-        max-height: calc(56vh - 22px);
-        overflow-y: auto;
-        overflow-x: hidden;
-    }
-
-    /* When dat.GUI is closed, don't leave an invisible touch-blocking area. */
-    .dg.main > ul.closed {
-        height: 0 !important;
-        max-height: 0 !important;
-        overflow: hidden !important;
-        pointer-events: none;
-    }
-
-    #mobile-gui-toggle {
-        left: 8px;
-        right: 8px;
-        width: auto;
-        bottom: 34px;
-    }
-
     .dg .cr.number input[type=text] {
         font-size: 16px;
     }
-
-    #anim-panel {
-        left: 8px;
-        right: auto !important;
-        top: 8px;
-        bottom: 68px !important;
-        width: min(64vw, 320px) !important;
-        min-width: 0 !important;
-        max-width: min(64vw, 320px) !important;
-        max-height: none;
-        overflow-y: auto;
-        z-index: 115;
-    }
-
-    #anim-panel-resizer {
-        display: none;
-    }
-
-    .anim-open-btn {
-        top: 8px;
-        left: 8px;
-        right: auto;
-        max-width: min(64vw, 320px);
-        font-size: 11px;
-        padding: 8px 12px;
-    }
-
+    /* Side panels responsive */
+    .sp-panel { width: min(85vw, 360px) !important; min-width: 0 !important; }
+    .sp-resize { display: none; }
+    .sp-open-btn { top: auto; bottom: 42px; }
+    .sp-open-btn--left  { left: 8px; border-left: 1px solid #2e5080; border-radius: 6px; }
+    .sp-open-btn--right { right: 8px; border-right: 1px solid #2e5080; border-radius: 6px; }
     #axes-gizmo-container {
         left: auto !important;
         right: 8px !important;
@@ -202,7 +101,6 @@ a:hover {
         z-index: 145 !important;
         pointer-events: auto !important;
     }
-
     #observer-orbit-shell {
         pointer-events: auto !important;
     }
@@ -214,148 +112,204 @@ a:hover {
         top: 4px !important;
         transform: scale(0.84) !important;
     }
-
-    #mobile-gui-toggle {
-        left: 6px;
-        right: 6px;
-        bottom: 30px;
-        height: 26px;
-        font-size: 11px;
-    }
 }
 
-/* ─── Animations Panel ────────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* Side Panels — shared styles for Controls (right) and Animations (left)   */
+/* ═══════════════════════════════════════════════════════════════════════════ */
 
-#anim-panel {
-    position: absolute;
-    top: 2px;
-    right: 370px;
-    width: 420px;
-    min-width: 340px;
-    max-width: min(680px, calc(100vw - 24px));
-    background: rgba(10, 10, 14, 0.93);
-    border: 1px solid #222230;
-    border-radius: 6px;
-    padding: 14px 16px 10px;
+.sp-panel {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    z-index: 150;
+    display: flex;
+    flex-direction: column;
+    background: rgba(8, 10, 18, 0.97);
     font-family: 'Lucida Grande', 'Segoe UI', sans-serif;
     font-size: 11px;
     color: #ccc;
-    z-index: 115;
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    box-shadow: 0 4px 24px rgba(0,0,0,0.6);
-    transition: right 0.2s ease;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 0 24px rgba(0,0,0,0.5);
+    transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+                opacity 0.18s ease,
+                bottom  0.22s ease;
     box-sizing: border-box;
-    /* Keep animations menu above the fixed Open/Close Controls button. */
-    max-height: calc(100vh - 56px);
+}
+.sp-panel--left  { left: 0; border-right: 2px solid #1e3054; }
+.sp-panel--right { right: 0; border-left:  2px solid #1e3054; }
+
+.sp-panel--left.sp-panel--collapsed {
+    transform: translateX(-100%);
+    opacity: 0;
+    pointer-events: none;
+}
+.sp-panel--right.sp-panel--collapsed {
+    transform: translateX(100%);
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* ── Header ── */
+.sp-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border-bottom: 1px solid #16283f;
+    background: rgba(12, 18, 32, 0.95);
+    flex-shrink: 0;
+}
+.sp-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: #8ab0d8;
+    text-transform: uppercase;
+}
+.sp-close {
+    width: 26px;
+    height: 26px;
+    border: 1px solid #2a4468;
+    border-radius: 4px;
+    background: linear-gradient(180deg, #14263e 0%, #0e1d31 100%);
+    color: #c0d6f0;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+    transition: background 0.12s, border-color 0.12s;
+}
+.sp-close:hover {
+    background: linear-gradient(180deg, #1e3a5c 0%, #162e4c 100%);
+    border-color: #3e6a9e;
+    color: #e2eeff;
+}
+
+/* ── Scrollable content area ── */
+.sp-content {
+    flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
     overscroll-behavior: contain;
 }
 
-#anim-panel.controls-closed {
-    right: 10px;
-}
-
-#anim-panel-resizer {
+/* ── Resize handles ── */
+.sp-resize {
     position: absolute;
-    left: -5px;
     top: 0;
     bottom: 0;
     width: 12px;
     cursor: ew-resize;
-    z-index: 2;
+    z-index: 3;
     touch-action: none;
 }
-
-#anim-panel-resizer::before {
+.sp-resize--left  { left: -6px; }
+.sp-resize--right { right: -6px; }
+.sp-resize::before {
     content: '';
     position: absolute;
-    left: 5px;
-    top: 16px;
-    bottom: 16px;
-    width: 2px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 48px;
     border-radius: 2px;
-    background: rgba(100, 145, 214, 0.38);
-    opacity: 0.55;
-    transition: opacity 0.14s ease, background 0.14s ease;
+    background: rgba(120, 165, 230, 0.35);
+    transition: background 0.14s ease;
 }
-
-#anim-panel:hover #anim-panel-resizer::before,
-#anim-panel.is-resizing #anim-panel-resizer::before,
-#anim-panel-resizer.is-active::before {
-    opacity: 1;
-    background: rgba(130, 180, 255, 0.86);
+.sp-resize--left::before  { left: 5px; }
+.sp-resize--right::before { right: 5px; }
+.sp-panel:hover .sp-resize::before,
+.sp-resize:hover::before {
+    background: rgba(140, 185, 255, 0.75);
 }
-
-body.anim-panel-resizing,
-body.anim-panel-resizing * {
+body.sp-resizing, body.sp-resizing * {
     cursor: ew-resize !important;
     user-select: none !important;
 }
 
-.anim-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    margin-bottom: 4px;
-}
-
-.anim-title {
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 2.5px;
-    color: #e8e8f0;
-    margin: 0;
-    text-transform: uppercase;
-}
-
-.anim-close-btn {
-    width: 24px;
-    height: 24px;
-    border: 1px solid #2f4f8a;
-    border-radius: 4px;
-    background: rgba(20, 40, 80, 0.85);
-    color: #fff;
-    font-size: 18px;
-    line-height: 1;
-    cursor: pointer;
-    padding: 0;
-}
-
-.anim-close-btn:hover {
-    background: rgba(30, 65, 130, 0.95);
-    border-color: #4477bb;
-}
-
-.anim-open-btn {
-    position: absolute;
-    top: 56px;
-    left: 10px;
-    z-index: 116;
-    border: 1px solid #2f4f8a;
-    border-radius: 6px;
-    background: rgba(9, 27, 62, 0.9);
-    color: #dbe8ff;
+/* ── Open buttons (edge tabs) ── */
+.sp-open-btn {
+    position: fixed;
+    top: 50%;
+    z-index: 130;
+    border: 1px solid #2e5080;
+    background: rgba(14, 24, 44, 0.92);
+    color: #80b4e8;
     font-family: 'Lucida Grande', 'Segoe UI', sans-serif;
     font-size: 11px;
     font-weight: 700;
-    letter-spacing: 1.1px;
-    padding: 8px 12px;
+    letter-spacing: 1.2px;
+    padding: 8px 14px;
     cursor: pointer;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 2px 12px rgba(0,0,0,0.5);
+    transition: background 0.14s, border-color 0.14s, color 0.14s,
+                opacity 0.22s ease, transform 0.22s ease;
     text-transform: uppercase;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+}
+.sp-open-btn:hover {
+    background: rgba(24, 44, 78, 0.95);
+    border-color: #4a80c0;
+    color: #b8dcff;
+}
+.sp-open-btn--left {
+    left: 0;
+    transform: translateY(-50%);
+    border-radius: 0 6px 6px 0;
+    border-left: none;
+}
+.sp-open-btn--right {
+    right: 0;
+    transform: translateY(-50%);
+    border-radius: 6px 0 0 6px;
+    border-right: none;
+}
+.sp-open-btn--hidden {
+    opacity: 0;
+    pointer-events: none;
 }
 
-.anim-open-btn:hover {
-    background: rgba(15, 43, 94, 0.95);
-    border-color: #4775c5;
+/* ── Controls Panel (right) ── */
+#controls-panel {
+    width: 370px;
+    min-width: 300px;
+    max-width: 600px;
+}
+#controls-panel .dg.ac {
+    position: static !important;
+    right: auto !important;
+    top: auto !important;
+    z-index: auto !important;
+    width: auto !important;
+}
+#controls-panel .dg.main {
+    position: static !important;
+    width: 100% !important;
+    max-height: none !important;
+    overflow: visible !important;
+    z-index: auto !important;
+}
+#controls-panel .dg.main > ul {
+    max-height: none !important;
+    overflow-y: visible !important;
 }
 
-#anim-panel.is-collapsed,
-.anim-open-btn.is-hidden {
-    display: none;
+/* ── Animations Panel (left) ── */
+#anim-panel {
+    width: 380px;
+    min-width: 300px;
+    max-width: 600px;
+}
+#anim-panel .sp-content {
+    padding: 6px 16px 10px;
+}
+
+/* Side panels shrink above timeline when it's open */
+body.has-timeline-panel .sp-panel {
+    bottom: var(--tl-h, 330px);
 }
 
 /* Collapsible sections inside the animations panel */
@@ -1351,8 +1305,8 @@ body.anim-panel-resizing * {
     pointer-events: none;
 }
 
-body.has-timeline-panel .link-bar { bottom: 330px; transition: bottom 0.22s ease; }
-body.has-timeline-panel #axes-gizmo-container { bottom: 330px; transition: bottom 0.22s ease; }
+body.has-timeline-panel .link-bar { bottom: var(--tl-h, 330px); transition: bottom 0.22s ease; }
+body.has-timeline-panel #axes-gizmo-container { bottom: var(--tl-h, 330px); transition: bottom 0.22s ease; }
 
 body.tl-resizing, body.tl-resizing * {
     cursor: ns-resize !important;

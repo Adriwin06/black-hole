@@ -197,16 +197,23 @@ function buildTimelinePanel() {
     var PANEL_MAX_H      = 700;
 
     // ── Panel open/close ────────────────────────────────────────────────────
+    function updatePushedOffset() {
+        var h = panel.getBoundingClientRect().height;
+        document.body.style.setProperty('--tl-h', Math.round(h + 10) + 'px');
+    }
+
     function setPanelOpen(open) {
         panelOpen = !!open;
         panel.classList.toggle('tl-panel--collapsed', !panelOpen);
         document.body.classList.toggle('has-timeline-panel', panelOpen);
         if (panelOpen) {
+            updatePushedOffset();
             populatePresets();
             syncFromRuntime();
             startSync();
         } else {
             stopSync();
+            document.body.style.removeProperty('--tl-h');
         }
     }
 
@@ -232,6 +239,7 @@ function buildTimelinePanel() {
             if (!dragging) return;
             var h = clamp(startH - (e.clientY - startY), PANEL_MIN_H, PANEL_MAX_H);
             panel.style.height = h + 'px';
+            updatePushedOffset();
             e.preventDefault();
         });
         function end(e) {

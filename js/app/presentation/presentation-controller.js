@@ -331,15 +331,13 @@ function getPresentationOverlaySafeMargins(viewWidth) {
     }
 
     var animPanel = document.getElementById('anim-panel');
-    if (animPanel && !animPanel.classList.contains('is-collapsed')) {
+    if (animPanel && !animPanel.classList.contains('sp-panel--collapsed')) {
         includeRect(animPanel.getBoundingClientRect());
     }
 
-    var guiPanel = document.querySelector('.dg.main');
-    if (guiPanel) {
-        var guiList = guiPanel.querySelector('ul');
-        var guiClosed = guiList && guiList.classList.contains('closed');
-        if (!guiClosed) includeRect(guiPanel.getBoundingClientRect());
+    var guiPanel = document.getElementById('controls-panel');
+    if (guiPanel && !guiPanel.classList.contains('sp-panel--collapsed')) {
+        includeRect(guiPanel.getBoundingClientRect());
     }
 
     return safe;

@@ -44,56 +44,103 @@ function setupGUI() {
     }
 
     var gui = new dat.GUI({ width: 360 });
-    var mobileGuiToggleBtn = null;
 
-    function isMobileGuiViewport() {
-        return !!(window.matchMedia && window.matchMedia('(max-width: 960px)').matches);
-    }
+    // ── Controls Side Panel ────────────────────────────────────────────────
+    (function setupControlsPanel() {
+        var STORED_WIDTH_KEY = 'black-hole.controls-panel.width';
+        var DEFAULT_WIDTH = 370;
+        var MIN_WIDTH = 300;
+        var MAX_WIDTH = 600;
 
-    function updateMobileGuiToggleLabel() {
-        if (!mobileGuiToggleBtn) return;
-        mobileGuiToggleBtn.textContent = gui.closed ? 'Open Controls' : 'Close Controls';
-    }
+        var ctrlPanel = document.createElement('div');
+        ctrlPanel.id = 'controls-panel';
+        ctrlPanel.className = 'sp-panel sp-panel--right sp-panel--collapsed';
+        ctrlPanel.innerHTML =
+            '<div class="sp-resize sp-resize--left"></div>' +
+            '<div class="sp-header">' +
+                '<span class="sp-title">CONTROLS</span>' +
+                '<button id="controls-close-btn" class="sp-close" type="button">&times;</button>' +
+            '</div>' +
+            '<div id="controls-content" class="sp-content"></div>';
+        document.body.appendChild(ctrlPanel);
 
-    function syncOverlayPanelsWithGuiState() {
-        updateMobileGuiToggleLabel();
-        var animPanel = document.getElementById('anim-panel');
-        if (!animPanel) return;
-        animPanel.classList.toggle('controls-closed', !!gui.closed);
-        if (typeof animPanel._syncPanelWidth === 'function') {
-            animPanel._syncPanelWidth();
+        // Move dat.GUI into the panel
+        var dgAc = gui.domElement.parentElement;
+        document.getElementById('controls-content').appendChild(dgAc);
+
+        // Create open button
+        var openBtn = document.createElement('button');
+        openBtn.id = 'controls-open-btn';
+        openBtn.className = 'sp-open-btn sp-open-btn--right';
+        openBtn.type = 'button';
+        openBtn.innerHTML = 'CONTROLS &#9654;';
+        openBtn.title = 'Open Controls panel';
+        document.body.appendChild(openBtn);
+
+        // Panel state
+        var panelOpen = false;
+        function setPanelOpen(open) {
+            panelOpen = open;
+            ctrlPanel.classList.toggle('sp-panel--collapsed', !open);
+            openBtn.classList.toggle('sp-open-btn--hidden', open);
+            document.body.classList.toggle('has-controls-panel', open);
         }
-    }
 
-    function ensureMobileGuiToggleButton() {
-        if (mobileGuiToggleBtn) return;
-        mobileGuiToggleBtn = document.createElement('button');
-        mobileGuiToggleBtn.id = 'mobile-gui-toggle';
-        mobileGuiToggleBtn.type = 'button';
-        mobileGuiToggleBtn.setAttribute('aria-label', 'Toggle settings controls');
-        mobileGuiToggleBtn.addEventListener('click', function(event) {
-            event.preventDefault();
-            event.stopPropagation();
-            gui.closed = !gui.closed;
-            syncOverlayPanelsWithGuiState();
+        openBtn.addEventListener('click', function() { setPanelOpen(true); });
+        document.getElementById('controls-close-btn')
+            .addEventListener('click', function() { setPanelOpen(false); });
+
+        // Resize (left edge — drag left to widen)
+        var resizer = ctrlPanel.querySelector('.sp-resize');
+        var resizing = false;
+        var startX = 0;
+        var startW = DEFAULT_WIDTH;
+
+        function readWidth() {
+            try { var w = parseFloat(localStorage.getItem(STORED_WIDTH_KEY)); return isFinite(w) ? w : null; } catch(e) { return null; }
+        }
+        function saveWidth(w) {
+            try { localStorage.setItem(STORED_WIDTH_KEY, String(Math.round(w))); } catch(e) {}
+        }
+        function applyWidth(w, persist) {
+            w = Math.round(Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, w)));
+            ctrlPanel.style.width = w + 'px';
+            if (persist) saveWidth(w);
+        }
+
+        applyWidth(readWidth() || DEFAULT_WIDTH, false);
+
+        resizer.addEventListener('pointerdown', function(e) {
+            if (e.button !== 0) return;
+            resizing = true;
+            startX = e.clientX;
+            startW = ctrlPanel.getBoundingClientRect().width || DEFAULT_WIDTH;
+            document.body.classList.add('sp-resizing');
+            if (resizer.setPointerCapture) resizer.setPointerCapture(e.pointerId);
+            document.addEventListener('pointermove', onMove);
+            document.addEventListener('pointerup', onEnd);
+            e.preventDefault();
         });
-        document.body.appendChild(mobileGuiToggleBtn);
-        syncOverlayPanelsWithGuiState();
-    }
-
-    if (window.matchMedia && window.matchMedia('(max-width: 960px)').matches) {
-        gui.close();
-    }
-    ensureMobileGuiToggleButton();
-    window.addEventListener('resize', syncOverlayPanelsWithGuiState);
-    var previousGuiOnResize = gui.onResize;
-    gui.onResize = function() {
-        if (typeof previousGuiOnResize === 'function') {
-            previousGuiOnResize.apply(gui, arguments);
+        function onMove(e) {
+            if (!resizing) return;
+            applyWidth(startW + (startX - e.clientX), false);
+            e.preventDefault();
         }
-        syncOverlayPanelsWithGuiState();
-    };
-    syncOverlayPanelsWithGuiState();
+        function onEnd() {
+            if (!resizing) return;
+            resizing = false;
+            document.body.classList.remove('sp-resizing');
+            applyWidth(parseFloat(ctrlPanel.style.width) || DEFAULT_WIDTH, true);
+            document.removeEventListener('pointermove', onMove);
+            document.removeEventListener('pointerup', onEnd);
+        }
+
+        // Auto-open on desktop
+        if (!(window.matchMedia && window.matchMedia('(max-width: 960px)').matches)) {
+            setPanelOpen(true);
+        }
+    })();
+
     var syncObserverWidgetControls = null;
 
     // Recursively update all dat.GUI controllers to reflect programmatic changes.
@@ -1227,12 +1274,15 @@ function setupGUI() {
 
         var panel = document.createElement('div');
         panel.id = 'anim-panel';
+        panel.className = 'sp-panel sp-panel--left sp-panel--collapsed';
         panel.innerHTML =
-            '<div class="anim-header">' +
-                '<div class="anim-title">ANIMATIONS</div>' +
-                '<button id="anim-close-btn" class="anim-close-btn" type="button" ' +
+            '<div class="sp-resize sp-resize--right"></div>' +
+            '<div class="sp-header">' +
+                '<span class="sp-title">ANIMATIONS</span>' +
+                '<button id="anim-close-btn" class="sp-close" type="button" ' +
                     'aria-label="Close Animations panel">&times;</button>' +
             '</div>' +
+            '<div class="sp-content">' +
             // ── Freefall Dive section ──────────────────────────────────────────
             '<div class="anim-section" id="dive-section">' +
                 '<button class="anim-section-toggle" id="dive-section-toggle" ' +
@@ -1309,151 +1359,68 @@ function setupGUI() {
             '</div>' +
             (typeof createPresentationAnimationSectionHtml === 'function'
                 ? createPresentationAnimationSectionHtml()
-                : '');
-        var panelResizer = document.createElement('div');
-        panelResizer.id = 'anim-panel-resizer';
-        panelResizer.className = 'anim-panel-resizer';
-        panelResizer.setAttribute('role', 'separator');
-        panelResizer.setAttribute('aria-label', 'Resize animations panel');
-        panelResizer.setAttribute('aria-orientation', 'vertical');
-        panel.appendChild(panelResizer);
+                : '') +
+            '</div>'; // close .sp-content
         document.body.appendChild(panel);
-        syncOverlayPanelsWithGuiState();
 
-        function isMobileAnimationsPanelViewport() {
-            return !!(window.matchMedia && window.matchMedia('(max-width: 960px)').matches);
+        // ── Resize (right edge — drag right to widen) ──────────────────
+        var animResizer = panel.querySelector('.sp-resize');
+        var animResizing = false;
+        var animStartX = 0;
+        var animStartW = ANIM_PANEL_DEFAULT_WIDTH;
+
+        function readAnimWidth() {
+            try { var w = parseFloat(localStorage.getItem(ANIM_PANEL_WIDTH_STORAGE_KEY)); return isFinite(w) ? w : null; } catch(e) { return null; }
+        }
+        function saveAnimWidth(w) {
+            try { localStorage.setItem(ANIM_PANEL_WIDTH_STORAGE_KEY, String(Math.round(w))); } catch(e) {}
+        }
+        function applyAnimWidth(w, persist) {
+            w = Math.round(Math.max(ANIM_PANEL_MIN_WIDTH, Math.min(ANIM_PANEL_MAX_WIDTH, w)));
+            panel.style.width = w + 'px';
+            if (persist) saveAnimWidth(w);
         }
 
-        function readStoredAnimationsPanelWidth() {
-            var stored = null;
-            try {
-                stored = window.localStorage
-                    ? window.localStorage.getItem(ANIM_PANEL_WIDTH_STORAGE_KEY)
-                    : null;
-            } catch (err) {
-                stored = null;
-            }
-            var parsed = parseFloat(stored);
-            return isFinite(parsed) ? parsed : null;
-        }
+        applyAnimWidth(readAnimWidth() || ANIM_PANEL_DEFAULT_WIDTH, false);
 
-        function writeStoredAnimationsPanelWidth(width) {
-            try {
-                if (!window.localStorage) return;
-                window.localStorage.setItem(ANIM_PANEL_WIDTH_STORAGE_KEY, String(Math.round(width)));
-            } catch (err) {
-                // Ignore storage issues (private mode/quota).
-            }
-        }
-
-        function getAnimationsPanelMaxWidth() {
-            var computedRight = parseFloat(window.getComputedStyle(panel).right);
-            var rightInset = isFinite(computedRight) ? computedRight : 0;
-            var maxByViewport = Math.max(ANIM_PANEL_MIN_WIDTH, (window.innerWidth || 0) - rightInset - 12);
-            return Math.max(ANIM_PANEL_MIN_WIDTH, Math.min(ANIM_PANEL_MAX_WIDTH, maxByViewport));
-        }
-
-        function applyAnimationsPanelWidth(width, persist) {
-            if (isMobileAnimationsPanelViewport()) {
-                panel.style.removeProperty('width');
-                return;
-            }
-            var clamped = Math.round(Math.max(
-                ANIM_PANEL_MIN_WIDTH,
-                Math.min(getAnimationsPanelMaxWidth(), width || ANIM_PANEL_DEFAULT_WIDTH)
-            ));
-            panel.style.width = clamped + 'px';
-            if (persist) writeStoredAnimationsPanelWidth(clamped);
-        }
-
-        panel._syncPanelWidth = function() {
-            var currentWidth = parseFloat(panel.style.width);
-            if (!isFinite(currentWidth) || currentWidth <= 0) {
-                currentWidth = panel.getBoundingClientRect().width || ANIM_PANEL_DEFAULT_WIDTH;
-            }
-            applyAnimationsPanelWidth(currentWidth, false);
-        };
-
-        applyAnimationsPanelWidth(readStoredAnimationsPanelWidth() || ANIM_PANEL_DEFAULT_WIDTH, false);
-
-        var resizingPanel = false;
-        var resizePointerId = null;
-        var resizeStartX = 0;
-        var resizeStartWidth = ANIM_PANEL_DEFAULT_WIDTH;
-
-        function finishPanelResize() {
-            if (!resizingPanel) return;
-            resizingPanel = false;
-            panel.classList.remove('is-resizing');
-            panelResizer.classList.remove('is-active');
-            document.body.classList.remove('anim-panel-resizing');
-            document.removeEventListener('pointermove', handlePanelResizeMove);
-            document.removeEventListener('pointerup', handlePanelResizeEnd);
-            document.removeEventListener('pointercancel', handlePanelResizeEnd);
-            if (panelResizer.releasePointerCapture && resizePointerId !== null) {
-                try {
-                    panelResizer.releasePointerCapture(resizePointerId);
-                } catch (err) {
-                    // Ignore if capture already released.
-                }
-            }
-            var finalWidth = parseFloat(panel.style.width) || panel.getBoundingClientRect().width || ANIM_PANEL_DEFAULT_WIDTH;
-            applyAnimationsPanelWidth(finalWidth, true);
-            resizePointerId = null;
-        }
-
-        function handlePanelResizeMove(event) {
-            if (!resizingPanel) return;
-            if (resizePointerId !== null && event.pointerId !== resizePointerId) return;
-            var dx = resizeStartX - event.clientX;
-            applyAnimationsPanelWidth(resizeStartWidth + dx, false);
-            event.preventDefault();
-        }
-
-        function handlePanelResizeEnd(event) {
-            if (!resizingPanel) return;
-            if (resizePointerId !== null && event.pointerId !== resizePointerId) return;
-            finishPanelResize();
-            event.preventDefault();
-        }
-
-        panelResizer.addEventListener('pointerdown', function(event) {
-            if (isMobileAnimationsPanelViewport()) return;
-            if (event.button !== 0) return;
-            resizingPanel = true;
-            resizePointerId = event.pointerId;
-            resizeStartX = event.clientX;
-            resizeStartWidth = panel.getBoundingClientRect().width || ANIM_PANEL_DEFAULT_WIDTH;
-            panel.classList.add('is-resizing');
-            panelResizer.classList.add('is-active');
-            document.body.classList.add('anim-panel-resizing');
-            if (panelResizer.setPointerCapture) {
-                panelResizer.setPointerCapture(event.pointerId);
-            }
-            document.addEventListener('pointermove', handlePanelResizeMove);
-            document.addEventListener('pointerup', handlePanelResizeEnd);
-            document.addEventListener('pointercancel', handlePanelResizeEnd);
-            event.preventDefault();
+        animResizer.addEventListener('pointerdown', function(e) {
+            if (e.button !== 0) return;
+            animResizing = true;
+            animStartX = e.clientX;
+            animStartW = panel.getBoundingClientRect().width || ANIM_PANEL_DEFAULT_WIDTH;
+            document.body.classList.add('sp-resizing');
+            if (animResizer.setPointerCapture) animResizer.setPointerCapture(e.pointerId);
+            document.addEventListener('pointermove', onAnimResizeMove);
+            document.addEventListener('pointerup', onAnimResizeEnd);
+            e.preventDefault();
         });
+        function onAnimResizeMove(e) {
+            if (!animResizing) return;
+            applyAnimWidth(animStartW + (e.clientX - animStartX), false);
+            e.preventDefault();
+        }
+        function onAnimResizeEnd() {
+            if (!animResizing) return;
+            animResizing = false;
+            document.body.classList.remove('sp-resizing');
+            applyAnimWidth(parseFloat(panel.style.width) || ANIM_PANEL_DEFAULT_WIDTH, true);
+            document.removeEventListener('pointermove', onAnimResizeMove);
+            document.removeEventListener('pointerup', onAnimResizeEnd);
+        }
 
-        window.addEventListener('resize', function() {
-            panel._syncPanelWidth();
-            if (isMobileAnimationsPanelViewport()) {
-                finishPanelResize();
-            }
-        });
-
+        // ── Open / close ───────────────────────────────────────────────
         var openBtn = document.createElement('button');
         openBtn.id = 'anim-open-btn';
-        openBtn.className = 'anim-open-btn';
+        openBtn.className = 'sp-open-btn sp-open-btn--left';
         openBtn.type = 'button';
-        openBtn.textContent = 'ANIMATIONS';
-        openBtn.setAttribute('aria-label', 'Open Animations panel');
+        openBtn.innerHTML = '&#9664; ANIMATIONS';
+        openBtn.title = 'Open Animations panel';
         document.body.appendChild(openBtn);
 
         function setAnimPanelOpen(isOpen) {
-            panel.classList.toggle('is-collapsed', !isOpen);
-            openBtn.classList.toggle('is-hidden', isOpen);
+            panel.classList.toggle('sp-panel--collapsed', !isOpen);
+            openBtn.classList.toggle('sp-open-btn--hidden', isOpen);
+            document.body.classList.toggle('has-anim-panel', isOpen);
         }
         setAnimPanelOpen(false);
 
