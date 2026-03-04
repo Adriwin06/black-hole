@@ -97,6 +97,8 @@ function buildTimelinePanel() {
                 '<label for="tl-preset-select" class="tl-preset-label">Preset</label>' +
                 '<select id="tl-preset-select" class="tl-preset-select"></select>' +
                 '<span class="tl-transport-sep"></span>' +
+                '<button id="tl-btn-motion" class="tl-btn tl-btn--motion" type="button" title="Insert a predefined motion function">⊕&nbsp;FX</button>' +
+                '<span class="tl-transport-sep"></span>' +
                 '<button id="tl-btn-auto-key" class="tl-btn tl-btn--warn" type="button" title="Auto Keyframe: capture changes">AUTO KEY</button>' +
                 '<button id="tl-btn-add-track" class="tl-btn" type="button" title="Add a new track">+ TRACK</button>' +
                 '<span class="tl-transport-sep"></span>' +
@@ -158,6 +160,27 @@ function buildTimelinePanel() {
 
         '</div>' +
 
+        // ── Motion Functions modal (floats above panel) ──
+        '<div id="tl-motion-modal" class="tl-motion-modal">' +
+            '<div class="tl-motion-hdr">' +
+                '<span class="tl-motion-title">MOTION FUNCTION</span>' +
+                '<button id="tl-motion-close" class="tl-btn" type="button" title="Close">&times;</button>' +
+            '</div>' +
+            '<div class="tl-motion-row tl-motion-type-row">' +
+                '<label>Type</label>' +
+                '<select id="tl-motion-type" class="tl-motion-input">' +
+                    '<option value="orbit">Orbit around&nbsp;BH</option>' +
+                    '<option value="zoom">Zoom in / out</option>' +
+                    '<option value="exposure">Exposure fade</option>' +
+                    '<option value="inclination">Inclination sweep</option>' +
+                '</select>' +
+            '</div>' +
+            '<div id="tl-motion-params" class="tl-motion-params"></div>' +
+            '<div class="tl-motion-footer">' +
+                '<button id="tl-motion-apply" class="tl-mini-btn tl-mini-btn--accent" type="button">APPLY</button>' +
+            '</div>' +
+        '</div>' +
+
         // ── Status bar ──
         '<div id="tl-status" class="tl-status"></div>';
 
@@ -193,6 +216,12 @@ function buildTimelinePanel() {
     var statusEl    = panel.querySelector('#tl-status');
     var pathDatalist= panel.querySelector('#tl-path-datalist');
     var resizeHandle= panel.querySelector('#tl-resize-handle');
+    var motionBtn      = panel.querySelector('#tl-btn-motion');
+    var motionModal    = panel.querySelector('#tl-motion-modal');
+    var motionCloseBtn = panel.querySelector('#tl-motion-close');
+    var motionTypeEl   = panel.querySelector('#tl-motion-type');
+    var motionParamsEl = panel.querySelector('#tl-motion-params');
+    var motionApplyBtn = panel.querySelector('#tl-motion-apply');
 
     // ── State ───────────────────────────────────────────────────────────────
     var draft          = null;
@@ -285,7 +314,9 @@ function buildTimelinePanel() {
                 if (saved.selectedTrack) selectedTrack = saved.selectedTrack;
                 if (saved.selectedKeys && saved.selectedKeys.length) selectedKeys = saved.selectedKeys;
             } else {
-                syncFromRuntime();
+                // No saved state — default to a fresh empty timeline
+                presetSelect.value = '';
+                loadPresetByName('');
             }
             updateTimeInputs();
             startSync();
@@ -1141,6 +1172,260 @@ function buildTimelinePanel() {
         if (panelOpen) syncFromRuntime();
     });
 
+    // ══ Motion Functions ═════════════════════════════════════════════════════
+    // Each entry: params[] with { id, label, type, min, step, def, defaultFn, options }
+    var MOTION_TYPES = {
+        orbit: {
+            params: [
+                { id: 'start',    label: 'Start time (s)',     type: 'number', min: 0,    step: 0.1,  defaultFn: function() { return currentTime().toFixed(2); } },
+                { id: 'duration', label: 'Duration (s)',       type: 'number', min: 0.1,  step: 1,    def: 10 },
+                { id: 'orbits',   label: 'Number of orbits',   type: 'number', min: 0.1,  step: 0.5,  def: 1 },
+                { id: 'dir',      label: 'Direction',          type: 'select', options: [['ccw','Counter-clockwise (CCW)'],['cw','Clockwise (CW)']] }
+            ]
+        },
+        zoom: {
+            params: [
+                { id: 'start',    label: 'Start time (s)',     type: 'number', min: 0,    step: 0.1,  defaultFn: function() { return currentTime().toFixed(2); } },
+                { id: 'duration', label: 'Duration (s)',       type: 'number', min: 0.1,  step: 1,    def: 8 },
+                { id: 'from',     label: 'From distance',      type: 'number', min: 1,    step: 0.5,  defaultFn: function() { var v = typeof getPresentationPathValue === 'function' ? getPresentationPathValue('observer.distance') : undefined; return (typeof v === 'number' ? v : 15).toFixed(2); } },
+                { id: 'to',       label: 'To distance',        type: 'number', min: 1,    step: 0.5,  def: 7 },
+                { id: 'ease',     label: 'Ease',               type: 'select', options: [['smooth','smooth'],['smoother','smoother'],['linear','linear']] }
+            ]
+        },
+        exposure: {
+            params: [
+                { id: 'start',    label: 'Start time (s)',     type: 'number', min: 0,    step: 0.1,  defaultFn: function() { return currentTime().toFixed(2); } },
+                { id: 'duration', label: 'Duration (s)',       type: 'number', min: 0.1,  step: 1,    def: 6 },
+                { id: 'from',     label: 'From exposure',      type: 'number', min: 0,    step: 0.05, defaultFn: function() { var v = typeof getPresentationPathValue === 'function' ? getPresentationPathValue('look.exposure') : undefined; return (typeof v === 'number' ? v : 1.0).toFixed(3); } },
+                { id: 'to',       label: 'To exposure',        type: 'number', min: 0,    step: 0.05, def: 1.5 },
+                { id: 'ease',     label: 'Ease',               type: 'select', options: [['smooth','smooth'],['smoother','smoother'],['linear','linear']] }
+            ]
+        },
+        inclination: {
+            params: [
+                { id: 'start',    label: 'Start time (s)',     type: 'number', min: 0,    step: 0.1,  defaultFn: function() { return currentTime().toFixed(2); } },
+                { id: 'duration', label: 'Duration (s)',       type: 'number', min: 0.1,  step: 1,    def: 8 },
+                { id: 'from',     label: 'From angle (\u00b0)',       type: 'number', min: -90,  step: 5,    defaultFn: function() { var v = typeof getPresentationPathValue === 'function' ? getPresentationPathValue('observer.orbital_inclination') : undefined; return (typeof v === 'number' ? v : 0).toFixed(1); } },
+                { id: 'to',       label: 'To angle (\u00b0)',         type: 'number', min: -90,  step: 5,    def: 30 },
+                { id: 'ease',     label: 'Ease',               type: 'select', options: [['smooth','smooth'],['smoother','smoother'],['linear','linear']] }
+            ]
+        }
+    };
+
+    function renderMotionParams() {
+        var type = motionTypeEl.value;
+        var def = MOTION_TYPES[type];
+        if (!def) { motionParamsEl.innerHTML = ''; return; }
+        var html = '';
+        for (var i = 0; i < def.params.length; i++) {
+            var p = def.params[i];
+            html += '<div class="tl-motion-row"><label>' + esc(p.label) + '</label>';
+            if (p.type === 'select') {
+                html += '<select data-pid="' + esc(p.id) + '" class="tl-motion-input">';
+                for (var j = 0; j < p.options.length; j++) {
+                    html += '<option value="' + esc(p.options[j][0]) + '">' + esc(p.options[j][1]) + '</option>';
+                }
+                html += '</select>';
+            } else {
+                var defVal = p.defaultFn ? p.defaultFn() : (p.def !== undefined ? p.def : '');
+                html += '<input type="number" data-pid="' + esc(p.id) + '" class="tl-motion-input"' +
+                    ' step="' + (p.step || 'any') + '"' +
+                    ' min="' + (p.min !== undefined ? p.min : '') + '"' +
+                    ' value="' + esc(String(defVal)) + '">';
+            }
+            html += '</div>';
+        }
+        motionParamsEl.innerHTML = html;
+    }
+
+    function getMotionParam(id) {
+        var el = motionParamsEl.querySelector('[data-pid="' + CSS.escape(id) + '"]');
+        if (!el) return undefined;
+        return el.tagName === 'SELECT' ? el.value : parseFloat(el.value);
+    }
+
+    // Three.js quaternion: camera at (px, py, pz) looking toward world origin.
+    // The camera's +Z axis (which points AWAY from the look target) = normalize(P).
+    function lookAtOriginQuat(px, py, pz) {
+        var r = Math.sqrt(px*px + py*py + pz*pz);
+        if (r < 1e-8) return { x: 0, y: 0, z: 0, w: 1 };
+        var zx = px/r, zy = py/r, zz = pz/r; // cam +Z in world
+        // world up — switch to world Z when camera points straight up/down
+        var upx = 0, upy = 1, upz = 0;
+        if (Math.abs(zy) > 0.999) { upx = 0; upy = 0; upz = 1; }
+        // cam +X = right = normalize(worldUp × camZ)
+        var rx = upy*zz - upz*zy, ry = upz*zx - upx*zz, rz = upx*zy - upy*zx;
+        var rlen = Math.sqrt(rx*rx + ry*ry + rz*rz);
+        if (rlen < 1e-8) return { x: 0, y: 0, z: 0, w: 1 };
+        rx /= rlen; ry /= rlen; rz /= rlen;
+        // cam +Y = camZ × camX
+        var ux = zy*rz - zz*ry, uy = zz*rx - zx*rz, uz = zx*ry - zy*rx;
+        // Rotation matrix columns: [camX, camY, camZ]
+        var m00 = rx,  m01 = ux,  m02 = zx;
+        var m10 = ry,  m11 = uy,  m12 = zy;
+        var m20 = rz,  m21 = uz,  m22 = zz;
+        var trace = m00 + m11 + m22;
+        var qx, qy, qz, qw;
+        if (trace > 0) {
+            var s = 0.5 / Math.sqrt(trace + 1.0);
+            qw = 0.25/s; qx = (m21-m12)*s; qy = (m02-m20)*s; qz = (m10-m01)*s;
+        } else if (m00 > m11 && m00 > m22) {
+            var s2 = 2.0*Math.sqrt(1.0+m00-m11-m22);
+            qw = (m21-m12)/s2; qx = 0.25*s2; qy = (m01+m10)/s2; qz = (m02+m20)/s2;
+        } else if (m11 > m22) {
+            var s3 = 2.0*Math.sqrt(1.0+m11-m00-m22);
+            qw = (m02-m20)/s3; qx = (m01+m10)/s3; qy = 0.25*s3; qz = (m12+m21)/s3;
+        } else {
+            var s4 = 2.0*Math.sqrt(1.0+m22-m00-m11);
+            qw = (m10-m01)/s4; qx = (m02+m20)/s4; qy = (m12+m21)/s4; qz = 0.25*s4;
+        }
+        return { x: qx, y: qy, z: qz, w: qw };
+    }
+
+    // Linear-interpolate a draft track at a given time (used to seed orbit start)
+    function sampleTrackDraft(track, t) {
+        var keys = track.keys;
+        if (!keys || !keys.length) return 0;
+        if (t <= keys[0].t) return +keys[0].v;
+        if (t >= keys[keys.length-1].t) return +keys[keys.length-1].v;
+        for (var i = 0; i < keys.length-1; i++) {
+            if (t >= keys[i].t && t <= keys[i+1].t) {
+                var dt = keys[i+1].t - keys[i].t;
+                if (dt < 1e-8) return +keys[i].v;
+                return +keys[i].v + (+keys[i+1].v - +keys[i].v) * ((t - keys[i].t) / dt);
+            }
+        }
+        return +keys[keys.length-1].v;
+    }
+
+    function applyMotionFn() {
+        if (!draft) { setStatus('Load or create a timeline first.', 'tl-status--warn'); return; }
+        var type = motionTypeEl.value;
+        var start    = getMotionParam('start');    if (!isFinite(start))    start    = 0;
+        var duration = getMotionParam('duration'); if (!isFinite(duration) || duration < 0.01) duration = 5;
+        var ease     = getMotionParam('ease')    || 'smooth';
+
+        pushUndo();
+
+        if (type === 'orbit') {
+            var numOrbits = getMotionParam('orbits'); if (!isFinite(numOrbits) || numOrbits < 0.01) numOrbits = 1;
+            var dirSign   = getMotionParam('dir') === 'cw' ? -1 : 1;
+
+            // Seed camera position — prefer draft track value at start time, then runtime
+            var cpx = 0, cpy = 0, cpz = 11;
+            if (typeof getPresentationPathValue === 'function') {
+                var vx = getPresentationPathValue('camera.position.x');
+                var vy = getPresentationPathValue('camera.position.y');
+                var vz = getPresentationPathValue('camera.position.z');
+                if (typeof vx === 'number') cpx = vx;
+                if (typeof vy === 'number') cpy = vy;
+                if (typeof vz === 'number') cpz = vz;
+            }
+            var txd = getTrackByPath('camera.position.x');
+            var tyd = getTrackByPath('camera.position.y');
+            var tzd = getTrackByPath('camera.position.z');
+            if (txd && txd.keys.length) cpx = sampleTrackDraft(txd, start);
+            if (tyd && tyd.keys.length) cpy = sampleTrackDraft(tyd, start);
+            if (tzd && tzd.keys.length) cpz = sampleTrackDraft(tzd, start);
+
+            var dist = Math.sqrt(cpx*cpx + cpy*cpy + cpz*cpz);
+            if (dist < 1e-6) { dist = 11; cpz = 11; cpy = 0; cpx = 0; }
+
+            // Spherical coords (Y-up): keep elevation constant, sweep azimuth
+            var theta    = Math.asin(Math.max(-1, Math.min(1, cpy / dist))); // elevation
+            var phi      = Math.atan2(cpz, cpx);                             // azimuth in XZ-plane
+            var cosTheta = Math.cos(theta);
+            var totalAngle = dirSign * numOrbits * 2 * Math.PI;
+            // Use 32 steps per orbit — all linear so velocity is perfectly constant.
+            // Each step spans 11.25 degrees; chord/arc deviation is < 0.05 % at that density.
+            var numSteps   = Math.max(8, Math.round(numOrbits * 32));
+
+            for (var si = 0; si <= numSteps; si++) {
+                var frac  = si / numSteps;
+                var angle = phi + frac * totalAngle;
+                var ktime = start + frac * duration;
+                var kx = dist * cosTheta * Math.cos(angle);
+                var ky = dist * Math.sin(theta);
+                var kz = dist * cosTheta * Math.sin(angle);
+                var q  = lookAtOriginQuat(kx, ky, kz);
+                // Always linear — smooth/smoother ease would decelerate at every
+                // intermediate keyframe, creating stops every 11.25 degrees.
+                upsertKey('camera.position.x',   ktime, kx,  'linear');
+                upsertKey('camera.position.y',   ktime, ky,  'linear');
+                upsertKey('camera.position.z',   ktime, kz,  'linear');
+                upsertKey('camera.quaternion.x', ktime, q.x, 'linear');
+                upsertKey('camera.quaternion.y', ktime, q.y, 'linear');
+                upsertKey('camera.quaternion.z', ktime, q.z, 'linear');
+                upsertKey('camera.quaternion.w', ktime, q.w, 'linear');
+            }
+            normalizeQuatSigns();
+            selectedTrack = 'camera.position.x';
+            setStatus('Orbit: ' + numOrbits + ' orbit(s) over ' + duration + 's starting at t=' + start.toFixed(2) + 's.', '');
+
+        } else if (type === 'zoom') {
+            var fromV = getMotionParam('from'); if (!isFinite(fromV)) fromV = 15;
+            var toV   = getMotionParam('to');   if (!isFinite(toV))   toV   = 7;
+            upsertKey('observer.distance', start,            fromV, 'linear');
+            upsertKey('observer.distance', start + duration, toV,   ease);
+            selectedTrack = 'observer.distance';
+            setStatus('Zoom: distance ' + fromV + ' \u2192 ' + toV + ' over ' + duration + 's.', '');
+
+        } else if (type === 'exposure') {
+            var fromV = getMotionParam('from'); if (!isFinite(fromV)) fromV = 1.0;
+            var toV   = getMotionParam('to');   if (!isFinite(toV))   toV   = 1.5;
+            upsertKey('look.exposure', start,            fromV, 'linear');
+            upsertKey('look.exposure', start + duration, toV,   ease);
+            selectedTrack = 'look.exposure';
+            setStatus('Exposure: ' + fromV + ' \u2192 ' + toV + ' over ' + duration + 's.', '');
+
+        } else if (type === 'inclination') {
+            var fromV = getMotionParam('from'); if (!isFinite(fromV)) fromV = 0;
+            var toV   = getMotionParam('to');   if (!isFinite(toV))   toV   = 30;
+            upsertKey('observer.orbital_inclination', start,            fromV, 'linear');
+            upsertKey('observer.orbital_inclination', start + duration, toV,   ease);
+            selectedTrack = 'observer.orbital_inclination';
+            setStatus('Inclination: ' + fromV + '\u00b0 \u2192 ' + toV + '\u00b0 over ' + duration + 's.', '');
+        }
+
+        draft.duration = Math.max(draft.duration, start + duration);
+        draft.tracks.sort(function(a, b) { return a.path.localeCompare(b.path); });
+        applyDraft();
+        rebuildAll();
+    }
+
+    function openMotionModal() {
+        renderMotionParams();
+        motionModal.classList.add('is-open');
+        motionBtn.classList.add('is-active');
+    }
+    function closeMotionModal() {
+        motionModal.classList.remove('is-open');
+        motionBtn.classList.remove('is-active');
+    }
+
+    motionBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (motionModal.classList.contains('is-open')) closeMotionModal();
+        else openMotionModal();
+    });
+    motionCloseBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        closeMotionModal();
+    });
+    motionTypeEl.addEventListener('change', renderMotionParams);
+    motionApplyBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        applyMotionFn();
+    });
+    // Close modal on click outside
+    panel.addEventListener('click', function(e) {
+        if (motionModal.classList.contains('is-open') &&
+            !motionModal.contains(e.target) &&
+            e.target !== motionBtn) {
+            closeMotionModal();
+        }
+    }, true);
+
     // ── Keyboard shortcuts ──────────────────────────────────────────────────
     function deleteSelectedKeys() {
         if (!draft || !selectedKeys.length) return;
@@ -1205,6 +1490,12 @@ function buildTimelinePanel() {
         }
 
         if (inInput) return;
+
+        // Escape → close motion modal if open
+        if (e.code === 'Escape') {
+            if (motionModal.classList.contains('is-open')) { closeMotionModal(); e.preventDefault(); }
+            return;
+        }
 
         // Space → play / pause
         if (e.code === 'Space') {

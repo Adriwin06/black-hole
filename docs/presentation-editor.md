@@ -49,6 +49,7 @@ Click an edge button to open its panel. The `▲ TIMELINE` panel also opens auto
 - `▶ ⏸ ■` — Play / Pause / Stop
 - **Time / Duration fields** — two editable number inputs showing `current / total`. Click either field and type a value to seek or change the timeline duration.
 - Preset dropdown — load a saved preset or `— new empty —` to start fresh
+- `⊕ FX` — open the **Motion Functions** panel (see section 5)
 - `AUTO KEY` — capture changed controls as keyframes at the current time
 - `+ TRACK` — add a new blank track using the path typed in the Key Inspector
 - `↑ IMPORT` — import a `.json` timeline file from disk
@@ -77,7 +78,31 @@ This is the easiest way to animate many controls quickly.
 
 Changes **auto-apply** immediately — no separate Apply step is needed.
 
-## 5. What Auto Key does exactly
+## 5. Motion Functions (⊕ FX)
+
+Click `⊕ FX` in the transport bar to open the **Motion Functions** panel. It floats above the timeline and lets you generate whole blocks of keyframes from a preset motion type.
+
+| Type | What it animates | Tracks created |
+|---|---|---|
+| **Orbit around BH** | Camera circles the black hole at constant radius and elevation | `camera.position.x/y/z`, `camera.quaternion.x/y/z/w` |
+| **Zoom in / out** | Observer distance change | `observer.distance` |
+| **Exposure fade** | Exposure ramp | `look.exposure` |
+| **Inclination sweep** | Camera latitude sweep | `observer.orbital_inclination` |
+
+**Shared parameters for all types:**
+- **Start time** — defaults to the current playhead position
+- **Duration** — total seconds the motion spans
+- **Ease** — easing curve applied between steps
+
+**Orbit-specific parameters:**
+- **Number of orbits** — how many full 360° circles (fractional values allowed, e.g. `0.5` = semicircle)
+- **Direction** — Counter-clockwise (CCW) or Clockwise (CW) as seen from above
+
+The orbit always uses linear easing between keyframes (32 steps/orbit), which ensures perfectly constant angular velocity with no slowdown at intermediate points. Generated quaternions are automatically sign-normalised to prevent the camera from snapping.
+
+Press **APPLY** to write the keyframes into the draft, or press `Escape` / click outside the panel to close it without applying.
+
+## 6. What Auto Key does exactly
 
 - First click: captures baseline only.
 - Next clicks: compares current controls vs previous baseline snapshot.
@@ -88,7 +113,7 @@ Changes **auto-apply** immediately — no separate Apply step is needed.
 
 This lets you animate many parameters without manually entering each path.
 
-## 6. Manual track/keyframe editing
+## 7. Manual track/keyframe editing
 
 Use the **Key Inspector** (right column of the timeline panel) for direct control.
 
@@ -108,7 +133,7 @@ Click a **track row** in the left column to inspect that track.
 Click a **keyframe dot** in the dopesheet to select that specific key.  
 **Ctrl+click** additional dots to build a multi-selection across one or many tracks.
 
-## 7. Interpolation rules
+## 8. Interpolation rules
 
 - Number values interpolate smoothly between keys.
 - Boolean/string values are stepped (switch at the key time, no interpolation).
@@ -116,7 +141,7 @@ Click a **keyframe dot** in the dopesheet to select that specific key.
 Practical tip:
 - For mode switches like `accretion_mode`, `kerr_mode`, `jet.mode` use events (`set`) in the JSON rather than numeric tracks. Edit events via **JSON import/export** (see section 9).
 
-## 8. Keyboard shortcuts
+## 9. Keyboard shortcuts
 
 The timeline panel responds to keyboard shortcuts when it is focused:
 
@@ -133,17 +158,17 @@ The timeline panel responds to keyboard shortcuts when it is focused:
 | `←` / `→` | Nudge playhead by ±0.1 s |
 | `Shift+←` / `Shift+→` | Nudge playhead by ±1.0 s |
 
-## 9. Undo / Redo
+## 10. Undo / Redo
 
 Every mutating operation (SET KEY, DELETE KEY, AUTO KEY, + TRACK) pushes a snapshot onto an undo stack (max 40 entries). Use **Ctrl+Z** to undo and **Ctrl+Y** (or **Ctrl+Shift+Z**) to redo.
 
-## 10. Changes are live — no APPLY needed
+## 11. Changes are live — no APPLY needed
 
 Every edit (SET KEY, DELETE KEY, AUTO KEY, + TRACK) immediately updates the running timeline.
 
 The old explicit **APPLY** button no longer exists.
 
-## 11. Panel state persistence
+## 12. Panel state persistence
 
 When you close the timeline panel, its state is saved to session storage automatically:
 - The selected preset
@@ -152,7 +177,7 @@ When you close the timeline panel, its state is saved to session storage automat
 
 Reopening the panel restores everything exactly as you left it. State persists for the browser session; it is cleared on page reload.
 
-## 12. JSON import / export
+## 13. JSON import / export
 
 Use the transport bar buttons to move between the UI editor and raw JSON:
 
@@ -161,7 +186,7 @@ Use the transport bar buttons to move between the UI editor and raw JSON:
 
 Use exported JSON to hand-edit events, annotations, and other fields not directly exposed in the dopesheet UI. See `docs/presentation-json.md` for the full schema.
 
-## 13. Playback and recording
+## 14. Playback and recording
 
 Playback controls and recording settings live in the **Animations panel** (`◀ ANIMATIONS`), not in the Timeline panel.
 
@@ -171,7 +196,7 @@ Open `◀ ANIMATIONS` → expand **PRESENTATION TIMELINE** to access:
 - Recording quality, mode, resolution, FPS, bitrate
 - Start Rec / Stop Rec
 
-## 14. Save as a reusable preset
+## 15. Save as a reusable preset
 
 `New Preset` / `— new empty —` is a runtime editing mode.  
 To make a preset that persists after a page reload:
@@ -183,7 +208,7 @@ To make a preset that persists after a page reload:
 
 The preset now appears in the Preset dropdown in both the Animations panel and the Timeline panel.
 
-## 15. Troubleshooting
+## 16. Troubleshooting
 
 **Timeline panel doesn't open:**
 - Click the `▲ TIMELINE` button at the bottom of the screen.
