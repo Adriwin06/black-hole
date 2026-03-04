@@ -1,153 +1,205 @@
 # Presentation Timeline Editor Guide
 
-This guide explains how to use the in-app timeline editor in:
-
-`ANIMATIONS > PRESENTATION TIMELINE`
+This guide explains how to use the in-app timeline editor.
 
 If you want the raw JSON schema, see `docs/presentation-json.md`.
 
-## 1. Important: how to open the editor
+## 1. UI overview — three panels
 
-The editor is only shown when **Preset = `New Preset`**.
+The interface has three separate sliding panels:
 
-Steps:
-1. Open `ANIMATIONS > PRESENTATION TIMELINE`.
-2. In the `Preset` dropdown, select **`New Preset`**.
-3. Expand the `TIMELINE EDITOR` header if it is collapsed.
+| Button | Location | Panel contents |
+|---|---|---|
+| `◀ ANIMATIONS` | left screen edge | Freefall Dive, Hover Approach, **Presentation Timeline** (playback, recording) |
+| `▶ CONTROLS` | right screen edge | Physics / rendering controls (dat.GUI) |
+| `▲ TIMELINE` | bottom of screen | **Dopesheet editor** — tracks, keyframes, key inspector |
 
-If you select a normal preset (like `Full Feature Tour`), the editor is hidden.
+Click an edge button to open its panel. The `▲ TIMELINE` panel also opens automatically when you select **New Preset** in the Animations panel.
 
-## 2. Fast workflow (recommended)
+## 2. How to open the editor
+
+**Option A — via the Animations panel:**
+
+1. Click `◀ ANIMATIONS` on the left edge to open the Animations panel.
+2. Expand the **PRESENTATION TIMELINE** section.
+3. In the `Preset` dropdown, select **`New Preset`**.
+   - The `▲ TIMELINE` bottom panel opens automatically with a blank draft.
+
+**Option B — directly:**
+
+1. Click `▲ TIMELINE` at the bottom of the screen.
+2. In the Preset dropdown in the transport bar, select **`— new empty —`**.
+
+## 3. Timeline panel layout
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│ ▶  ⏸  ■   0.00 / 12.00  [────scrubber────]  Preset ▾  AUTO KEY  + TRACK  ↑ IMPORT  ↓ EXPORT  × │  ← transport bar
+├────────────────┬───────────────────────────────┬─────────────────────┤
+│  TRACKS        │  dopesheet lanes               │  KEY INSPECTOR      │
+│  observer.di…  │  ──●──────────●──────────      │  Path               │
+│  look.exposure │  ────●────────●────────        │  Time / Ease        │
+│  …             │                                │  Value              │
+│                │                                │  USE TIME  CAPTURE  │
+│                │                                │  SET KEY  DELETE    │
+└────────────────┴───────────────────────────────┴─────────────────────┘
+```
+
+**Transport bar buttons:**
+- `▶ ⏸ ■` — Play / Pause / Stop
+- **Time / Duration fields** — two editable number inputs showing `current / total`. Click either field and type a value to seek or change the timeline duration.
+- Preset dropdown — load a saved preset or `— new empty —` to start fresh
+- `AUTO KEY` — capture changed controls as keyframes at the current time
+- `+ TRACK` — add a new blank track using the path typed in the Key Inspector
+- `↑ IMPORT` — import a `.json` timeline file from disk
+- `↓ EXPORT` — download the current draft as a `.json` file
+- `×` — close the timeline panel
+
+**Dopesheet columns:**
+- **Track list** (left) — click a row to select that track
+- **Lanes** (center) — click a keyframe dot to select it; **Ctrl+click** to add/remove from a multi-selection; click the ruler to seek
+- **Key Inspector** (right) — edit selected keyframe and commit changes. When multiple keyframes are selected, the inspector shows a summary count.
+
+## 4. Fast workflow (recommended)
 
 This is the easiest way to animate many controls quickly.
 
-1. Choose `Preset = New Preset`.
-2. Set `Name`, `Duration`, and optional `Loop`.
-3. Move timeline `Time` to your first keyframe time (usually `0.00`).
-4. Click **`AUTO KEYFRAME (FROM CONTROLS)`**.
+1. Open the Timeline panel (see section 2).
+2. Scrub to your first keyframe time (usually `0.00`).
+3. Click **`AUTO KEY`** in the transport bar.
    - This stores a **baseline snapshot**.
-5. Change settings from the normal controls panel (observer distance, accretion mode, jet, GRMHD, look settings, etc.).
-6. Move timeline time to the next keyframe time (example `5.00`).
-7. Click **`AUTO KEYFRAME (FROM CONTROLS)`** again.
-   - Changed values are added to tracks.
-   - Keys are created at both previous and current times for those changed settings.
-8. Repeat steps 5-7 for more keyframes.
-9. Click **`APPLY`**.
-10. Press `PLAY` to preview.
+4. Change settings in the **Controls panel** (observer distance, accretion mode, jet, GRMHD, look, etc.).
+5. Scrub to the next keyframe time (example `5.00`).
+6. Click **`AUTO KEY`** again.
+   - Changed values are written as tracks with keys at both the previous and current time.
+7. Repeat steps 4–6 for more keyframes.
+8. Press `▶` in the transport bar to preview.
 
-## 3. What Auto Keyframe does exactly
+Changes **auto-apply** immediately — no separate Apply step is needed.
+
+## 5. What Auto Key does exactly
 
 - First click: captures baseline only.
-- Next clicks: compares current controls vs previous snapshot.
-- For each changed value, it writes:
-  - key at previous snapshot time
-  - key at current time
+- Next clicks: compares current controls vs previous baseline snapshot.
+- For each changed value, writes:
+  - a key at the previous snapshot time
+  - a key at the current time
 - If no changes are detected, no tracks are added.
 
 This lets you animate many parameters without manually entering each path.
 
-## 4. Manual track/keyframe editing
+## 6. Manual track/keyframe editing
 
-Use **Tracks / keyframes** for direct control.
+Use the **Key Inspector** (right column of the timeline panel) for direct control.
 
 Fields:
-- `Path`: parameter path (example `observer.distance`, `accretion_mode`, `cameraPan.x`)
-- `Key`: time in seconds
-- `Ease`: `linear`, `smooth`, `smoother`
-- `Value`: value at that time
+- `Path` — parameter path (example `observer.distance`, `accretion_mode`, `cameraPan.x`)
+- `Time` — time in seconds
+- `Ease` — `linear`, `smooth`, `smoother`
+- `Value` — value at that key
 
-Buttons:
-- `USE TIME`: fills key time from current timeline time
-- `CAPTURE VALUE`: reads current runtime value for `Path`
-- `ADD/UPDATE`: add key or replace key at same time
-- `REMOVE`: remove nearest key for this path/time
+Buttons in the inspector:
+- `USE TIME` — fills the Time field from the current playhead position
+- `CAPTURE` — reads the current runtime value for the entered Path
+- `SET KEY` — add or replace the key at this time
+- `DELETE KEY` — remove the selected key
 
-Track list actions:
-- `GO`: seek timeline to that key
-- `EDIT`: load that key into editor fields
-- `DEL`: delete key (or whole track with `DEL TRACK`)
+Click a **track row** in the left column to inspect that track.  
+Click a **keyframe dot** in the dopesheet to select that specific key.  
+**Ctrl+click** additional dots to build a multi-selection across one or many tracks.
 
-## 5. Manual event editing
+## 7. Interpolation rules
 
-Use **Events** for discrete actions (toggles/mode changes/annotation popups).
-
-Supported actions:
-- `set`
-- `updateShader`
-- `startDive`, `pauseDive`, `resetDive`
-- `startHover`, `pauseHover`, `resetHover`
-- `annotation`
-- `clearAnnotation`
-
-For `set`, provide:
-- `Path`
-- `Value`
-- optional `Force compile`
-
-For `annotation`, provide note fields like:
-- title
-- text
-- anchor target
-- placement
-
-Event list actions:
-- `GO`, `EDIT`, `DEL`
-
-## 6. Interpolation rules
-
-- Number values interpolate between keys.
-- Boolean/string values are stepped (switch behavior).
+- Number values interpolate smoothly between keys.
+- Boolean/string values are stepped (switch at the key time, no interpolation).
 
 Practical tip:
-- For mode switches like `accretion_mode`, `kerr_mode`, `jet.mode`, prefer **events** (`set`) instead of numeric tracks.
+- For mode switches like `accretion_mode`, `kerr_mode`, `jet.mode` use events (`set`) in the JSON rather than numeric tracks. Edit events via **JSON import/export** (see section 9).
 
-## 7. APPLY is required
+## 8. Keyboard shortcuts
 
-The editor builds a draft timeline.  
-Changes are not active until you click **`APPLY`**.
+The timeline panel responds to keyboard shortcuts when it is focused:
 
-After `APPLY`:
-- timeline is loaded into runtime
-- `PLAY`, scrub, and recording use the updated timeline
+| Shortcut | Action |
+|---|---|
+| `Space` | Play / Pause |
+| `Delete` or `Backspace` | Delete all selected keyframes |
+| `Ctrl+A` | Select all keyframes on the active track (press again to select all keyframes across all tracks) |
+| `Ctrl+Z` | Undo last edit |
+| `Ctrl+Y` / `Ctrl+Shift+Z` | Redo |
+| `Home` | Seek to `0.00` |
+| `End` | Seek to the last keyframe on the active track |
+| `←` / `→` | Nudge playhead by ±0.1 s |
+| `Shift+←` / `Shift+→` | Nudge playhead by ±1.0 s |
 
-## 8. JSON tools
+## 9. Undo / Redo
 
-Inside the editor:
-- `EXPORT`: write draft JSON to the JSON text box
-- `IMPORT FILE`: open file picker and import a `.json` timeline file into draft
-- `IMPORT TEXT`: parse JSON text from the JSON text box into draft
-- `DOWNLOAD`: save draft as a `.json` file
+Every mutating operation (SET KEY, DELETE KEY, AUTO KEY, + TRACK) pushes a snapshot onto an undo stack (max 40 entries). Use **Ctrl+Z** to undo and **Ctrl+Y** (or **Ctrl+Shift+Z**) to redo.
 
-Use this to move between UI editing and raw JSON editing.
+## 10. Changes are live — no APPLY needed
 
-## 9. Save as a reusable preset
+Every edit (SET KEY, DELETE KEY, AUTO KEY, + TRACK) immediately updates the running timeline.
 
-`New Preset` is a runtime/editor mode.  
-To make a reusable preset:
+The old explicit **APPLY** button no longer exists.
 
-1. Click `DOWNLOAD` in editor.
-2. Put the file in `js/app/presentation/presets/`.
+## 11. Panel state persistence
+
+When you close the timeline panel, its state is saved to session storage automatically:
+- The selected preset
+- The current draft (all tracks and keyframes)
+- The selected track and keyframe selection
+
+Reopening the panel restores everything exactly as you left it. State persists for the browser session; it is cleared on page reload.
+
+## 12. JSON import / export
+
+Use the transport bar buttons to move between the UI editor and raw JSON:
+
+- `↑ IMPORT` — opens a file picker; loads a `.json` timeline file into the editor
+- `↓ EXPORT` — downloads the current draft as `<name>.json`
+
+Use exported JSON to hand-edit events, annotations, and other fields not directly exposed in the dopesheet UI. See `docs/presentation-json.md` for the full schema.
+
+## 13. Playback and recording
+
+Playback controls and recording settings live in the **Animations panel** (`◀ ANIMATIONS`), not in the Timeline panel.
+
+Open `◀ ANIMATIONS` → expand **PRESENTATION TIMELINE** to access:
+- Preset selection and loop toggle
+- Scrubber bar and Play / Pause / Stop
+- Recording quality, mode, resolution, FPS, bitrate
+- Start Rec / Stop Rec
+
+## 14. Save as a reusable preset
+
+`New Preset` / `— new empty —` is a runtime editing mode.  
+To make a preset that persists after a page reload:
+
+1. Click `↓ EXPORT` in the transport bar.
+2. Place the downloaded file in `js/app/presentation/presets/`.
 3. Add an entry in `js/app/presentation/presets/manifest.json`.
-4. Reload page.
+4. Reload the page.
 
-Now it appears in normal preset dropdown.
+The preset now appears in the Preset dropdown in both the Animations panel and the Timeline panel.
 
-## 10. Troubleshooting
+## 15. Troubleshooting
 
-Editor not visible:
-- Select `Preset = New Preset`.
+**Timeline panel doesn't open:**
+- Click the `▲ TIMELINE` button at the bottom of the screen.
+- Or select `New Preset` in the Animations panel (`◀ ANIMATIONS`).
 
-I changed things but playback did not change:
-- Click `APPLY`.
+**My edits don't appear during playback:**
+- Changes auto-apply; if playback seems stale, press Stop then Play again.
 
-Auto keyframe says no changes:
-- You likely pressed it twice without changing controls.
-- Change controls between clicks.
+**AUTO KEY reports no changes:**
+- You likely clicked it twice without changing any controls between clicks.
+- Change controls (in the Controls panel on the right) between AUTO KEY presses.
 
-A keyframe does nothing:
-- Path may be wrong or unsupported.
-- Check path spelling and try `CAPTURE VALUE`.
+**A keyframe does nothing:**
+- The path may be wrong or unsupported.
+- Type the path in the Inspector, click `CAPTURE` to verify it resolves to a value.
+- Check path spelling against `docs/presentation-json.md`.
 
-Camera rotation was not detected by auto keyframe:
-- Newer builds capture orbit camera transform (`camera.position.*` + `camera.quaternion.*`) in AUTO KEYFRAME.
-- If you still see this, make sure you actually moved the camera between clicks and then press `APPLY`.
+**Camera rotation was not captured by AUTO KEY:**
+- AUTO KEY captures the orbit camera transform as `camera.position.*` and `camera.quaternion.*`.
+- Make sure you actually moved the camera between clicks.

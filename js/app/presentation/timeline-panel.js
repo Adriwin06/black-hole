@@ -81,7 +81,11 @@ function buildTimelinePanel() {
                 '<button id="tl-btn-pause" class="tl-btn" type="button" title="Pause">&#10074;&#10074;</button>' +
                 '<button id="tl-btn-stop" class="tl-btn" type="button" title="Stop">&#9632;</button>' +
                 '<span class="tl-transport-sep"></span>' +
-                '<span id="tl-time-display" class="tl-time-display">0.00 / 12.00</span>' +
+                '<span class="tl-time-display">' +
+                    '<input id="tl-time-current" class="tl-time-input" type="number" min="0" step="0.01" value="0" title="Current time (editable)">' +
+                    '<span class="tl-time-sep">/</span>' +
+                    '<input id="tl-time-duration" class="tl-time-input" type="number" min="0.5" step="0.1" value="12" title="Duration (editable)">' +
+                '</span>' +
             '</div>' +
             '<div class="tl-transport-center">' +
                 '<div id="tl-scrubber" class="tl-scrubber">' +
@@ -95,6 +99,9 @@ function buildTimelinePanel() {
                 '<span class="tl-transport-sep"></span>' +
                 '<button id="tl-btn-auto-key" class="tl-btn tl-btn--warn" type="button" title="Auto Keyframe: capture changes">AUTO KEY</button>' +
                 '<button id="tl-btn-add-track" class="tl-btn" type="button" title="Add a new track">+ TRACK</button>' +
+                '<span class="tl-transport-sep"></span>' +
+                '<button id="tl-btn-import" class="tl-btn" type="button" title="Import timeline from JSON file">&#8593; IMPORT</button>' +
+                '<button id="tl-btn-export" class="tl-btn" type="button" title="Export timeline as JSON file">&#8595; EXPORT</button>' +
                 '<span class="tl-transport-sep"></span>' +
                 '<button id="tl-btn-close" class="tl-btn" type="button" title="Close panel">&times;</button>' +
             '</div>' +
@@ -157,13 +164,16 @@ function buildTimelinePanel() {
     document.body.appendChild(panel);
 
     // ── Element refs ──
-    var playBtn     = panel.querySelector('#tl-btn-play');
-    var pauseBtn    = panel.querySelector('#tl-btn-pause');
-    var stopBtn     = panel.querySelector('#tl-btn-stop');
-    var autoKeyBtn  = panel.querySelector('#tl-btn-auto-key');
-    var addTrackBtn = panel.querySelector('#tl-btn-add-track');
-    var closeBtn    = panel.querySelector('#tl-btn-close');
-    var timeDisplay = panel.querySelector('#tl-time-display');
+    var playBtn      = panel.querySelector('#tl-btn-play');
+    var pauseBtn     = panel.querySelector('#tl-btn-pause');
+    var stopBtn      = panel.querySelector('#tl-btn-stop');
+    var autoKeyBtn   = panel.querySelector('#tl-btn-auto-key');
+    var addTrackBtn  = panel.querySelector('#tl-btn-add-track');
+    var importBtn    = panel.querySelector('#tl-btn-import');
+    var exportBtn    = panel.querySelector('#tl-btn-export');
+    var closeBtn     = panel.querySelector('#tl-btn-close');
+    var timeCurrent  = panel.querySelector('#tl-time-current');
+    var timeDuration = panel.querySelector('#tl-time-duration');
     var scrubber    = panel.querySelector('#tl-scrubber');
     var scrubFill   = panel.querySelector('#tl-scrub-fill');
     var scrubHead   = panel.querySelector('#tl-scrub-head');
@@ -188,15 +198,66 @@ function buildTimelinePanel() {
     var draft          = null;
     var selectedTrack  = '';
     var selectedKeyT   = NaN;
+    // Multi-select: array of { path: string, t: number }
+    var selectedKeys   = [];
     var panelOpen      = false;
     var autoKeySnapshot= null;
     var syncTimer      = null;
-    var PANEL_HEIGHT_KEY = 'black-hole.tl-panel.height';
-    var PANEL_DEFAULT_H  = 320;
+    var PANEL_HEIGHT_KEY  = 'black-hole.tl-panel.height';
+    var PANEL_STATE_KEY   = 'black-hole.tl-panel.state';
+    var PANEL_DEFAULT_H   = 320;
+
+    // ── Undo/Redo history ───────────────────────────────────────────────────
+    var undoStack = [];
+    var redoStack = [];
+    var UNDO_MAX  = 40;
+    function pushUndo() {
+        if (!draft) return;
+        undoStack.push(clonePlain(draft));
+        if (undoStack.length > UNDO_MAX) undoStack.shift();
+        redoStack = [];
+    }
+    function undo() {
+        if (!undoStack.length) { setStatus('Nothing to undo.', 'tl-status--warn'); return; }
+        redoStack.push(clonePlain(draft));
+        draft = undoStack.pop();
+        applyDraft();
+        rebuildAll();
+        setStatus('Undo.', '');
+    }
+    function redo() {
+        if (!redoStack.length) { setStatus('Nothing to redo.', 'tl-status--warn'); return; }
+        undoStack.push(clonePlain(draft));
+        draft = redoStack.pop();
+        applyDraft();
+        rebuildAll();
+        setStatus('Redo.', '');
+    }
     var PANEL_MIN_H      = 180;
     var PANEL_MAX_H      = 700;
 
-    // ── Panel open/close ────────────────────────────────────────────────────
+    // ── Persistence ───────────────────────────────────────────────────────
+    function saveState() {
+        try {
+            var state = {
+                preset: presetSelect.value || '',
+                draft: draft ? clonePlain(draft) : null,
+                selectedTrack: selectedTrack,
+                selectedKeys: selectedKeys.slice(),
+                wasOpen: panelOpen
+            };
+            sessionStorage.setItem(PANEL_STATE_KEY, JSON.stringify(state));
+        } catch(e) {}
+    }
+    function loadState() {
+        try {
+            var raw = sessionStorage.getItem(PANEL_STATE_KEY);
+            if (!raw) return null;
+            return JSON.parse(raw);
+        } catch(e) { return null; }
+    }
+
+    // ── Panel open/close ──────────────────────────────────────────────────────
     function updatePushedOffset() {
         var h = panel.getBoundingClientRect().height;
         document.body.style.setProperty('--tl-h', Math.round(h + 10) + 'px');
@@ -208,10 +269,28 @@ function buildTimelinePanel() {
         document.body.classList.toggle('has-timeline-panel', panelOpen);
         if (panelOpen) {
             updatePushedOffset();
+            var saved = loadState();
             populatePresets();
-            syncFromRuntime();
+            if (saved) {
+                // Restore persisted state
+                if (saved.preset && presetSelect.querySelector('option[value="' + CSS.escape(saved.preset) + '"]')) {
+                    presetSelect.value = saved.preset;
+                }
+                if (saved.draft) {
+                    draft = normalizeTL(saved.draft);
+                    rebuildAll();
+                } else {
+                    syncFromRuntime();
+                }
+                if (saved.selectedTrack) selectedTrack = saved.selectedTrack;
+                if (saved.selectedKeys && saved.selectedKeys.length) selectedKeys = saved.selectedKeys;
+            } else {
+                syncFromRuntime();
+            }
+            updateTimeInputs();
             startSync();
         } else {
+            saveState();
             stopSync();
             document.body.style.removeProperty('--tl-h');
         }
@@ -268,9 +347,11 @@ function buildTimelinePanel() {
         }
         return 12;
     }
-    function updateTimeDisplay() {
+    function updateTimeInputs() {
         var t = currentTime(), d = getDuration();
-        timeDisplay.textContent = t.toFixed(2) + ' / ' + d.toFixed(2);
+        // Only update if not focused (don't interrupt user typing)
+        if (document.activeElement !== timeCurrent)  timeCurrent.value = t.toFixed(2);
+        if (document.activeElement !== timeDuration) timeDuration.value = d.toFixed(2);
     }
     function updateScrubber() {
         var d = getDuration(), t = currentTime();
@@ -287,7 +368,7 @@ function buildTimelinePanel() {
             var ratio = clamp((clientX - rect.left) / rect.width, 0, 1);
             var t = ratio * getDuration();
             if (typeof seekPresentation === 'function') seekPresentation(t);
-            updateTimeDisplay(); updateScrubber();
+            updateTimeInputs(); updateScrubber();
         }
         scrubber.addEventListener('pointerdown', function(e) {
             if (e.button !== 0) return;
@@ -321,6 +402,31 @@ function buildTimelinePanel() {
         if (typeof stopPresentation === 'function') stopPresentation();
     });
     closeBtn.addEventListener('click', function() { setPanelOpen(false); });
+
+    // ── Editable time / duration inputs ───────────────────────────────────
+    timeCurrent.addEventListener('change', function() {
+        var t = parseTime(timeCurrent.value, 0);
+        t = clamp(t, 0, getDuration());
+        if (typeof seekPresentation === 'function') seekPresentation(t);
+        updateTimeInputs(); updateScrubber(); updatePlayheads();
+    });
+    timeCurrent.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { timeCurrent.blur(); }
+    });
+    timeDuration.addEventListener('change', function() {
+        var d = parseTime(timeDuration.value, 12);
+        d = Math.max(0.5, d);
+        if (draft) {
+            pushUndo();
+            draft.duration = d;
+            applyDraft();
+            rebuildAll();
+            setStatus('Duration set to ' + d.toFixed(2) + 's.', '');
+        }
+    });
+    timeDuration.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { timeDuration.blur(); }
+    });
 
     // ── Preset selector ─────────────────────────────────────────────────────
     function populatePresets() {
@@ -391,7 +497,7 @@ function buildTimelinePanel() {
             draft = normalizeTL(rt);
             rebuildAll();
         }
-        updateTimeDisplay();
+        updateTimeInputs();
         updateScrubber();
     }
 
@@ -406,7 +512,7 @@ function buildTimelinePanel() {
     function startSync() {
         if (syncTimer) return;
         syncTimer = setInterval(function() {
-            updateTimeDisplay();
+            updateTimeInputs();
             updateScrubber();
             updatePlayheads();
         }, 80);
@@ -508,6 +614,7 @@ function buildTimelinePanel() {
         if (!btn) return;
         selectedTrack = btn.getAttribute('data-path');
         selectedKeyT = NaN;
+        clearMultiSelect();
         rebuildTrackList();
         rebuildLanes();
         updateInspector();
@@ -537,8 +644,26 @@ function buildTimelinePanel() {
         var ratio = clamp((e.clientX - rect.left) / rect.width, 0, 1);
         var t = ratio * getDuration();
         if (typeof seekPresentation === 'function') seekPresentation(t);
-        updateTimeDisplay(); updateScrubber(); updatePlayheads();
+        updateTimeInputs(); updateScrubber(); updatePlayheads();
     });
+
+    // ── Multi-select helpers ────────────────────────────────────────────────
+    function isKeyMultiSelected(path, t) {
+        for (var i = 0; i < selectedKeys.length; i++) {
+            if (selectedKeys[i].path === path && Math.abs(selectedKeys[i].t - t) <= 1e-4) return true;
+        }
+        return false;
+    }
+    function addToMultiSelect(path, t) {
+        if (!isKeyMultiSelected(path, t)) selectedKeys.push({ path: path, t: t });
+    }
+    function removeFromMultiSelect(path, t) {
+        selectedKeys = selectedKeys.filter(function(s) {
+            return !(s.path === path && Math.abs(s.t - t) <= 1e-4);
+        });
+    }
+    function clearMultiSelect() { selectedKeys = []; }
+    function selectionCount() { return selectedKeys.length; }
 
     // ── Lanes (center dopesheet) ────────────────────────────────────────────
     function rebuildLanes() {
@@ -557,7 +682,7 @@ function buildTimelinePanel() {
             for (var k = 0; k < tr.keys.length; k++) {
                 var key = tr.keys[k];
                 var kPct = clamp(key.t / Math.max(d, 0.001) * 100, 0, 100);
-                var isSelKey = isSel && isFinite(selectedKeyT) && Math.abs(selectedKeyT - key.t) <= 1e-4;
+                var isSelKey = isKeyMultiSelected(tr.path, key.t);
                 var tip = key.t.toFixed(2) + 's | ' + normalizeEase(key.ease) + ' | ' + formatValue(key.v);
                 html += '<button type="button" class="tl-diamond' + (isSelKey ? ' is-sel' : '') +
                     '" style="left:' + kPct.toFixed(3) + '%" title="' + esc(tip) +
@@ -575,11 +700,29 @@ function buildTimelinePanel() {
             var ki = parseInt(diamond.getAttribute('data-ki'), 10);
             var track = getTrackByPath(path);
             if (track && track.keys[ki]) {
+                var t = track.keys[ki].t;
+                var isCtrl = e.ctrlKey || e.metaKey;
+                if (isCtrl) {
+                    // Toggle this key in multi-selection
+                    if (isKeyMultiSelected(path, t)) {
+                        removeFromMultiSelect(path, t);
+                    } else {
+                        addToMultiSelect(path, t);
+                    }
+                } else {
+                    // Replace selection with just this key
+                    clearMultiSelect();
+                    addToMultiSelect(path, t);
+                }
                 selectedTrack = path;
-                selectedKeyT = track.keys[ki].t;
+                selectedKeyT = t;
                 rebuildTrackList();
                 rebuildLanes();
-                fillInspector(track, ki);
+                if (selectedKeys.length === 1) {
+                    fillInspector(track, ki);
+                } else {
+                    inspSummary.textContent = selectedKeys.length + ' keyframes selected.';
+                }
             }
             return;
         }
@@ -588,13 +731,14 @@ function buildTimelinePanel() {
         if (lane) {
             selectedTrack = lane.getAttribute('data-path');
             selectedKeyT = NaN;
+            clearMultiSelect();
             // Seek to the clicked time position
             var rect = lane.getBoundingClientRect();
             if (rect.width > 0) {
                 var ratio = clamp((e.clientX - rect.left) / rect.width, 0, 1);
-                var t = ratio * getDuration();
-                if (typeof seekPresentation === 'function') seekPresentation(t);
-                updateTimeDisplay(); updateScrubber(); updatePlayheads();
+                var t2 = ratio * getDuration();
+                if (typeof seekPresentation === 'function') seekPresentation(t2);
+                updateTimeInputs(); updateScrubber(); updatePlayheads();
             }
             rebuildTrackList();
             rebuildLanes();
@@ -614,17 +758,36 @@ function buildTimelinePanel() {
 
     // ── Inspector (right column) ────────────────────────────────────────────
     function updateInspector() {
+        // Multi-selection summary
+        if (selectedKeys.length > 1) {
+            var pathSet = {};
+            for (var s = 0; s < selectedKeys.length; s++) pathSet[selectedKeys[s].path] = 1;
+            var pathCount = Object.keys(pathSet).length;
+            inspSummary.textContent = selectedKeys.length + ' keyframes selected (' + pathCount + ' track' + (pathCount > 1 ? 's' : '') + ')';
+            inspPath.value = '';
+            inspTime.value = '';
+            inspValue.value = '';
+            return;
+        }
         var track = getTrackByPath(selectedTrack);
         if (!track) {
-            inspSummary.textContent = 'No keyframe selected.';
+            inspSummary.textContent = selectedKeys.length === 0 ? 'No keyframe selected.' : 'No track.';
             inspPath.value = selectedTrack || '';
             inspTime.value = currentTime().toFixed(2);
             inspValue.value = '';
             return;
         }
+        if (selectedKeys.length === 1) {
+            var sk = selectedKeys[0];
+            var sTrack = getTrackByPath(sk.path);
+            if (sTrack) {
+                var ki = getKeyAt(sTrack, sk.t);
+                if (ki >= 0) return fillInspector(sTrack, ki);
+            }
+        }
         if (isFinite(selectedKeyT)) {
-            var ki = getKeyAt(track, selectedKeyT);
-            if (ki >= 0) return fillInspector(track, ki);
+            var ki2 = getKeyAt(track, selectedKeyT);
+            if (ki2 >= 0) return fillInspector(track, ki2);
         }
         inspSummary.textContent = 'Track: ' + track.path + ' (' + track.keys.length + ' keys)';
         inspPath.value = track.path;
@@ -669,6 +832,7 @@ function buildTimelinePanel() {
         var ease = normalizeEase(inspEase.value);
         var value = parseValue(inspValue.value);
 
+        pushUndo();
         var track = getTrackByPath(path);
         if (!track) {
             track = { path: path, compile: false, keys: [] };
@@ -685,23 +849,49 @@ function buildTimelinePanel() {
         draft.duration = Math.max(draft.duration, t);
         selectedTrack = path;
         selectedKeyT = t;
+        clearMultiSelect();
+        addToMultiSelect(path, t);
         applyDraft();
         rebuildAll();
         setStatus('Key set: ' + path + ' @ ' + t.toFixed(2) + 's', '');
     });
     inspDel.addEventListener('click', function() {
         if (!draft) return;
+        // If we have a multi-selection, delete all selected keys
+        if (selectedKeys.length > 0) {
+            pushUndo();
+            var count = 0;
+            for (var s = 0; s < selectedKeys.length; s++) {
+                var sk = selectedKeys[s];
+                var tr = getTrackByPath(sk.path);
+                if (!tr) continue;
+                var ki = getKeyAt(tr, sk.t);
+                if (ki >= 0) { tr.keys.splice(ki, 1); count++; }
+            }
+            // Remove empty tracks
+            draft.tracks = draft.tracks.filter(function(tr) { return tr.keys.length > 0; });
+            selectedKeyT = NaN;
+            clearMultiSelect();
+            applyDraft();
+            rebuildAll();
+            if (count) setStatus(count + ' key' + (count > 1 ? 's' : '') + ' deleted.', '');
+            else setStatus('No keys deleted.', 'tl-status--warn');
+            return;
+        }
+        // Fallback: delete from inspector fields
         var path = (inspPath.value || '').trim();
         var t = parseTime(inspTime.value, NaN);
         var track = getTrackByPath(path);
-        if (!track) return;
-        var ki = getKeyAt(track, t);
-        if (ki < 0) { setStatus('No key at that time.', 'tl-status--warn'); return; }
-        track.keys.splice(ki, 1);
+        if (!track) { setStatus('No track found for path.', 'tl-status--warn'); return; }
+        var ki2 = getKeyAt(track, t);
+        if (ki2 < 0) { setStatus('No key at that time. Select a keyframe first.', 'tl-status--warn'); return; }
+        pushUndo();
+        track.keys.splice(ki2, 1);
         if (!track.keys.length) {
-            draft.tracks = draft.tracks.filter(function(tr) { return tr.path !== path; });
+            draft.tracks = draft.tracks.filter(function(tr2) { return tr2.path !== path; });
         }
         selectedKeyT = NaN;
+        clearMultiSelect();
         applyDraft();
         rebuildAll();
         setStatus('Key deleted.', '');
@@ -716,6 +906,7 @@ function buildTimelinePanel() {
             draft = normalizeTL({ name: 'New', duration: 12, tracks: [], events: [] });
         }
         if (getTrackByPath(path)) { setStatus('Track already exists.', 'tl-status--warn'); return; }
+        pushUndo();
         var val = '';
         if (typeof getPresentationPathValue === 'function') {
             var v = getPresentationPathValue(path);
@@ -769,6 +960,7 @@ function buildTimelinePanel() {
             return;
         }
 
+        pushUndo();
         var changed = 0;
         for (var i = 0; i < paths.length; i++) {
             var p = paths[i];
@@ -806,19 +998,130 @@ function buildTimelinePanel() {
         else { track.keys.push({ t: t, v: value, ease: normalizeEase(ease) }); track.keys.sort(function(a,b){return a.t-b.t;}); }
     }
 
+    // ── Import / Export JSON ────────────────────────────────────────────────
+    importBtn.addEventListener('click', function() {
+        var input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json,application/json';
+        input.style.display = 'none';
+        input.addEventListener('change', function() {
+            var file = input.files && input.files[0];
+            if (!file) return;
+            var reader = new FileReader();
+            reader.onload = function() {
+                try {
+                    var obj = JSON.parse(reader.result);
+                    if (typeof setPresentationTimeline === 'function') {
+                        if (setPresentationTimeline(obj)) {
+                            syncFromRuntime();
+                            setStatus('Imported: ' + file.name, '');
+                        } else {
+                            setStatus('Invalid timeline data in ' + file.name, 'tl-status--error');
+                        }
+                    }
+                } catch (err) {
+                    setStatus('JSON parse error: ' + err.message, 'tl-status--error');
+                }
+            };
+            reader.onerror = function() {
+                setStatus('Failed to read file.', 'tl-status--error');
+            };
+            reader.readAsText(file);
+        });
+        document.body.appendChild(input);
+        input.click();
+        input.remove();
+    });
+
+    exportBtn.addEventListener('click', function() {
+        var tl = typeof getPresentationTimeline === 'function' ? getPresentationTimeline() : null;
+        if (!tl && draft) tl = clonePlain(draft);
+        if (!tl) { setStatus('No timeline to export.', 'tl-status--warn'); return; }
+        var json = JSON.stringify(tl, null, 2);
+        var blob = new Blob([json], { type: 'application/json' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = (tl.name ? tl.name.replace(/[^a-zA-Z0-9_-]/g, '_') : 'timeline') + '.json';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        setStatus('Exported: ' + a.download, '');
+    });
+
     // ── Listen for external timeline loads ──────────────────────────────────
     window.addEventListener('presentation:timeline-panel-sync', function() {
         if (panelOpen) syncFromRuntime();
     });
 
     // ── Keyboard shortcuts ──────────────────────────────────────────────────
-    window.addEventListener('keydown', function(e) {
-        // Don't capture when typing in input/textarea
-        var tag = (e.target.tagName || '').toLowerCase();
-        if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable) return;
+    function deleteSelectedKeys() {
+        if (!draft || !selectedKeys.length) return;
+        pushUndo();
+        var count = 0;
+        for (var s = 0; s < selectedKeys.length; s++) {
+            var sk = selectedKeys[s];
+            var tr = getTrackByPath(sk.path);
+            if (!tr) continue;
+            var ki = getKeyAt(tr, sk.t);
+            if (ki >= 0) { tr.keys.splice(ki, 1); count++; }
+        }
+        draft.tracks = draft.tracks.filter(function(tr) { return tr.keys.length > 0; });
+        selectedKeyT = NaN;
+        clearMultiSelect();
+        applyDraft();
+        rebuildAll();
+        if (count) setStatus(count + ' key' + (count > 1 ? 's' : '') + ' deleted.', '');
+    }
 
-        // Space → play / pause (only when panel is open)
-        if (e.code === 'Space' && panelOpen) {
+    function selectAllKeysOnTrack() {
+        if (!draft || !selectedTrack) return;
+        var track = getTrackByPath(selectedTrack);
+        if (!track) return;
+        clearMultiSelect();
+        for (var k = 0; k < track.keys.length; k++) {
+            addToMultiSelect(track.path, track.keys[k].t);
+        }
+        rebuildLanes();
+        inspSummary.textContent = selectedKeys.length + ' keyframes selected on ' + selectedTrack;
+    }
+
+    function selectAllKeys() {
+        if (!draft) return;
+        clearMultiSelect();
+        for (var i = 0; i < draft.tracks.length; i++) {
+            var tr = draft.tracks[i];
+            for (var k = 0; k < tr.keys.length; k++) {
+                addToMultiSelect(tr.path, tr.keys[k].t);
+            }
+        }
+        rebuildLanes();
+        inspSummary.textContent = selectedKeys.length + ' keyframes selected (all).';
+    }
+
+    window.addEventListener('keydown', function(e) {
+        if (!panelOpen) return;
+        // Don't capture when typing in input/textarea (except for specific shortcuts)
+        var tag = (e.target.tagName || '').toLowerCase();
+        var inInput = (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable);
+
+        // Ctrl+Z / Ctrl+Y — always active even in inputs for the panel
+        if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.code === 'KeyZ' && panel.contains(e.target)) {
+            e.preventDefault();
+            undo();
+            return;
+        }
+        if ((e.ctrlKey || e.metaKey) && (e.code === 'KeyY' || (e.shiftKey && e.code === 'KeyZ')) && panel.contains(e.target)) {
+            e.preventDefault();
+            redo();
+            return;
+        }
+
+        if (inInput) return;
+
+        // Space → play / pause
+        if (e.code === 'Space') {
             e.preventDefault();
             var st = typeof getPresentationState === 'function' ? getPresentationState() : null;
             if (st && st.active && !st.paused) {
@@ -826,6 +1129,49 @@ function buildTimelinePanel() {
             } else {
                 if (typeof playPresentation === 'function') playPresentation(false);
             }
+            return;
+        }
+
+        // Delete / Backspace → delete selected keyframes
+        if (e.code === 'Delete' || e.code === 'Backspace') {
+            e.preventDefault();
+            deleteSelectedKeys();
+            return;
+        }
+
+        // Ctrl+A → select all keyframes (on current track if one is selected, else all)
+        if ((e.ctrlKey || e.metaKey) && e.code === 'KeyA') {
+            e.preventDefault();
+            if (selectedTrack && !e.shiftKey) selectAllKeysOnTrack();
+            else selectAllKeys();
+            return;
+        }
+
+        // Home → seek to start
+        if (e.code === 'Home') {
+            e.preventDefault();
+            if (typeof seekPresentation === 'function') seekPresentation(0);
+            updateTimeInputs(); updateScrubber(); updatePlayheads();
+            return;
+        }
+
+        // End → seek to end
+        if (e.code === 'End') {
+            e.preventDefault();
+            if (typeof seekPresentation === 'function') seekPresentation(getDuration());
+            updateTimeInputs(); updateScrubber(); updatePlayheads();
+            return;
+        }
+
+        // Left/Right arrows → nudge time
+        if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
+            var step = e.shiftKey ? 1.0 : 0.1;
+            var dir = (e.code === 'ArrowLeft') ? -1 : 1;
+            var newT = clamp(currentTime() + dir * step, 0, getDuration());
+            if (typeof seekPresentation === 'function') seekPresentation(newT);
+            updateTimeInputs(); updateScrubber(); updatePlayheads();
+            e.preventDefault();
+            return;
         }
     });
 

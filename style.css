@@ -278,6 +278,9 @@ body.sp-resizing, body.sp-resizing * {
     min-width: 300px;
     max-width: 600px;
 }
+#controls-panel .sp-content {
+    overflow-x: auto;
+}
 #controls-panel .dg.ac {
     position: static !important;
     right: auto !important;
@@ -287,10 +290,13 @@ body.sp-resizing, body.sp-resizing * {
 }
 #controls-panel .dg.main {
     position: static !important;
+    float: none !important;
     width: 100% !important;
     max-height: none !important;
     overflow: visible !important;
     z-index: auto !important;
+    margin-right: 0 !important;
+    box-sizing: border-box !important;
 }
 #controls-panel .dg.main > ul {
     max-height: none !important;
@@ -1372,13 +1378,42 @@ body.tl-resizing, body.tl-resizing * {
 .tl-btn--warn:hover { border-color: #b08030; color: #ffe4a0; }
 
 .tl-time-display {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 130px;
+}
+.tl-time-input {
+    width: 58px;
+    border: 1px solid #1e3552;
+    border-radius: 3px;
+    background: #0a1726;
     color: #90b8e0;
+    font-family: Consolas, 'Courier New', monospace;
     font-size: 12px;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.6px;
-    min-width: 110px;
     text-align: center;
+    padding: 2px 4px;
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+.tl-time-input::-webkit-inner-spin-button,
+.tl-time-input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+.tl-time-input:focus {
+    border-color: #4080c0;
+    outline: none;
+    background: #0e1e34;
+    color: #c0daf0;
+}
+.tl-time-sep {
+    color: #506880;
+    font-size: 12px;
+    font-weight: 700;
 }
 
 /* ── Preset selector ── */
