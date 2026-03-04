@@ -57,7 +57,7 @@ Click an edge button to open its panel. The `▲ TIMELINE` panel also opens auto
 
 **Dopesheet columns:**
 - **Track list** (left) — click a row to select that track
-- **Lanes** (center) — click a keyframe dot to select it; **Ctrl+click** to add/remove from a multi-selection; click the ruler to seek
+- **Lanes** (center) — click a keyframe dot to select it; **Ctrl+click** to add/remove from a multi-selection; **double-click** a keyframe dot to select all keyframes across all tracks that share the same time; click the ruler to seek
 - **Key Inspector** (right) — edit selected keyframe and commit changes. When multiple keyframes are selected, the inspector shows a summary count.
 
 ## 4. Fast workflow (recommended)
@@ -125,6 +125,7 @@ The timeline panel responds to keyboard shortcuts when it is focused:
 | `Space` | Play / Pause |
 | `Delete` or `Backspace` | Delete all selected keyframes |
 | `Ctrl+A` | Select all keyframes on the active track (press again to select all keyframes across all tracks) |
+| Double-click keyframe | Select all keyframes across all tracks at that same time |
 | `Ctrl+Z` | Undo last edit |
 | `Ctrl+Y` / `Ctrl+Shift+Z` | Redo |
 | `Home` | Seek to `0.00` |

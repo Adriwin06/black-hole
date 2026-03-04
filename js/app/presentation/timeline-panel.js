@@ -664,6 +664,26 @@ function buildTimelinePanel() {
     }
     function clearMultiSelect() { selectedKeys = []; }
     function selectionCount() { return selectedKeys.length; }
+    function selectAllKeysAtTime(t) {
+        clearMultiSelect();
+        if (!draft) return;
+        for (var i = 0; i < draft.tracks.length; i++) {
+            var tr = draft.tracks[i];
+            for (var j = 0; j < tr.keys.length; j++) {
+                if (Math.abs(tr.keys[j].t - t) <= 1e-4) addToMultiSelect(tr.path, tr.keys[j].t);
+            }
+        }
+        rebuildTrackList();
+        rebuildLanes();
+        if (selectedKeys.length === 1) {
+            selectedTrack = selectedKeys[0].path;
+            selectedKeyT = selectedKeys[0].t;
+            var tk = getTrackByPath(selectedTrack);
+            if (tk) fillInspector(tk, getKeyAt(tk, selectedKeyT));
+        } else {
+            inspSummary.textContent = selectedKeys.length + ' keyframes selected at t=' + t.toFixed(2) + '.';
+        }
+    }
 
     // ── Lanes (center dopesheet) ────────────────────────────────────────────
     function rebuildLanes() {
@@ -692,6 +712,19 @@ function buildTimelinePanel() {
         }
         lanesEl.innerHTML = html;
     }
+
+    lanesEl.addEventListener('dblclick', function(e) {
+        var diamond = e.target.closest('.tl-diamond');
+        if (diamond) {
+            var path = diamond.getAttribute('data-path');
+            var ki = parseInt(diamond.getAttribute('data-ki'), 10);
+            var track = getTrackByPath(path);
+            if (track && track.keys[ki]) {
+                e.preventDefault();
+                selectAllKeysAtTime(track.keys[ki].t);
+            }
+        }
+    });
 
     lanesEl.addEventListener('click', function(e) {
         var diamond = e.target.closest('.tl-diamond');
@@ -851,6 +884,7 @@ function buildTimelinePanel() {
         selectedKeyT = t;
         clearMultiSelect();
         addToMultiSelect(path, t);
+        normalizeQuatSigns();
         applyDraft();
         rebuildAll();
         setStatus('Key set: ' + path + ' @ ' + t.toFixed(2) + 's', '');
@@ -978,6 +1012,7 @@ function buildTimelinePanel() {
 
         if (changed) {
             selectedKeyT = t;
+            normalizeQuatSigns();
             applyDraft();
             rebuildAll();
             setStatus('Auto-keyed ' + changed + ' changed value' + (changed > 1 ? 's' : '') + ' at ' + t.toFixed(2) + 's.', '');
@@ -998,7 +1033,58 @@ function buildTimelinePanel() {
         else { track.keys.push({ t: t, v: value, ease: normalizeEase(ease) }); track.keys.sort(function(a,b){return a.t-b.t;}); }
     }
 
-    // ── Import / Export JSON ────────────────────────────────────────────────
+    // ── Quaternion sign normalisation ───────────────────────────────────────
+    // Quaternions q and -q represent the same rotation. When the four components
+    // (x,y,z,w) are stored as independent numeric tracks and interpolated
+    // component-by-component, adjacent keys in opposite hemispheres (dot < 0)
+    // will interpolate the long way around.  This function walks every group of
+    // tracks whose paths share a common prefix and end in .x/.y/.z/.w, and
+    // negates any key whose quaternion dot-product with the previous normalised
+    // key is negative, ensuring the shortest arc is always taken.
+    function normalizeQuatSigns() {
+        if (!draft) return;
+        // Collect unique prefixes for xyzw groups
+        var groups = {};
+        for (var i = 0; i < draft.tracks.length; i++) {
+            var m = draft.tracks[i].path.match(/^(.+)\.(x|y|z|w)$/);
+            if (m) groups[m[1]] = true;
+        }
+        var prefixes = Object.keys(groups);
+        for (var pi = 0; pi < prefixes.length; pi++) {
+            var prefix = prefixes[pi];
+            var tx = getTrackByPath(prefix + '.x');
+            var ty = getTrackByPath(prefix + '.y');
+            var tz = getTrackByPath(prefix + '.z');
+            var tw = getTrackByPath(prefix + '.w');
+            if (!tx || !ty || !tz || !tw) continue;
+            // Iterate over x-track key times in order; all four components must
+            // share the same set of times (AutoKey guarantees this).
+            for (var k = 1; k < tx.keys.length; k++) {
+                var t0 = tx.keys[k - 1].t;
+                var t1 = tx.keys[k].t;
+                // Previous quat (already normalised in earlier iterations)
+                var px = quatCompAt(tx, t0), py = quatCompAt(ty, t0);
+                var pz = quatCompAt(tz, t0), pw = quatCompAt(tw, t0);
+                // Current quat
+                var cx = quatCompAt(tx, t1), cy = quatCompAt(ty, t1);
+                var cz = quatCompAt(tz, t1), cw = quatCompAt(tw, t1);
+                if (px * cx + py * cy + pz * cz + pw * cw < 0) {
+                    setQuatCompAt(tx, t1, -cx); setQuatCompAt(ty, t1, -cy);
+                    setQuatCompAt(tz, t1, -cz); setQuatCompAt(tw, t1, -cw);
+                }
+            }
+        }
+    }
+    function quatCompAt(track, t) {
+        for (var i = 0; i < track.keys.length; i++)
+            if (Math.abs(track.keys[i].t - t) <= 1e-4) return +track.keys[i].v;
+        return 0;
+    }
+    function setQuatCompAt(track, t, v) {
+        for (var i = 0; i < track.keys.length; i++)
+            if (Math.abs(track.keys[i].t - t) <= 1e-4) { track.keys[i].v = v; return; }
+    }
+
     importBtn.addEventListener('click', function() {
         var input = document.createElement('input');
         input.type = 'file';
