@@ -1065,7 +1065,7 @@ function buildTimelinePanel() {
             if (typeof v !== 'undefined') inspValue.value = formatValue(v);
         }
     });
-    inspSet.addEventListener('click', function() {
+    function doSetKey() {
         if (!draft) return;
         var path = (inspPath.value || '').trim();
         if (!path) { setStatus('Path is required.', 'tl-status--warn'); return; }
@@ -1079,6 +1079,11 @@ function buildTimelinePanel() {
             track = { path: path, compile: false, keys: [] };
             draft.tracks.push(track);
             draft.tracks.sort(function(a, b) { return a.path.localeCompare(b.path); });
+        }
+        // If the time changed, remove the old keyframe so it moves rather than duplicates
+        if (isFinite(selectedKeyT) && path === selectedTrack && Math.abs(t - selectedKeyT) > 1e-4) {
+            var oldKi = getKeyAt(track, selectedKeyT);
+            if (oldKi >= 0) track.keys.splice(oldKi, 1);
         }
         var existing = getKeyAt(track, t);
         if (existing >= 0) {
@@ -1096,6 +1101,10 @@ function buildTimelinePanel() {
         applyDraft();
         rebuildAll();
         setStatus('Key set: ' + path + ' @ ' + t.toFixed(2) + 's', '');
+    }
+    inspSet.addEventListener('click', doSetKey);
+    inspTime.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); doSetKey(); }
     });
     inspDel.addEventListener('click', function() {
         if (!draft) return;
