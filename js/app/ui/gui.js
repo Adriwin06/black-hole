@@ -610,6 +610,8 @@ function setupGUI() {
         onChange: function() {
             updateDependentVisibility();
             updateShader();
+            observer.turbulenceTimeOffset = -observer.time;
+            shader.needsUpdate = true;
         },
         help: 'Thin disk: Novikov-Thorne (quasars/XRBs). Thick torus: ADAF/RIAF (M87*/Sgr A*). Slim disk: super-Eddington.'
     });

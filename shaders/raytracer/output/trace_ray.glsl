@@ -79,7 +79,7 @@ vec4 trace_ray(vec3 ray) {
     float phi = 0.0;
 
     float t = time;
-    float turb_t = loopable_turbulence_time(time);
+    float turb_t = loopable_turbulence_time(time + turbulence_time_offset);
     float dt = 1.0;
     bool shadow_capture = false;
 

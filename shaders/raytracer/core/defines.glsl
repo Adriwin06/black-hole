@@ -29,6 +29,7 @@ const float SPECTRUM_TEX_RATIO_RANGE = 6.48053329012;
 
 uniform vec2 resolution;
 uniform float time;
+uniform float turbulence_time_offset;
 uniform float turbulence_loop_enabled;
 uniform float turbulence_loop_seconds;
 
