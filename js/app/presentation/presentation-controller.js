@@ -1073,6 +1073,12 @@ function setPresentationTimeline(timeline) {
 
     applyPresentationTracks(0.0);
     shader.needsUpdate = true;
+
+    // Notify bottom timeline panel (if open) to resync
+    try {
+        window.dispatchEvent(new CustomEvent('presentation:timeline-panel-sync'));
+    } catch (e) {}
+
     return true;
 }
 

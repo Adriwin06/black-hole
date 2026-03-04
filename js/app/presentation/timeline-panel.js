@@ -1,0 +1,834 @@
+// ═══════════════════════════════════════════════════════════════════════════════
+// Timeline Panel — bottom-docked dopesheet for animation editing
+// ═══════════════════════════════════════════════════════════════════════════════
+// Provides a full-width bottom panel similar to After Effects / Blender dopesheet
+// with transport controls, track list, keyframe lanes, ruler, and key inspector.
+// Public API exposed via global `timelinePanelBinding`.
+
+var PRESENTATION_EDITOR_COMMON_PATHS = [
+    'observer.distance',
+    'observer.orbital_inclination',
+    'observer.azimuth',
+    'observer.motion',
+    'look.exposure',
+    'look.disk_gain',
+    'look.glow',
+    'black_hole.spin',
+    'black_hole.spin_enabled',
+    'accretion_mode',
+    'kerr_mode',
+    'jet.enabled',
+    'jet.mode',
+    'grmhd.enabled',
+    'turbulence_loop_enabled',
+    'turbulence_loop_seconds',
+    'cameraPan.x',
+    'cameraPan.y',
+    'camera.position.x',
+    'camera.position.y',
+    'camera.position.z',
+    'camera.quaternion.x',
+    'camera.quaternion.y',
+    'camera.quaternion.z',
+    'camera.quaternion.w'
+];
+
+var timelinePanelBinding = null;
+
+function buildTimelinePanel() {
+    'use strict';
+
+    // ── Utility helpers ─────────────────────────────────────────────────────
+    function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+    function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+    function clonePlain(o) { return JSON.parse(JSON.stringify(o)); }
+    function parseTime(v, fallback) { var n = parseFloat(v); return isFinite(n) ? Math.max(0, n) : fallback; }
+    function normalizeEase(e) {
+        if (e === 'smooth' || e === 'smoother') return e;
+        return 'linear';
+    }
+    function formatValue(v) {
+        if (typeof v === 'number') return isFinite(v) ? v.toPrecision(8) : String(v);
+        if (typeof v === 'boolean') return v ? 'true' : 'false';
+        if (typeof v === 'string') return v;
+        if (v === null || typeof v === 'undefined') return '';
+        return JSON.stringify(v);
+    }
+    function parseValue(s) {
+        if (s === 'true') return true;
+        if (s === 'false') return false;
+        var n = Number(s);
+        if (s !== '' && isFinite(n)) return n;
+        return s;
+    }
+    function areValuesEqual(a, b) {
+        if (a === b) return true;
+        if (typeof a === 'number' && typeof b === 'number') return Math.abs(a - b) < 1e-9;
+        return false;
+    }
+
+    // ── Build DOM ───────────────────────────────────────────────────────────
+    var panel = document.createElement('div');
+    panel.id = 'tl-panel';
+    panel.className = 'tl-panel tl-panel--collapsed';
+    panel.innerHTML =
+        '<div id="tl-resize-handle" class="tl-resize-handle"></div>' +
+
+        // ── Transport bar ──
+        '<div class="tl-transport">' +
+            '<div class="tl-transport-left">' +
+                '<button id="tl-btn-play" class="tl-btn tl-btn--accent" type="button" title="Play">&#9654;</button>' +
+                '<button id="tl-btn-pause" class="tl-btn" type="button" title="Pause">&#10074;&#10074;</button>' +
+                '<button id="tl-btn-stop" class="tl-btn" type="button" title="Stop">&#9632;</button>' +
+                '<span class="tl-transport-sep"></span>' +
+                '<span id="tl-time-display" class="tl-time-display">0.00 / 12.00</span>' +
+            '</div>' +
+            '<div class="tl-transport-center">' +
+                '<div id="tl-scrubber" class="tl-scrubber">' +
+                    '<div id="tl-scrub-fill" class="tl-scrub-fill"></div>' +
+                    '<div id="tl-scrub-head" class="tl-scrub-head"></div>' +
+                '</div>' +
+            '</div>' +
+            '<div class="tl-transport-right">' +
+                '<label for="tl-preset-select" class="tl-preset-label">Preset</label>' +
+                '<select id="tl-preset-select" class="tl-preset-select"></select>' +
+                '<span class="tl-transport-sep"></span>' +
+                '<button id="tl-btn-auto-key" class="tl-btn tl-btn--warn" type="button" title="Auto Keyframe: capture changes">AUTO KEY</button>' +
+                '<button id="tl-btn-add-track" class="tl-btn" type="button" title="Add a new track">+ TRACK</button>' +
+                '<span class="tl-transport-sep"></span>' +
+                '<button id="tl-btn-close" class="tl-btn" type="button" title="Close panel">&times;</button>' +
+            '</div>' +
+        '</div>' +
+
+        // ── 3-column body ──
+        '<div class="tl-body">' +
+
+            // Left: track list
+            '<div class="tl-tracks">' +
+                '<div class="tl-tracks-head">' +
+                    '<span class="tl-tracks-title">TRACKS</span>' +
+                '</div>' +
+                '<div id="tl-track-list" class="tl-track-list"></div>' +
+            '</div>' +
+
+            // Center: dopesheet lanes
+            '<div class="tl-dopesheet">' +
+                '<div id="tl-ruler" class="tl-ruler"></div>' +
+                '<div id="tl-lanes" class="tl-lanes"></div>' +
+            '</div>' +
+
+            // Right: key inspector
+            '<div class="tl-inspector">' +
+                '<div class="tl-inspector-title">KEY INSPECTOR</div>' +
+                '<div id="tl-insp-summary" class="tl-insp-summary">No keyframe selected.</div>' +
+                '<div class="tl-insp-row">' +
+                    '<label>Path</label>' +
+                    '<input id="tl-insp-path" list="tl-path-datalist" type="text" placeholder="observer.distance">' +
+                '</div>' +
+                '<div class="tl-insp-row">' +
+                    '<label>Time</label>' +
+                    '<input id="tl-insp-time" type="number" min="0" step="0.01" value="0">' +
+                    '<select id="tl-insp-ease">' +
+                        '<option value="linear">linear</option>' +
+                        '<option value="smooth">smooth</option>' +
+                        '<option value="smoother">smoother</option>' +
+                    '</select>' +
+                '</div>' +
+                '<div class="tl-insp-row">' +
+                    '<label>Value</label>' +
+                    '<input id="tl-insp-value" type="text" placeholder="11 or true">' +
+                '</div>' +
+                '<div class="tl-insp-actions">' +
+                    '<button id="tl-insp-use-time" class="tl-mini-btn" type="button">USE TIME</button>' +
+                    '<button id="tl-insp-capture" class="tl-mini-btn" type="button">CAPTURE</button>' +
+                '</div>' +
+                '<div class="tl-insp-actions">' +
+                    '<button id="tl-insp-set" class="tl-mini-btn tl-mini-btn--accent" type="button">SET KEY</button>' +
+                    '<button id="tl-insp-del" class="tl-mini-btn tl-mini-btn--danger" type="button">DELETE KEY</button>' +
+                '</div>' +
+                '<datalist id="tl-path-datalist"></datalist>' +
+            '</div>' +
+
+        '</div>' +
+
+        // ── Status bar ──
+        '<div id="tl-status" class="tl-status"></div>';
+
+    document.body.appendChild(panel);
+
+    // ── Element refs ──
+    var playBtn     = panel.querySelector('#tl-btn-play');
+    var pauseBtn    = panel.querySelector('#tl-btn-pause');
+    var stopBtn     = panel.querySelector('#tl-btn-stop');
+    var autoKeyBtn  = panel.querySelector('#tl-btn-auto-key');
+    var addTrackBtn = panel.querySelector('#tl-btn-add-track');
+    var closeBtn    = panel.querySelector('#tl-btn-close');
+    var timeDisplay = panel.querySelector('#tl-time-display');
+    var scrubber    = panel.querySelector('#tl-scrubber');
+    var scrubFill   = panel.querySelector('#tl-scrub-fill');
+    var scrubHead   = panel.querySelector('#tl-scrub-head');
+    var presetSelect= panel.querySelector('#tl-preset-select');
+    var trackListEl = panel.querySelector('#tl-track-list');
+    var rulerEl     = panel.querySelector('#tl-ruler');
+    var lanesEl     = panel.querySelector('#tl-lanes');
+    var inspPath    = panel.querySelector('#tl-insp-path');
+    var inspTime    = panel.querySelector('#tl-insp-time');
+    var inspEase    = panel.querySelector('#tl-insp-ease');
+    var inspValue   = panel.querySelector('#tl-insp-value');
+    var inspSummary = panel.querySelector('#tl-insp-summary');
+    var inspUseTime = panel.querySelector('#tl-insp-use-time');
+    var inspCapture = panel.querySelector('#tl-insp-capture');
+    var inspSet     = panel.querySelector('#tl-insp-set');
+    var inspDel     = panel.querySelector('#tl-insp-del');
+    var statusEl    = panel.querySelector('#tl-status');
+    var pathDatalist= panel.querySelector('#tl-path-datalist');
+    var resizeHandle= panel.querySelector('#tl-resize-handle');
+
+    // ── State ───────────────────────────────────────────────────────────────
+    var draft          = null;
+    var selectedTrack  = '';
+    var selectedKeyT   = NaN;
+    var panelOpen      = false;
+    var autoKeySnapshot= null;
+    var syncTimer      = null;
+    var PANEL_HEIGHT_KEY = 'black-hole.tl-panel.height';
+    var PANEL_DEFAULT_H  = 320;
+    var PANEL_MIN_H      = 180;
+    var PANEL_MAX_H      = 700;
+
+    // ── Panel open/close ────────────────────────────────────────────────────
+    function setPanelOpen(open) {
+        panelOpen = !!open;
+        panel.classList.toggle('tl-panel--collapsed', !panelOpen);
+        document.body.classList.toggle('has-timeline-panel', panelOpen);
+        if (panelOpen) {
+            populatePresets();
+            syncFromRuntime();
+            startSync();
+        } else {
+            stopSync();
+        }
+    }
+
+    function toggle() { setPanelOpen(!panelOpen); }
+
+    // ── Panel resize ────────────────────────────────────────────────────────
+    var storedH = null;
+    try { storedH = parseFloat(localStorage.getItem(PANEL_HEIGHT_KEY)); } catch(e) {}
+    if (isFinite(storedH)) panel.style.height = clamp(storedH, PANEL_MIN_H, PANEL_MAX_H) + 'px';
+    else panel.style.height = PANEL_DEFAULT_H + 'px';
+
+    (function initResize() {
+        var dragging = false, startY = 0, startH = 0;
+        resizeHandle.addEventListener('pointerdown', function(e) {
+            if (e.button !== 0) return;
+            dragging = true; startY = e.clientY;
+            startH = panel.getBoundingClientRect().height;
+            resizeHandle.setPointerCapture(e.pointerId);
+            document.body.classList.add('tl-resizing');
+            e.preventDefault();
+        });
+        document.addEventListener('pointermove', function(e) {
+            if (!dragging) return;
+            var h = clamp(startH - (e.clientY - startY), PANEL_MIN_H, PANEL_MAX_H);
+            panel.style.height = h + 'px';
+            e.preventDefault();
+        });
+        function end(e) {
+            if (!dragging) return;
+            dragging = false;
+            document.body.classList.remove('tl-resizing');
+            try { localStorage.setItem(PANEL_HEIGHT_KEY, String(Math.round(panel.getBoundingClientRect().height))); } catch(ex) {}
+        }
+        document.addEventListener('pointerup', end);
+        document.addEventListener('pointercancel', end);
+    })();
+
+    // ── Scrubber ────────────────────────────────────────────────────────────
+    function currentTime() {
+        if (typeof getPresentationState === 'function') {
+            var st = getPresentationState();
+            if (st && isFinite(st.time)) return Math.max(0, st.time);
+        }
+        return 0;
+    }
+    function getDuration() {
+        if (draft && draft.duration > 0) return draft.duration;
+        if (typeof getPresentationState === 'function') {
+            var st = getPresentationState();
+            if (st && st.duration > 0) return st.duration;
+        }
+        return 12;
+    }
+    function updateTimeDisplay() {
+        var t = currentTime(), d = getDuration();
+        timeDisplay.textContent = t.toFixed(2) + ' / ' + d.toFixed(2);
+    }
+    function updateScrubber() {
+        var d = getDuration(), t = currentTime();
+        var pct = clamp(t / Math.max(d, 0.001) * 100, 0, 100);
+        scrubFill.style.width = pct + '%';
+        scrubHead.style.left = pct + '%';
+    }
+
+    (function initScrub() {
+        var dragging = false;
+        function seek(clientX) {
+            var rect = scrubber.getBoundingClientRect();
+            if (!rect.width) return;
+            var ratio = clamp((clientX - rect.left) / rect.width, 0, 1);
+            var t = ratio * getDuration();
+            if (typeof seekPresentation === 'function') seekPresentation(t);
+            updateTimeDisplay(); updateScrubber();
+        }
+        scrubber.addEventListener('pointerdown', function(e) {
+            if (e.button !== 0) return;
+            dragging = true;
+            scrubber.setPointerCapture(e.pointerId);
+            seek(e.clientX); e.preventDefault();
+        });
+        scrubber.addEventListener('pointermove', function(e) {
+            if (dragging) { seek(e.clientX); e.preventDefault(); }
+        });
+        function endScrub() { dragging = false; }
+        scrubber.addEventListener('pointerup', endScrub);
+        scrubber.addEventListener('pointercancel', endScrub);
+    })();
+
+    // ── Transport ───────────────────────────────────────────────────────────
+    playBtn.addEventListener('click', function() {
+        // If nothing loaded, load the selected preset first
+        if (typeof getPresentationState === 'function') {
+            var st = getPresentationState();
+            if (!st.loaded && presetSelect.value) {
+                loadPresetByName(presetSelect.value);
+            }
+        }
+        if (typeof playPresentation === 'function') playPresentation(false);
+    });
+    pauseBtn.addEventListener('click', function() {
+        if (typeof pausePresentation === 'function') pausePresentation();
+    });
+    stopBtn.addEventListener('click', function() {
+        if (typeof stopPresentation === 'function') stopPresentation();
+    });
+    closeBtn.addEventListener('click', function() { setPanelOpen(false); });
+
+    // ── Preset selector ─────────────────────────────────────────────────────
+    function populatePresets() {
+        var names = (typeof listPresentationPresets === 'function')
+            ? listPresentationPresets() : [];
+        var currentVal = presetSelect.value;
+        presetSelect.innerHTML = '';
+
+        // "New (empty)" option
+        var emptyOpt = document.createElement('option');
+        emptyOpt.value = '';
+        emptyOpt.textContent = '— new empty —';
+        presetSelect.appendChild(emptyOpt);
+
+        for (var i = 0; i < names.length; i++) {
+            var opt = document.createElement('option');
+            opt.value = names[i];
+            opt.textContent = names[i];
+            presetSelect.appendChild(opt);
+        }
+
+        // Restore previous selection if possible
+        if (currentVal && presetSelect.querySelector('option[value="' + CSS.escape(currentVal) + '"]')) {
+            presetSelect.value = currentVal;
+        } else if (names.length) {
+            // Pick current loaded timeline name or first preset
+            var st = typeof getPresentationState === 'function' ? getPresentationState() : null;
+            var loadedName = st && st.name ? st.name : '';
+            if (loadedName && names.indexOf(loadedName) !== -1) {
+                presetSelect.value = loadedName;
+            } else {
+                var defaultName = (names.indexOf('Full Feature Tour') !== -1) ? 'Full Feature Tour' : names[0];
+                presetSelect.value = defaultName;
+            }
+        }
+    }
+
+    function loadPresetByName(name) {
+        if (!name) {
+            // Empty = start fresh
+            draft = normalizeTL({ name: 'Untitled', duration: 12, tracks: [], events: [] });
+            if (typeof setPresentationTimeline === 'function') {
+                setPresentationTimeline(clonePlain(draft));
+            }
+            rebuildAll();
+            setStatus('New empty timeline created.', '');
+            return;
+        }
+        if (typeof loadPresentationPreset === 'function') {
+            if (loadPresentationPreset(name)) {
+                syncFromRuntime();
+                setStatus('Loaded preset: ' + name, '');
+            } else {
+                setStatus('Failed to load preset: ' + name, 'tl-status--warn');
+            }
+        }
+    }
+
+    presetSelect.addEventListener('change', function() {
+        loadPresetByName(presetSelect.value);
+    });
+
+    // ── Sync from runtime ───────────────────────────────────────────────────
+    function syncFromRuntime() {
+        var rt = null;
+        if (typeof getPresentationTimeline === 'function') rt = getPresentationTimeline();
+        if (rt) {
+            draft = normalizeTL(rt);
+            rebuildAll();
+        }
+        updateTimeDisplay();
+        updateScrubber();
+    }
+
+    function rebuildAll() {
+        rebuildTrackList();
+        rebuildLanes();
+        updateRuler();
+        updateInspector();
+        updatePathDatalist();
+    }
+
+    function startSync() {
+        if (syncTimer) return;
+        syncTimer = setInterval(function() {
+            updateTimeDisplay();
+            updateScrubber();
+            updatePlayheads();
+        }, 80);
+    }
+    function stopSync() { clearInterval(syncTimer); syncTimer = null; }
+
+    // ── Timeline data helpers ───────────────────────────────────────────────
+    function normalizeTL(raw) {
+        var src = (raw && typeof raw === 'object') ? clonePlain(raw) : {};
+        var out = { name: src.name || 'Untitled', duration: Math.max(0.5, parseTime(src.duration, 12)),
+                    loop: !!src.loop, tracks: [], events: [] };
+        var tracks = Array.isArray(src.tracks) ? src.tracks : [];
+        for (var i = 0; i < tracks.length; i++) {
+            var tr = tracks[i];
+            if (!tr || !tr.path) continue;
+            var keys = [];
+            var srcK = Array.isArray(tr.keys) ? tr.keys : [];
+            for (var k = 0; k < srcK.length; k++) {
+                var t = parseTime(srcK[k] && srcK[k].t, NaN);
+                if (!isFinite(t)) continue;
+                keys.push({ t: t, v: srcK[k].v, ease: normalizeEase(srcK[k].ease) });
+            }
+            if (!keys.length) continue;
+            keys.sort(function(a, b) { return a.t - b.t; });
+            out.tracks.push({ path: tr.path.trim(), compile: !!tr.compile, keys: keys });
+        }
+        out.tracks.sort(function(a, b) { return a.path.localeCompare(b.path); });
+        var events = Array.isArray(src.events) ? src.events : [];
+        for (var j = 0; j < events.length; j++) {
+            var ev = events[j];
+            if (!ev || !ev.action) continue;
+            var et = parseTime(ev.t, NaN);
+            if (!isFinite(et)) continue;
+            out.events.push(clonePlain(ev));
+        }
+        out.events.sort(function(a, b) { return a.t - b.t; });
+        return out;
+    }
+
+    function getTrackByPath(path) {
+        if (!draft) return null;
+        for (var i = 0; i < draft.tracks.length; i++)
+            if (draft.tracks[i].path === path) return draft.tracks[i];
+        return null;
+    }
+
+    function getKeyAt(track, t) {
+        if (!track) return -1;
+        for (var i = 0; i < track.keys.length; i++)
+            if (Math.abs(track.keys[i].t - t) <= 1e-4) return i;
+        return -1;
+    }
+
+    function applyDraft() {
+        if (!draft) return;
+        if (typeof setPresentationTimeline === 'function') {
+            setPresentationTimeline(clonePlain(draft));
+            setStatus('Timeline applied.', '');
+        }
+    }
+
+    // ── Path datalist ───────────────────────────────────────────────────────
+    function updatePathDatalist() {
+        var map = {}, html = '';
+        function add(p) { if (!p || map[p]) return; map[p] = 1; html += '<option value="' + esc(p) + '">'; }
+        if (typeof PRESENTATION_EDITOR_COMMON_PATHS !== 'undefined') {
+            for (var i = 0; i < PRESENTATION_EDITOR_COMMON_PATHS.length; i++) add(PRESENTATION_EDITOR_COMMON_PATHS[i]);
+        }
+        if (draft) for (var j = 0; j < draft.tracks.length; j++) add(draft.tracks[j].path);
+        pathDatalist.innerHTML = html;
+    }
+
+    function setStatus(text, cls) {
+        statusEl.textContent = text || '';
+        statusEl.className = 'tl-status' + (cls ? ' ' + cls : '');
+    }
+
+    // ── Track list (left column) ────────────────────────────────────────────
+    function rebuildTrackList() {
+        if (!draft || !draft.tracks.length) {
+            trackListEl.innerHTML = '<div class="tl-empty">No tracks. Load a preset or add a track.</div>';
+            return;
+        }
+        var html = '';
+        for (var i = 0; i < draft.tracks.length; i++) {
+            var tr = draft.tracks[i];
+            var sel = (tr.path === selectedTrack);
+            html += '<button type="button" class="tl-track-item' + (sel ? ' is-sel' : '') +
+                '" data-path="' + esc(tr.path) + '">' +
+                '<span class="tl-track-path">' + esc(tr.path) + '</span>' +
+                '<span class="tl-track-keycount">' + tr.keys.length + ' key' + (tr.keys.length === 1 ? '' : 's') + '</span>' +
+                '</button>';
+        }
+        trackListEl.innerHTML = html;
+    }
+
+    trackListEl.addEventListener('click', function(e) {
+        var btn = e.target.closest('[data-path]');
+        if (!btn) return;
+        selectedTrack = btn.getAttribute('data-path');
+        selectedKeyT = NaN;
+        rebuildTrackList();
+        rebuildLanes();
+        updateInspector();
+    });
+
+    // ── Ruler (time header in dopesheet) ────────────────────────────────────
+    function updateRuler() {
+        var d = getDuration();
+        var tickCount = d >= 30 ? 12 : (d >= 10 ? 10 : 8);
+        var html = '';
+        for (var i = 0; i <= tickCount; i++) {
+            var pct = (i / tickCount) * 100;
+            var t = (i / tickCount) * d;
+            html += '<span class="tl-ruler-tick" style="left:' + pct.toFixed(2) + '%">' +
+                '<span class="tl-ruler-label">' + t.toFixed(1) + 's</span></span>';
+        }
+        // playhead
+        var phPct = clamp(currentTime() / Math.max(d, 0.001) * 100, 0, 100);
+        html += '<span class="tl-ruler-playhead" id="tl-ruler-playhead" style="left:' + phPct.toFixed(2) + '%"></span>';
+        rulerEl.innerHTML = html;
+    }
+
+    // Click ruler to seek
+    rulerEl.addEventListener('click', function(e) {
+        var rect = rulerEl.getBoundingClientRect();
+        if (!rect.width) return;
+        var ratio = clamp((e.clientX - rect.left) / rect.width, 0, 1);
+        var t = ratio * getDuration();
+        if (typeof seekPresentation === 'function') seekPresentation(t);
+        updateTimeDisplay(); updateScrubber(); updatePlayheads();
+    });
+
+    // ── Lanes (center dopesheet) ────────────────────────────────────────────
+    function rebuildLanes() {
+        if (!draft || !draft.tracks.length) {
+            lanesEl.innerHTML = '<div class="tl-empty">No tracks.</div>';
+            return;
+        }
+        var d = getDuration();
+        var phPct = clamp(currentTime() / Math.max(d, 0.001) * 100, 0, 100);
+        var html = '';
+        for (var i = 0; i < draft.tracks.length; i++) {
+            var tr = draft.tracks[i];
+            var isSel = (tr.path === selectedTrack);
+            html += '<div class="tl-lane' + (isSel ? ' is-sel' : '') + '" data-path="' + esc(tr.path) + '">';
+            html += '<span class="tl-lane-playhead" style="left:' + phPct.toFixed(2) + '%"></span>';
+            for (var k = 0; k < tr.keys.length; k++) {
+                var key = tr.keys[k];
+                var kPct = clamp(key.t / Math.max(d, 0.001) * 100, 0, 100);
+                var isSelKey = isSel && isFinite(selectedKeyT) && Math.abs(selectedKeyT - key.t) <= 1e-4;
+                var tip = key.t.toFixed(2) + 's | ' + normalizeEase(key.ease) + ' | ' + formatValue(key.v);
+                html += '<button type="button" class="tl-diamond' + (isSelKey ? ' is-sel' : '') +
+                    '" style="left:' + kPct.toFixed(3) + '%" title="' + esc(tip) +
+                    '" data-path="' + esc(tr.path) + '" data-ki="' + k + '"></button>';
+            }
+            html += '</div>';
+        }
+        lanesEl.innerHTML = html;
+    }
+
+    lanesEl.addEventListener('click', function(e) {
+        var diamond = e.target.closest('.tl-diamond');
+        if (diamond) {
+            var path = diamond.getAttribute('data-path');
+            var ki = parseInt(diamond.getAttribute('data-ki'), 10);
+            var track = getTrackByPath(path);
+            if (track && track.keys[ki]) {
+                selectedTrack = path;
+                selectedKeyT = track.keys[ki].t;
+                rebuildTrackList();
+                rebuildLanes();
+                fillInspector(track, ki);
+            }
+            return;
+        }
+        // Click on lane background = select track + seek to clicked time
+        var lane = e.target.closest('.tl-lane');
+        if (lane) {
+            selectedTrack = lane.getAttribute('data-path');
+            selectedKeyT = NaN;
+            // Seek to the clicked time position
+            var rect = lane.getBoundingClientRect();
+            if (rect.width > 0) {
+                var ratio = clamp((e.clientX - rect.left) / rect.width, 0, 1);
+                var t = ratio * getDuration();
+                if (typeof seekPresentation === 'function') seekPresentation(t);
+                updateTimeDisplay(); updateScrubber(); updatePlayheads();
+            }
+            rebuildTrackList();
+            rebuildLanes();
+            updateInspector();
+        }
+    });
+
+    // ── Playhead live-update ────────────────────────────────────────────────
+    function updatePlayheads() {
+        var d = getDuration();
+        var phPct = clamp(currentTime() / Math.max(d, 0.001) * 100, 0, 100).toFixed(2) + '%';
+        var rulerPH = panel.querySelector('#tl-ruler-playhead');
+        if (rulerPH) rulerPH.style.left = phPct;
+        var lanePHs = panel.querySelectorAll('.tl-lane-playhead');
+        for (var i = 0; i < lanePHs.length; i++) lanePHs[i].style.left = phPct;
+    }
+
+    // ── Inspector (right column) ────────────────────────────────────────────
+    function updateInspector() {
+        var track = getTrackByPath(selectedTrack);
+        if (!track) {
+            inspSummary.textContent = 'No keyframe selected.';
+            inspPath.value = selectedTrack || '';
+            inspTime.value = currentTime().toFixed(2);
+            inspValue.value = '';
+            return;
+        }
+        if (isFinite(selectedKeyT)) {
+            var ki = getKeyAt(track, selectedKeyT);
+            if (ki >= 0) return fillInspector(track, ki);
+        }
+        inspSummary.textContent = 'Track: ' + track.path + ' (' + track.keys.length + ' keys)';
+        inspPath.value = track.path;
+        inspTime.value = currentTime().toFixed(2);
+        inspValue.value = '';
+    }
+
+    function fillInspector(track, ki) {
+        var key = track.keys[ki];
+        if (!key) return;
+        inspPath.value = track.path;
+        inspTime.value = key.t.toFixed(2);
+        inspEase.value = normalizeEase(key.ease);
+        inspValue.value = formatValue(key.v);
+
+        var prev = ki > 0 ? track.keys[ki - 1] : null;
+        var deltaText = '';
+        if (prev && typeof prev.v === 'number' && typeof key.v === 'number') {
+            var d = key.v - prev.v;
+            deltaText = ' | \u0394 ' + (d >= 0 ? '+' : '') + d.toFixed(4);
+        }
+        inspSummary.textContent = track.path + ' @ ' + key.t.toFixed(2) + 's' + deltaText;
+    }
+
+    // Inspector actions
+    inspUseTime.addEventListener('click', function() {
+        inspTime.value = currentTime().toFixed(2);
+    });
+    inspCapture.addEventListener('click', function() {
+        var path = (inspPath.value || '').trim();
+        if (!path) return;
+        if (typeof getPresentationPathValue === 'function') {
+            var v = getPresentationPathValue(path);
+            if (typeof v !== 'undefined') inspValue.value = formatValue(v);
+        }
+    });
+    inspSet.addEventListener('click', function() {
+        if (!draft) return;
+        var path = (inspPath.value || '').trim();
+        if (!path) { setStatus('Path is required.', 'tl-status--warn'); return; }
+        var t = parseTime(inspTime.value, currentTime());
+        var ease = normalizeEase(inspEase.value);
+        var value = parseValue(inspValue.value);
+
+        var track = getTrackByPath(path);
+        if (!track) {
+            track = { path: path, compile: false, keys: [] };
+            draft.tracks.push(track);
+            draft.tracks.sort(function(a, b) { return a.path.localeCompare(b.path); });
+        }
+        var existing = getKeyAt(track, t);
+        if (existing >= 0) {
+            track.keys[existing] = { t: t, v: value, ease: ease };
+        } else {
+            track.keys.push({ t: t, v: value, ease: ease });
+            track.keys.sort(function(a, b) { return a.t - b.t; });
+        }
+        draft.duration = Math.max(draft.duration, t);
+        selectedTrack = path;
+        selectedKeyT = t;
+        applyDraft();
+        rebuildAll();
+        setStatus('Key set: ' + path + ' @ ' + t.toFixed(2) + 's', '');
+    });
+    inspDel.addEventListener('click', function() {
+        if (!draft) return;
+        var path = (inspPath.value || '').trim();
+        var t = parseTime(inspTime.value, NaN);
+        var track = getTrackByPath(path);
+        if (!track) return;
+        var ki = getKeyAt(track, t);
+        if (ki < 0) { setStatus('No key at that time.', 'tl-status--warn'); return; }
+        track.keys.splice(ki, 1);
+        if (!track.keys.length) {
+            draft.tracks = draft.tracks.filter(function(tr) { return tr.path !== path; });
+        }
+        selectedKeyT = NaN;
+        applyDraft();
+        rebuildAll();
+        setStatus('Key deleted.', '');
+    });
+
+    // ── Add track ───────────────────────────────────────────────────────────
+    addTrackBtn.addEventListener('click', function() {
+        var path = prompt('Track path (e.g. observer.distance):');
+        if (!path || !path.trim()) return;
+        path = path.trim();
+        if (!draft) {
+            draft = normalizeTL({ name: 'New', duration: 12, tracks: [], events: [] });
+        }
+        if (getTrackByPath(path)) { setStatus('Track already exists.', 'tl-status--warn'); return; }
+        var val = '';
+        if (typeof getPresentationPathValue === 'function') {
+            var v = getPresentationPathValue(path);
+            if (typeof v !== 'undefined') val = v;
+        }
+        draft.tracks.push({ path: path, compile: false, keys: [{ t: currentTime(), v: val, ease: 'linear' }] });
+        draft.tracks.sort(function(a, b) { return a.path.localeCompare(b.path); });
+        selectedTrack = path;
+        selectedKeyT = currentTime();
+        applyDraft();
+        rebuildAll();
+        setStatus('Track added: ' + path, '');
+    });
+
+    // ── Auto Keyframe ───────────────────────────────────────────────────────
+    function captureSnapshot() {
+        var out = {};
+        function add(p, v) {
+            if (typeof v === 'number' && isFinite(v)) { out[p] = v; return; }
+            if (typeof v === 'boolean' || typeof v === 'string') out[p] = v;
+        }
+        function walk(prefix, node, depth) {
+            if (!node || typeof node !== 'object' || depth > 8 || Array.isArray(node)) return;
+            var keys = Object.keys(node);
+            for (var i = 0; i < keys.length; i++) {
+                var k = keys[i], val = node[k];
+                if (typeof val === 'function') continue;
+                var path = prefix ? prefix + '.' + k : k;
+                if (val && typeof val === 'object') walk(path, val, depth + 1);
+                else add(path, val);
+            }
+        }
+        if (typeof shader !== 'undefined' && shader && shader.parameters) walk('', shader.parameters, 0);
+        if (typeof cameraPan !== 'undefined' && cameraPan) { add('cameraPan.x', cameraPan.x); add('cameraPan.y', cameraPan.y); }
+        if (typeof camera !== 'undefined' && camera) {
+            if (camera.position) { add('camera.position.x', camera.position.x); add('camera.position.y', camera.position.y); add('camera.position.z', camera.position.z); }
+            if (camera.quaternion) { add('camera.quaternion.x', camera.quaternion.x); add('camera.quaternion.y', camera.quaternion.y); add('camera.quaternion.z', camera.quaternion.z); add('camera.quaternion.w', camera.quaternion.w); }
+        }
+        return out;
+    }
+    autoKeyBtn.addEventListener('click', function() {
+        if (!draft) { setStatus('Load a timeline first.', 'tl-status--warn'); return; }
+        var t = currentTime();
+        var snap = captureSnapshot();
+        var paths = Object.keys(snap);
+        if (!paths.length) { setStatus('Nothing to capture.', 'tl-status--warn'); return; }
+
+        if (!autoKeySnapshot) {
+            autoKeySnapshot = { time: t, values: clonePlain(snap) };
+            setStatus('Baseline captured at ' + t.toFixed(2) + 's. Change controls, press AUTO KEY again.', 'tl-status--info');
+            return;
+        }
+
+        var changed = 0;
+        for (var i = 0; i < paths.length; i++) {
+            var p = paths[i];
+            if (!autoKeySnapshot.values.hasOwnProperty(p)) continue;
+            if (areValuesEqual(autoKeySnapshot.values[p], snap[p])) continue;
+            // upsert both baseline and current
+            upsertKey(p, autoKeySnapshot.time, autoKeySnapshot.values[p], 'linear');
+            upsertKey(p, t, snap[p], 'linear');
+            if (!selectedTrack) selectedTrack = p;
+            changed++;
+        }
+        draft.tracks.sort(function(a, b) { return a.path.localeCompare(b.path); });
+        draft.duration = Math.max(draft.duration, t, autoKeySnapshot.time);
+        autoKeySnapshot = { time: t, values: clonePlain(snap) };
+
+        if (changed) {
+            selectedKeyT = t;
+            applyDraft();
+            rebuildAll();
+            setStatus('Auto-keyed ' + changed + ' changed value' + (changed > 1 ? 's' : '') + ' at ' + t.toFixed(2) + 's.', '');
+        } else {
+            setStatus('No changes detected. Baseline moved to ' + t.toFixed(2) + 's.', 'tl-status--warn');
+        }
+    });
+
+    function upsertKey(path, t, value, ease) {
+        if (!draft) return;
+        var track = getTrackByPath(path);
+        if (!track) {
+            track = { path: path, compile: false, keys: [] };
+            draft.tracks.push(track);
+        }
+        var idx = getKeyAt(track, t);
+        if (idx >= 0) track.keys[idx] = { t: t, v: value, ease: normalizeEase(ease) };
+        else { track.keys.push({ t: t, v: value, ease: normalizeEase(ease) }); track.keys.sort(function(a,b){return a.t-b.t;}); }
+    }
+
+    // ── Listen for external timeline loads ──────────────────────────────────
+    window.addEventListener('presentation:timeline-panel-sync', function() {
+        if (panelOpen) syncFromRuntime();
+    });
+
+    // ── Keyboard shortcuts ──────────────────────────────────────────────────
+    window.addEventListener('keydown', function(e) {
+        // Don't capture when typing in input/textarea
+        var tag = (e.target.tagName || '').toLowerCase();
+        if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable) return;
+
+        // Space → play / pause (only when panel is open)
+        if (e.code === 'Space' && panelOpen) {
+            e.preventDefault();
+            var st = typeof getPresentationState === 'function' ? getPresentationState() : null;
+            if (st && st.active && !st.paused) {
+                if (typeof pausePresentation === 'function') pausePresentation();
+            } else {
+                if (typeof playPresentation === 'function') playPresentation(false);
+            }
+        }
+    });
+
+    // ── Public API ──────────────────────────────────────────────────────────
+    timelinePanelBinding = {
+        open: function() { setPanelOpen(true); },
+        close: function() { setPanelOpen(false); },
+        toggle: toggle,
+        isOpen: function() { return panelOpen; },
+        sync: syncFromRuntime,
+        loadPreset: loadPresetByName
+    };
+    return timelinePanelBinding;
+}

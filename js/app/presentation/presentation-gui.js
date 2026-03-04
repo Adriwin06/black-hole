@@ -49,10 +49,6 @@ function createPresentationAnimationSectionHtml() {
                     '<button id="presentation-stop-btn" class="presentation-btn" type="button">&#9632; STOP</button>' +
                 '</div>' +
 
-                (typeof createPresentationEditorHtml === 'function'
-                    ? createPresentationEditorHtml()
-                    : '') +
-
                 '<div class="presentation-row">' +
                     '<label for="presentation-record-quality">Rec quality</label>' +
                     '<select id="presentation-record-quality" class="presentation-select"></select>' +
@@ -113,7 +109,6 @@ function bindPresentationAnimationSection(panelRoot) {
     var recordStopBtn = section.querySelector('#presentation-record-stop-btn');
     var recordResetSimCheckbox = section.querySelector('#presentation-record-reset-sim');
     var statusEl = section.querySelector('#presentation-status');
-    var presentationEditorBinding = null;
     var NEW_PRESET_OPTION_VALUE = '__new_preset__';
     var timelineMarkerSignature = '';
     var timelineMarkersDirty = true;
@@ -293,14 +288,7 @@ function bindPresentationAnimationSection(panelRoot) {
     }
 
     function updateEditorVisibilityForPresetSelection() {
-        if (!presentationEditorBinding) return;
-        var isNewPreset = !!presetSelect && presetSelect.value === NEW_PRESET_OPTION_VALUE;
-        if (typeof presentationEditorBinding.setVisible === 'function') {
-            presentationEditorBinding.setVisible(isNewPreset);
-        }
-        if (!isNewPreset && typeof presentationEditorBinding.setOpen === 'function') {
-            presentationEditorBinding.setOpen(false);
-        }
+        // Old editor removed — now handled by the bottom timeline panel
     }
 
     function hasRealPresetOptions() {
@@ -604,17 +592,11 @@ function bindPresentationAnimationSection(panelRoot) {
         }
 
         if (presetSelect.value === NEW_PRESET_OPTION_VALUE) {
-            if (presentationEditorBinding) {
-                if (typeof presentationEditorBinding.setVisible === 'function') {
-                    presentationEditorBinding.setVisible(true);
-                }
-                if (typeof presentationEditorBinding.startNewPresetDraft === 'function') {
-                    presentationEditorBinding.startNewPresetDraft();
-                } else if (typeof presentationEditorBinding.setOpen === 'function') {
-                    presentationEditorBinding.setOpen(true);
-                }
+            // Open the bottom timeline panel for editing
+            if (typeof timelinePanelBinding !== 'undefined' && timelinePanelBinding) {
+                timelinePanelBinding.open();
             }
-            setStatus('New preset mode: edit timeline then press APPLY.', '');
+            setStatus('New preset mode: use the bottom Timeline panel to edit.', '');
             timelineMarkersDirty = true;
             syncFromState();
             return;
@@ -841,20 +823,6 @@ function bindPresentationAnimationSection(panelRoot) {
 
     initializePresetsUI();
 
-    if (typeof bindPresentationTimelineEditor === 'function') {
-        presentationEditorBinding = bindPresentationTimelineEditor(section, {
-            setStatus: setStatus,
-            syncFromState: syncFromState,
-            getSelectedPresetName: function() {
-                return presetSelect ? presetSelect.value : '';
-            },
-            loadSelectedPreset: loadSelectedPreset
-        });
-    }
-
-    if (presentationEditorBinding && typeof presentationEditorBinding.syncFromRuntime === 'function') {
-        presentationEditorBinding.syncFromRuntime(true);
-    }
     updateEditorVisibilityForPresetSelection();
     section.addEventListener('presentation:timeline-loaded', function() {
         timelineMarkersDirty = true;

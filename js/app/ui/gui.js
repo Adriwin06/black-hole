@@ -1561,6 +1561,24 @@ function setupGUI() {
         if (typeof bindPresentationAnimationSection === 'function') {
             bindPresentationAnimationSection(panel);
         }
+
+        // ── Bottom-docked timeline panel ────────────────────────────────
+        if (typeof buildTimelinePanel === 'function') {
+            buildTimelinePanel();
+
+            var tlOpenBtn = document.createElement('button');
+            tlOpenBtn.id = 'tl-open-btn';
+            tlOpenBtn.type = 'button';
+            tlOpenBtn.textContent = '\u25B2 TIMELINE';
+            tlOpenBtn.title = 'Open the full timeline / dopesheet panel';
+            document.body.appendChild(tlOpenBtn);
+
+            tlOpenBtn.addEventListener('click', function() {
+                if (timelinePanelBinding && typeof timelinePanelBinding.toggle === 'function') {
+                    timelinePanelBinding.toggle();
+                }
+            });
+        }
     })();
     // ─────────────────────────────────────────────────────────────────────────────
 
