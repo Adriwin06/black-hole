@@ -459,6 +459,7 @@ function init(glslSource, textures) {
 
     var uniforms = {
         time: { type: "f", value: 0 },
+        turbulence_time_offset: { type: "f", value: 0.0 },
         turbulence_loop_enabled: { type: "f", value: 0.0 },
         turbulence_loop_seconds: { type: "f", value: 20.0 },
         resolution: { type: "v2", value: new THREE.Vector2() },
@@ -607,6 +608,7 @@ function init(glslSource, textures) {
         uniforms.resolution.value.y = renderer.domElement.height;
 
         uniforms.time.value = observer.time;
+        uniforms.turbulence_time_offset.value = observer.turbulenceTimeOffset || 0.0;
         uniforms.cam_pos.value = observer.position;
 
         var e = observer.orientation.elements;
