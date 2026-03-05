@@ -2323,6 +2323,7 @@ function buildTimelinePanel() {
             selectedKeyT = t;
             normalizeQuatSigns();
             applyDraft();
+            if (typeof seekPresentation === 'function') seekPresentation(t);
             rebuildAll();
             setStatus('Auto-keyed ' + changed + ' changed value' + (changed > 1 ? 's' : '') + ' at ' + t.toFixed(2) + 's.', '');
         } else {
