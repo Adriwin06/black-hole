@@ -1692,19 +1692,46 @@ function buildTimelinePanel() {
         if (!track || !track.keys[ki]) return;
 
         var clickedT = track.keys[ki].t;
-        // When a modifier key is held the click handler handles selection; don't
-        // pre-empt it here or Ctrl+click will add then immediately remove the key.
-        if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
-            // If the clicked diamond isn't in the current multi-select, replace selection
-            if (!isKeyMultiSelected(path, clickedT)) {
-                clearMultiSelect();
+        // Handle modifier clicks here directly (click event is suppressed
+        // by e.preventDefault below, so the click handler won't fire).
+        if (e.shiftKey) {
+            // Shift+click = select all keys in this column (same time on all tracks)
+            selectedEventIdx = -1;
+            showKeyInspector();
+            selectedTrack = path;
+            selectedKeyT = clickedT;
+            selectAllKeysAtTime(clickedT);
+            return;
+        }
+        if (e.ctrlKey || e.metaKey) {
+            // Toggle this key in multi-selection
+            selectedEventIdx = -1;
+            showKeyInspector();
+            if (isKeyMultiSelected(path, clickedT)) {
+                removeFromMultiSelect(path, clickedT);
+            } else {
                 addToMultiSelect(path, clickedT);
-                selectedTrack = path;
-                selectedKeyT  = clickedT;
-                rebuildTrackList();
-                rebuildLanes();
-                if (selectedKeys.length === 1) fillInspector(track, ki);
             }
+            selectedTrack = path;
+            selectedKeyT = clickedT;
+            rebuildTrackList();
+            rebuildLanes();
+            if (selectedKeys.length === 1) {
+                fillInspector(track, ki);
+            } else {
+                inspSummary.textContent = selectedKeys.length + ' keyframes selected.';
+            }
+            return;
+        }
+        // Plain click: replace selection with just this key
+        if (!isKeyMultiSelected(path, clickedT)) {
+            clearMultiSelect();
+            addToMultiSelect(path, clickedT);
+            selectedTrack = path;
+            selectedKeyT  = clickedT;
+            rebuildTrackList();
+            rebuildLanes();
+            if (selectedKeys.length === 1) fillInspector(track, ki);
         }
 
         // Collect all selected keys with their original positions
@@ -2514,10 +2541,10 @@ function buildTimelinePanel() {
     var MOTION_TYPES = {
         sky_reveal: {
             params: [
-                { id: 'start',    label: 'Start time (s)',        type: 'number', min: 0,   step: 0.1, defaultFn: function() { return currentTime().toFixed(2); } },
-                { id: 'duration', label: 'Duration (s)',          type: 'number', min: 0.1, step: 1,   def: 14 },
-                { id: 'tilt',     label: 'Initial sky tilt (\u00b0)', type: 'number', min: 10,  step: 5,   def: 90 },
-                { id: 'ease',     label: 'Ease',                  type: 'select', options: [['smoother','smoother'],['smooth','smooth'],['linear','linear']] }
+                { id: 'start',    label: 'Start time (s)',  type: 'number', min: 0,   step: 0.1, defaultFn: function() { return currentTime().toFixed(2); } },
+                { id: 'duration', label: 'Duration (s)',    type: 'number', min: 0.1, step: 1,   def: 12 },
+                { id: 'from',     label: 'BH enters from', type: 'select', options: [['bottom','Bottom \u2014 see sky above'],['top','Top \u2014 see sky below'],['left','Left \u2014 see sky to the right'],['right','Right \u2014 see sky to the left']] },
+                { id: 'ease',     label: 'Ease',            type: 'select', options: [['smoother','smoother'],['smooth','smooth'],['linear','linear']] }
             ]
         },
         orbit: {
@@ -2766,58 +2793,33 @@ function buildTimelinePanel() {
             setStatus('Inclination: ' + fromV + '\u00b0 \u2192 ' + toV + '\u00b0 over ' + duration + 's.', '');
 
         } else if (type === 'sky_reveal') {
-            var tiltDeg = getMotionParam('tilt');
-            if (!isFinite(tiltDeg) || tiltDeg < 1) tiltDeg = 90;
+            var fromDir = getMotionParam('from') || 'bottom';
 
-            // Seed camera position from draft tracks at start time, then fall back to runtime
-            var cpx = 0, cpy = 0, cpz = 11;
+            // cam_pan shifts the rendered image so the BH centre appears at
+            // screen coords  screen_pos = -cam_pan.
+            // Screen x \u2208 [-1, 1], screen y \u2248 [-0.56, 0.56] (1920\u00d71080 aspect).
+            // Starting offsets large enough to push the BH fully outside any frame.
+            var startPanX = 0, startPanY = 0;
+            if      (fromDir === 'bottom') { startPanY = +1.0; }  // BH below \u2192 starfield above
+            else if (fromDir === 'top')    { startPanY = -1.0; }  // BH above \u2192 equatorial sky below
+            else if (fromDir === 'left')   { startPanX = +2.0; }  // BH to the left \u2192 sky to the right
+            else if (fromDir === 'right')  { startPanX = -2.0; }  // BH to the right \u2192 sky to the left
+
+            // End value: current cameraPan (or 0)
+            var endPanX = 0, endPanY = 0;
             if (typeof getPresentationPathValue === 'function') {
-                var vx = getPresentationPathValue('camera.position.x');
-                var vy = getPresentationPathValue('camera.position.y');
-                var vz = getPresentationPathValue('camera.position.z');
-                if (typeof vx === 'number') cpx = vx;
-                if (typeof vy === 'number') cpy = vy;
-                if (typeof vz === 'number') cpz = vz;
+                var epx = getPresentationPathValue('cameraPan.x');
+                var epy = getPresentationPathValue('cameraPan.y');
+                if (typeof epx === 'number') endPanX = epx;
+                if (typeof epy === 'number') endPanY = epy;
             }
-            var txd = getTrackByPath('camera.position.x');
-            var tyd = getTrackByPath('camera.position.y');
-            var tzd = getTrackByPath('camera.position.z');
-            if (txd && txd.keys.length) cpx = sampleTrackDraft(txd, start);
-            if (tyd && tyd.keys.length) cpy = sampleTrackDraft(tyd, start);
-            if (tzd && tzd.keys.length) cpz = sampleTrackDraft(tzd, start);
 
-            // qEnd: camera looking toward the black hole at origin
-            var qEnd = lookAtOriginQuat(cpx, cpy, cpz);
-            // Tilt camera upward in its local frame by tiltDeg around the camera's X axis.
-            // Positive rotation tilts the view upward so the BH moves below frame
-            // (the camera is looking at the sky). Slerping back to qEnd reveals the BH.
-            var halfRad = (tiltDeg * Math.PI / 180) / 2;
-            var localTilt = { x: Math.sin(halfRad), y: 0, z: 0, w: Math.cos(halfRad) };
-            var qStart = quatMul(qEnd, localTilt);
-
-            // Enough keyframes for a smooth slerp; ease is baked via denser sampling
-            var numSteps = Math.max(24, Math.round(duration * 4));
-            for (var si = 0; si <= numSteps; si++) {
-                var frac  = si / numSteps;
-                // Apply ease curve to frac so the reveal starts slowly and settles gently
-                var efrac = (ease === 'smoother')
-                    ? frac*frac*frac*(frac*(frac*6 - 15) + 10)
-                    : (ease === 'smooth')
-                        ? frac*frac*(3 - 2*frac)
-                        : frac;
-                var ktime = start + frac * duration;
-                var q = quatSlerp(qStart, qEnd, efrac);
-                upsertKey('camera.position.x',   ktime, cpx,  'linear');
-                upsertKey('camera.position.y',   ktime, cpy,  'linear');
-                upsertKey('camera.position.z',   ktime, cpz,  'linear');
-                upsertKey('camera.quaternion.x', ktime, q.x,  'linear');
-                upsertKey('camera.quaternion.y', ktime, q.y,  'linear');
-                upsertKey('camera.quaternion.z', ktime, q.z,  'linear');
-                upsertKey('camera.quaternion.w', ktime, q.w,  'linear');
-            }
-            normalizeQuatSigns();
-            selectedTrack = 'camera.quaternion.w';
-            setStatus('Sky reveal: ' + tiltDeg + '\u00b0 tilt \u2192 BH over ' + duration + 's.', '');
+            upsertKey('cameraPan.x', start,            endPanX + startPanX, 'linear');
+            upsertKey('cameraPan.x', start + duration, endPanX,             ease);
+            upsertKey('cameraPan.y', start,            endPanY + startPanY, 'linear');
+            upsertKey('cameraPan.y', start + duration, endPanY,             ease);
+            selectedTrack = 'cameraPan.x';
+            setStatus('Sky reveal: BH enters from ' + fromDir + ' over ' + duration + 's at t=' + start.toFixed(2) + 's.', '');
         }
 
         draft.duration = Math.max(draft.duration, start + duration);
@@ -3234,11 +3236,13 @@ function buildTimelinePanel() {
         var inExternalInput = inInput && !panel.contains(e.target);
         if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.code === 'KeyZ' && !inExternalInput) {
             e.preventDefault();
+            e.stopPropagation();
             undo();
             return;
         }
         if ((e.ctrlKey || e.metaKey) && (e.code === 'KeyY' || (e.shiftKey && e.code === 'KeyZ')) && !inExternalInput) {
             e.preventDefault();
+            e.stopPropagation();
             redo();
             return;
         }
@@ -3331,7 +3335,7 @@ function buildTimelinePanel() {
             e.preventDefault();
             return;
         }
-    });
+    }, true);
 
     // ── Public API ──────────────────────────────────────────────────────────
     timelinePanelBinding = {
