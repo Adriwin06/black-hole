@@ -1,3 +1,6 @@
+---
+---
+
 # Presentation Timeline Editor Guide
 
 This guide explains how to use the in-app timeline editor.

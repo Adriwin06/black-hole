@@ -1,3 +1,6 @@
+---
+---
+
 # Presentation JSON Guide
 
 This document explains the JSON format used by the presentation timeline system.

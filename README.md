@@ -1,3 +1,6 @@
+---
+---
+
 # Black Hole Simulation
 
 A real-time, GPU-accelerated ray-tracing simulation of a black hole with an accretion disk, relativistic jets, and a full suite of general-relativistic optical effects. Runs entirely in the browser using WebGL and [three.js](http://threejs.org).
