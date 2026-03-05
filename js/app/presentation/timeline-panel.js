@@ -1691,15 +1691,19 @@ function buildTimelinePanel() {
         if (!track || !track.keys[ki]) return;
 
         var clickedT = track.keys[ki].t;
-        // If the clicked diamond isn't in the current multi-select, replace selection
-        if (!isKeyMultiSelected(path, clickedT)) {
-            clearMultiSelect();
-            addToMultiSelect(path, clickedT);
-            selectedTrack = path;
-            selectedKeyT  = clickedT;
-            rebuildTrackList();
-            rebuildLanes();
-            if (selectedKeys.length === 1) fillInspector(track, ki);
+        // When a modifier key is held the click handler handles selection; don't
+        // pre-empt it here or Ctrl+click will add then immediately remove the key.
+        if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+            // If the clicked diamond isn't in the current multi-select, replace selection
+            if (!isKeyMultiSelected(path, clickedT)) {
+                clearMultiSelect();
+                addToMultiSelect(path, clickedT);
+                selectedTrack = path;
+                selectedKeyT  = clickedT;
+                rebuildTrackList();
+                rebuildLanes();
+                if (selectedKeys.length === 1) fillInspector(track, ki);
+            }
         }
 
         // Collect all selected keys with their original positions
@@ -1927,6 +1931,11 @@ function buildTimelinePanel() {
     });
     inspDel.addEventListener('click', function() {
         if (!draft) return;
+        // Track selected but no individual key — delete the whole track
+        if (selectedKeys.length === 0 && selectedTrack) {
+            deleteTrack(selectedTrack);
+            return;
+        }
         // If we have a multi-selection, delete all selected keys
         if (selectedKeys.length > 0) {
             pushUndo();
@@ -3123,13 +3132,15 @@ function buildTimelinePanel() {
         var tag = (e.target.tagName || '').toLowerCase();
         var inInput = (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable);
 
-        // Ctrl+Z / Ctrl+Y — always active even in inputs for the panel
-        if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.code === 'KeyZ' && panel.contains(e.target)) {
+        // Ctrl+Z / Ctrl+Y — fire whenever the panel is open, unless focus is
+        // in an input that lives *outside* the timeline panel itself.
+        var inExternalInput = inInput && !panel.contains(e.target);
+        if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.code === 'KeyZ' && !inExternalInput) {
             e.preventDefault();
             undo();
             return;
         }
-        if ((e.ctrlKey || e.metaKey) && (e.code === 'KeyY' || (e.shiftKey && e.code === 'KeyZ')) && panel.contains(e.target)) {
+        if ((e.ctrlKey || e.metaKey) && (e.code === 'KeyY' || (e.shiftKey && e.code === 'KeyZ')) && !inExternalInput) {
             e.preventDefault();
             redo();
             return;

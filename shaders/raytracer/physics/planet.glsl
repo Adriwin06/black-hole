@@ -96,7 +96,7 @@ vec4 planet_intersection(vec3 old_pos, vec3 ray, float t, float dt,
     {{/physical_beaming}}
     {{^physical_beaming}}
     float clamped_planet_doppler = clamp(transfer_factor, 0.62, 1.48);
-    lightness /= pow(clamped_planet_doppler, 1.05 + 1.10*doppler_boost);
+    lightness /= pow(clamped_planet_doppler, 1.05 + 1.10*clamp(look_doppler_boost, 0.0, 2.5));
     {{/physical_beaming}}
     {{/beaming}}
 

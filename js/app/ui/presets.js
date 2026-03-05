@@ -156,8 +156,7 @@ var BH_PRESETS = {
                lorentz_factor: 3.0, brightness: 1.0, length: 30.0,
                magnetization: 10.0, knot_spacing: 6.0, corona_brightness: 1.5,
                base_width: 0.4, corona_extent: 0.5 },
-        // Gargantua: cinematic look, GRMHD off for clean Interstellar aesthetics
-        grmhd: { enabled: false, r_high: 40.0, magnetic_beta: 10.0, mad_flux: 0.0,
+        grmhd: { enabled: true, r_high: 40.0, magnetic_beta: 10.0, mad_flux: 0.0,
                  density_scale: 1.0, turbulence_amp: 1.0, electron_kappa: 5.0,
                  magnetic_field_str: 1.0 },
         observer: { distance: 11.0 },
