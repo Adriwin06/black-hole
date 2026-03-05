@@ -102,6 +102,7 @@ function buildTimelinePanel() {
                 '<span class="tl-transport-sep"></span>' +
                 '<button id="tl-btn-auto-key" class="tl-btn tl-btn--warn" type="button" title="Auto Keyframe: capture changes">AUTO KEY</button>' +
                 '<button id="tl-btn-add-track" class="tl-btn" type="button" title="Add a new track">+ TRACK</button>' +
+                '<button id="tl-btn-add-text" class="tl-btn tl-btn--text" type="button" title="Add annotation text at current time">&#9998;&nbsp;TEXT</button>' +
                 '<span class="tl-transport-sep"></span>' +
                 '<button id="tl-btn-import" class="tl-btn" type="button" title="Import timeline from JSON file">&#8593; IMPORT</button>' +
                 '<button id="tl-btn-export" class="tl-btn" type="button" title="Export timeline as JSON file">&#8595; EXPORT</button>' +
@@ -118,45 +119,108 @@ function buildTimelinePanel() {
                 '<div class="tl-tracks-head">' +
                     '<span class="tl-tracks-title">TRACKS</span>' +
                 '</div>' +
+                '<div id="tl-annot-track-col" class="tl-annot-track-col"></div>' +
                 '<div id="tl-track-list" class="tl-track-list"></div>' +
             '</div>' +
 
             // Center: dopesheet lanes
             '<div class="tl-dopesheet">' +
-                '<div id="tl-ruler" class="tl-ruler"></div>' +
-                '<div id="tl-lanes" class="tl-lanes"></div>' +
+                '<div id="tl-zoom-ctrls" class="tl-zoom-ctrls">' +
+                    '<button id="tl-zoom-out" class="tl-zoom-btn" type="button" title="Zoom out (Ctrl+scroll)">&#x2212;</button>' +
+                    '<button id="tl-zoom-reset" class="tl-zoom-btn tl-zoom-level" type="button" title="Reset zoom to fit">1&#x00d7;</button>' +
+                    '<button id="tl-zoom-in" class="tl-zoom-btn" type="button" title="Zoom in (Ctrl+scroll)">+</button>' +
+                '</div>' +
+                '<div id="tl-scroll-wrap" class="tl-scroll-wrap">' +
+                    '<div id="tl-time-content" class="tl-time-content">' +
+                        '<div id="tl-ruler" class="tl-ruler"></div>' +
+                        '<div id="tl-annot-lane-col" class="tl-annot-lane-col"></div>' +
+                        '<div id="tl-lanes" class="tl-lanes"></div>' +
+                    '</div>' +
+                '</div>' +
             '</div>' +
 
             // Right: key inspector
             '<div class="tl-inspector">' +
-                '<div class="tl-inspector-title">KEY INSPECTOR</div>' +
-                '<div id="tl-insp-summary" class="tl-insp-summary">No keyframe selected.</div>' +
-                '<div class="tl-insp-row">' +
-                    '<label>Path</label>' +
-                    '<input id="tl-insp-path" list="tl-path-datalist" type="text" placeholder="observer.distance">' +
+                '<div id="tl-key-section">' +
+                    '<div class="tl-inspector-title">KEY INSPECTOR</div>' +
+                    '<div id="tl-insp-summary" class="tl-insp-summary">No keyframe selected.</div>' +
+                    '<div class="tl-insp-row">' +
+                        '<label>Path</label>' +
+                        '<input id="tl-insp-path" list="tl-path-datalist" type="text" placeholder="observer.distance">' +
+                    '</div>' +
+                    '<div class="tl-insp-row">' +
+                        '<label>Time</label>' +
+                        '<input id="tl-insp-time" type="number" min="0" step="0.01" value="0">' +
+                        '<select id="tl-insp-ease">' +
+                            '<option value="linear">linear</option>' +
+                            '<option value="smooth">smooth</option>' +
+                            '<option value="smoother">smoother</option>' +
+                        '</select>' +
+                    '</div>' +
+                    '<div class="tl-insp-row">' +
+                        '<label>Value</label>' +
+                        '<input id="tl-insp-value" type="text" placeholder="11 or true">' +
+                    '</div>' +
+                    '<div class="tl-insp-actions">' +
+                        '<button id="tl-insp-use-time" class="tl-mini-btn" type="button">USE TIME</button>' +
+                        '<button id="tl-insp-capture" class="tl-mini-btn" type="button">CAPTURE</button>' +
+                    '</div>' +
+                    '<div class="tl-insp-actions">' +
+                        '<button id="tl-insp-set" class="tl-mini-btn tl-mini-btn--accent" type="button">SET KEY</button>' +
+                        '<button id="tl-insp-del" class="tl-mini-btn tl-mini-btn--danger" type="button">DELETE KEY</button>' +
+                    '</div>' +
+                    '<datalist id="tl-path-datalist"></datalist>' +
                 '</div>' +
-                '<div class="tl-insp-row">' +
-                    '<label>Time</label>' +
-                    '<input id="tl-insp-time" type="number" min="0" step="0.01" value="0">' +
-                    '<select id="tl-insp-ease">' +
-                        '<option value="linear">linear</option>' +
-                        '<option value="smooth">smooth</option>' +
-                        '<option value="smoother">smoother</option>' +
-                    '</select>' +
+                '<div id="tl-ev-section" class="tl-ev-section" style="display:none">' +
+                    '<div class="tl-inspector-title">&#9998;&nbsp;TEXT EVENT</div>' +
+                    '<div id="tl-ev-summary" class="tl-insp-summary">No event selected.</div>' +
+                    '<div class="tl-insp-row">' +
+                        '<label>Time</label>' +
+                        '<input id="tl-ev-time" type="number" min="0" step="0.01" value="0">' +
+                    '</div>' +
+                    '<div class="tl-insp-row">' +
+                        '<label>Dur.</label>' +
+                        '<input id="tl-ev-dur" type="number" min="0" step="0.5" value="0" placeholder="0 = forever" title="Duration in seconds (0 = until next event)">' +
+                        '<span class="tl-ev-dur-hint">s</span>' +
+                    '</div>' +
+                    '<div class="tl-insp-row">' +
+                        '<label>Title</label>' +
+                        '<input id="tl-ev-title" type="text" placeholder="Optional title">' +
+                    '</div>' +
+                    '<div class="tl-insp-row tl-insp-row--tall">' +
+                        '<label>Text</label>' +
+                        '<textarea id="tl-ev-body" rows="3" placeholder="Annotation body text..."></textarea>' +
+                    '</div>' +
+                    '<div class="tl-insp-row">' +
+                        '<label>Color</label>' +
+                        '<input id="tl-ev-color" type="color" value="#7cc5ff" class="tl-ev-color-input">' +
+                        '<label style="margin-left:4px">Width</label>' +
+                        '<input id="tl-ev-width" type="number" min="170" max="800" step="10" value="320" style="width:48px">' +
+                    '</div>' +
+                    '<div class="tl-insp-row">' +
+                        '<label>Place</label>' +
+                        '<select id="tl-ev-placement">' +
+                            '<option value="auto">Auto</option>' +
+                            '<option value="right">Right</option>' +
+                            '<option value="left">Left</option>' +
+                            '<option value="top">Top</option>' +
+                            '<option value="bottom">Bottom</option>' +
+                            '<option value="manual">Manual (drag)</option>' +
+                        '</select>' +
+                    '</div>' +
+                    '<div class="tl-insp-actions">' +
+                        '<button id="tl-ev-position" class="tl-mini-btn tl-mini-btn--accent" type="button" title="Drag bubble &amp; pointer on screen">&#9995; POSITION</button>' +
+                        '<button id="tl-ev-preview" class="tl-mini-btn" type="button" title="Preview this annotation now">&#128065; PREVIEW</button>' +
+                    '</div>' +
+                    '<div class="tl-insp-actions">' +
+                        '<button id="tl-ev-use-time" class="tl-mini-btn" type="button">USE TIME</button>' +
+                        '<button id="tl-ev-new" class="tl-mini-btn" type="button">+ NEW</button>' +
+                    '</div>' +
+                    '<div class="tl-insp-actions">' +
+                        '<button id="tl-ev-set" class="tl-mini-btn tl-mini-btn--accent" type="button">SET EVENT</button>' +
+                        '<button id="tl-ev-del" class="tl-mini-btn tl-mini-btn--danger" type="button">DELETE</button>' +
+                    '</div>' +
                 '</div>' +
-                '<div class="tl-insp-row">' +
-                    '<label>Value</label>' +
-                    '<input id="tl-insp-value" type="text" placeholder="11 or true">' +
-                '</div>' +
-                '<div class="tl-insp-actions">' +
-                    '<button id="tl-insp-use-time" class="tl-mini-btn" type="button">USE TIME</button>' +
-                    '<button id="tl-insp-capture" class="tl-mini-btn" type="button">CAPTURE</button>' +
-                '</div>' +
-                '<div class="tl-insp-actions">' +
-                    '<button id="tl-insp-set" class="tl-mini-btn tl-mini-btn--accent" type="button">SET KEY</button>' +
-                    '<button id="tl-insp-del" class="tl-mini-btn tl-mini-btn--danger" type="button">DELETE KEY</button>' +
-                '</div>' +
-                '<datalist id="tl-path-datalist"></datalist>' +
             '</div>' +
 
         '</div>' +
@@ -280,12 +344,42 @@ function buildTimelinePanel() {
     var recStopBtn       = panel.querySelector('#tl-rec-stop');
     var recStatusEl      = panel.querySelector('#tl-rec-status');
 
+    // ── Event (annotation) inspector refs ───────────────────────────────────
+    var annotTrackColEl = panel.querySelector('#tl-annot-track-col');
+    var annotLaneColEl  = panel.querySelector('#tl-annot-lane-col');
+    var scrollWrapEl    = panel.querySelector('#tl-scroll-wrap');
+    var timeContentEl   = panel.querySelector('#tl-time-content');
+    var zoomOutBtn      = panel.querySelector('#tl-zoom-out');
+    var zoomResetBtn    = panel.querySelector('#tl-zoom-reset');
+    var zoomInBtn       = panel.querySelector('#tl-zoom-in');
+    var keySection    = panel.querySelector('#tl-key-section');
+    var evSection     = panel.querySelector('#tl-ev-section');
+    var evSummary     = panel.querySelector('#tl-ev-summary');
+    var evTimeInput   = panel.querySelector('#tl-ev-time');
+    var evTitleInput  = panel.querySelector('#tl-ev-title');
+    var evBodyInput   = panel.querySelector('#tl-ev-body');
+    var evColorInput  = panel.querySelector('#tl-ev-color');
+    var evWidthInput  = panel.querySelector('#tl-ev-width');
+    var evDurInput    = panel.querySelector('#tl-ev-dur');
+    var evPlacement   = panel.querySelector('#tl-ev-placement');
+    var evUseTimeBtn  = panel.querySelector('#tl-ev-use-time');
+    var evNewBtn      = panel.querySelector('#tl-ev-new');
+    var evSetBtn      = panel.querySelector('#tl-ev-set');
+    var evDelBtn      = panel.querySelector('#tl-ev-del');
+    var evPositionBtn = panel.querySelector('#tl-ev-position');
+    var evPreviewBtn  = panel.querySelector('#tl-ev-preview');
+    var addTextBtn    = panel.querySelector('#tl-btn-add-text');
+
     // ── State ───────────────────────────────────────────────────────────────
     var draft          = null;
     var selectedTrack  = '';
     var selectedKeyT   = NaN;
     // Multi-select: array of { path: string, t: number }
     var selectedKeys   = [];
+    var selectedEventIdx = -1;   // index into draft.events; -1 = none
+    var selectedEventChannel = 0; // which annotation channel is active in inspector
+    var tlZoom = 1.0;             // timeline zoom factor (1 = fit all, >1 = zoomed in)
+    var ZOOM_MIN = 1.0, ZOOM_MAX = 20.0;
     var panelOpen      = false;
     var autoKeySnapshot= null;
     var syncTimer      = null;
@@ -338,6 +432,10 @@ function buildTimelinePanel() {
                 draft: draft ? clonePlain(draft) : null,
                 selectedTrack: selectedTrack,
                 selectedKeys: selectedKeys.slice(),
+                selectedEventIdx: selectedEventIdx,
+                selectedEventChannel: selectedEventChannel,
+                tlZoom: tlZoom,
+                tlScrollLeft: scrollWrapEl ? scrollWrapEl.scrollLeft : 0,
                 wasOpen: panelOpen
             };
             sessionStorage.setItem(PANEL_STATE_KEY, JSON.stringify(state));
@@ -378,6 +476,16 @@ function buildTimelinePanel() {
                 }
                 if (saved.selectedTrack) selectedTrack = saved.selectedTrack;
                 if (saved.selectedKeys && saved.selectedKeys.length) selectedKeys = saved.selectedKeys;
+                if (typeof saved.selectedEventIdx === 'number' && saved.selectedEventIdx >= 0) selectedEventIdx = saved.selectedEventIdx;
+                if (typeof saved.selectedEventChannel === 'number') selectedEventChannel = saved.selectedEventChannel;
+                if (typeof saved.tlZoom === 'number' && saved.tlZoom >= 1.0) {
+                    tlZoom = saved.tlZoom;
+                    applyZoomWidth();
+                    updateZoomDisplay();
+                    if (typeof saved.tlScrollLeft === 'number') {
+                        scrollWrapEl.scrollLeft = saved.tlScrollLeft;
+                    }
+                }
             } else {
                 // No saved state — default to a fresh empty timeline
                 presetSelect.value = '';
@@ -574,6 +682,7 @@ function buildTimelinePanel() {
         if (typeof loadPresentationPreset === 'function') {
             if (loadPresentationPreset(name)) {
                 syncFromRuntime();
+                resetZoom();
                 setStatus('Loaded preset: ' + name, '');
             } else {
                 setStatus('Failed to load preset: ' + name, 'tl-status--warn');
@@ -597,13 +706,520 @@ function buildTimelinePanel() {
         updateScrubber();
     }
 
+    // ── Inspector mode toggles ───────────────────────────────────────────────
+    function showKeyInspector() {
+        keySection.style.display = '';
+        evSection.style.display  = 'none';
+    }
+    function showEventInspector() {
+        keySection.style.display = 'none';
+        evSection.style.display  = '';
+    }
+
+    // ── Events lane (center) + row label (left) ──────────────────────────────
+    function rebuildEventsLane() {
+        if (!annotTrackColEl || !annotLaneColEl) return;
+        var d = getDuration();
+        var phPct = clamp(currentTime() / Math.max(d, 0.001) * 100, 0, 100);
+        var annTracks = (draft && Array.isArray(draft.annotationTracks)) ? draft.annotationTracks : [{ label: 'Annotation 1' }];
+        var numCh = annTracks.length;
+        var canDelete = numCh > 1;
+
+        var leftHtml = '<div class="tl-ann-hdr">' +
+            '<span class="tl-ann-hdr-title">&#9998;&nbsp;ANNOTATIONS</span>' +
+            '<button class="tl-ann-add-btn" id="tl-annot-add-ch" title="Add annotation track" type="button">+</button>' +
+            '</div>';
+        var rightHtml = '<div class="tl-ann-hdr-spacer"></div>';
+
+        for (var ch = 0; ch < numCh; ch++) {
+            var label = annTracks[ch].label || ('Annotation ' + (ch + 1));
+            var isSelCh = (ch === selectedEventChannel && selectedEventIdx >= 0);
+            leftHtml += '<div class="tl-events-row' + (isSelCh ? ' is-sel-ch' : '') + '" data-ch="' + ch + '">' +
+                '<span class="tl-events-row-title">' + esc(label) + '</span>' +
+                (canDelete ? '<button class="tl-ann-del-ch" data-ch="' + ch + '" title="Remove this annotation track" type="button">&times;</button>' : '') +
+                '</div>';
+
+            var laneHtml = '<span class="tl-lane-playhead" style="left:' + phPct.toFixed(2) + '%"></span>';
+            var hasMarkers = false;
+            if (draft) {
+                for (var i = 0; i < draft.events.length; i++) {
+                    var ev = draft.events[i];
+                    if (ev.action !== 'annotation' && ev.action !== 'clearAnnotation') continue;
+                    if ((ev.channel || 0) !== ch) continue;
+                    hasMarkers = true;
+                    var kPct = clamp(ev.t / Math.max(d, 0.001) * 100, 0, 100);
+                    var isSel = (i === selectedEventIdx);
+                    var isClear = (ev.action === 'clearAnnotation');
+                    var lbl = (ev.note && ev.note.title) ? ev.note.title : (isClear ? '\u2715 clear' : '(no title)');
+                    var color = (ev.note && ev.note.color) ? ev.note.color : '#7cc5ff';
+                    var tip = ev.t.toFixed(2) + 's: ' + lbl;
+                    var borderStyle = (!isSel && !isClear) ? 'border-color:' + esc(color) + ';' : '';
+                    laneHtml += '<button type="button" class="tl-ev-marker' +
+                        (isSel ? ' is-sel' : '') + (isClear ? ' is-clear' : '') + '"' +
+                        ' style="left:' + kPct.toFixed(3) + '%;' + borderStyle + '"' +
+                        ' data-ei="' + i + '" data-ch="' + ch + '" title="' + esc(tip) + '"></button>';
+                }
+            }
+            if (!hasMarkers) {
+                laneHtml += '<span class="tl-ev-hint">Empty</span>';
+            }
+            rightHtml += '<div class="tl-events-lane" data-ch="' + ch + '">' + laneHtml + '</div>';
+        }
+
+        annotTrackColEl.innerHTML = leftHtml;
+        annotLaneColEl.innerHTML  = rightHtml;
+
+        // Wire the dynamically-injected add/del buttons
+        var addChBtn = annotTrackColEl.querySelector('#tl-annot-add-ch');
+        if (addChBtn) addChBtn.addEventListener('click', addAnnotationChannel);
+        var delBtns = annotTrackColEl.querySelectorAll('.tl-ann-del-ch');
+        for (var b = 0; b < delBtns.length; b++) {
+            (function(btn) {
+                btn.addEventListener('click', function() {
+                    removeAnnotationChannel(parseInt(btn.getAttribute('data-ch'), 10));
+                });
+            })(delBtns[b]);
+        }
+    }
+
+    // ── Add / remove annotation channels ────────────────────────────────────
+    function addAnnotationChannel() {
+        if (!draft) { draft = normalizeTL({ name: 'Untitled', duration: 12, tracks: [], events: [] }); }
+        pushUndo();
+        if (!Array.isArray(draft.annotationTracks)) draft.annotationTracks = [{ label: 'Annotation 1' }];
+        var n = draft.annotationTracks.length + 1;
+        draft.annotationTracks.push({ label: 'Annotation ' + n });
+        selectedEventChannel = draft.annotationTracks.length - 1;
+        applyDraft();
+        rebuildAll();
+        setStatus('Annotation track ' + n + ' added.', '');
+    }
+
+    function removeAnnotationChannel(ch) {
+        if (!draft || !Array.isArray(draft.annotationTracks) || draft.annotationTracks.length <= 1) {
+            setStatus('Cannot remove the last annotation track.', 'tl-status--warn');
+            return;
+        }
+        pushUndo();
+        // Remove all events on this channel
+        for (var i = draft.events.length - 1; i >= 0; i--) {
+            if ((draft.events[i].channel || 0) === ch) draft.events.splice(i, 1);
+        }
+        // Shift channels above the removed one
+        for (var j = 0; j < draft.events.length; j++) {
+            if (typeof draft.events[j].channel === 'number' && draft.events[j].channel > ch) {
+                draft.events[j].channel--;
+            }
+        }
+        draft.annotationTracks.splice(ch, 1);
+        if (selectedEventChannel >= draft.annotationTracks.length) {
+            selectedEventChannel = Math.max(0, draft.annotationTracks.length - 1);
+        }
+        if (selectedEventIdx >= 0 && !draft.events[selectedEventIdx]) {
+            selectedEventIdx = -1;
+            showKeyInspector();
+        }
+        applyDraft();
+        rebuildAll();
+        setStatus('Annotation track removed.', '');
+    }
+
+    // ── Event inspector fill ─────────────────────────────────────────────────
+    function fillEventInspector(ev, idx) {
+        selectedEventIdx = idx;
+        selectedEventChannel = ev.channel || 0;
+        showEventInspector();
+        evTimeInput.value  = ev.t.toFixed(2);
+        var note = ev.note || {};
+        evTitleInput.value = note.title || '';
+        evBodyInput.value  = note.text || note.body || '';
+        evColorInput.value = note.color || '#7cc5ff';
+        evWidthInput.value = note.width || 320;
+        evPlacement.value  = (typeof note.boxX === 'number' && typeof note.boxY === 'number')
+            ? 'manual' : (note.placement || 'auto');
+
+        // Compute duration from paired clearAnnotation event
+        var dur = 0;
+        if (draft && ev.action === 'annotation') {
+            for (var i = 0; i < draft.events.length; i++) {
+                var ce = draft.events[i];
+                if (ce.action === 'clearAnnotation' && ce.t > ev.t && ce._pairOf === idx) {
+                    dur = ce.t - ev.t;
+                    break;
+                }
+            }
+            if (!dur) {
+                for (var i = 0; i < draft.events.length; i++) {
+                    var ce = draft.events[i];
+                    if (ce.action === 'clearAnnotation' && ce.t > ev.t) {
+                        dur = ce.t - ev.t;
+                        break;
+                    }
+                }
+            }
+        }
+        evDurInput.value = dur > 0 ? dur.toFixed(2) : '';
+
+        var isClear = (ev.action === 'clearAnnotation');
+        var trackLabel = (draft && Array.isArray(draft.annotationTracks) && draft.annotationTracks[selectedEventChannel])
+            ? draft.annotationTracks[selectedEventChannel].label : ('Track ' + (selectedEventChannel + 1));
+        evSummary.textContent = isClear
+            ? 'Clear [' + trackLabel + '] @ ' + ev.t.toFixed(2) + 's'
+            : '[' + trackLabel + '] @ ' + ev.t.toFixed(2) + 's' + (note.title ? ': ' + note.title : '');
+    }
+
+    // ── Set / save event from inspector fields ───────────────────────────────
+    function doSetEvent() {
+        if (!draft) return;
+        var t = parseTime(evTimeInput.value, currentTime());
+        t = Math.max(0, t);
+        var title     = evTitleInput.value.trim();
+        var body      = evBodyInput.value;
+        var color     = evColorInput.value || '#7cc5ff';
+        var placement = evPlacement.value  || 'auto';
+        var widthVal  = parseInt(evWidthInput.value, 10);
+        if (!isFinite(widthVal) || widthVal < 100) widthVal = 320;
+        var durVal    = parseFloat(evDurInput.value);
+        if (!isFinite(durVal) || durVal < 0) durVal = 0;
+
+        pushUndo();
+        var ev;
+        var note = null;
+        if (title || body.trim()) {
+            // Preserve existing anchor / boxX / boxY if editing
+            var prevNote = (selectedEventIdx >= 0 && draft.events[selectedEventIdx])
+                ? draft.events[selectedEventIdx].note || {} : {};
+            note = {
+                anchor: prevNote.anchor || { mode: 'world', target: 'black_hole' },
+                placement: placement === 'manual' ? (prevNote.placement || 'auto') : placement,
+                color: color,
+                width: widthVal
+            };
+            if (placement === 'manual') {
+                if (typeof prevNote.boxX === 'number') note.boxX = prevNote.boxX;
+                if (typeof prevNote.boxY === 'number') note.boxY = prevNote.boxY;
+            }
+            if (title) note.title = title;
+            if (body.trim()) note.text = body;
+        }
+        var action = note ? 'annotation' : 'clearAnnotation';
+
+        if (selectedEventIdx >= 0 && draft.events[selectedEventIdx]) {
+            ev = draft.events[selectedEventIdx];
+            ev.t      = t;
+            ev.action = action;
+            if (note) { ev.note = note; } else { delete ev.note; }
+            draft.events.sort(function(a, b) { return a.t - b.t; });
+            for (var i = 0; i < draft.events.length; i++) {
+                if (draft.events[i] === ev) { selectedEventIdx = i; break; }
+            }
+        } else {
+            ev = { t: t, action: action, channel: selectedEventChannel };
+            if (note) ev.note = note;
+            draft.events.push(ev);
+            draft.events.sort(function(a, b) { return a.t - b.t; });
+            for (var i = 0; i < draft.events.length; i++) {
+                if (draft.events[i] === ev) { selectedEventIdx = i; break; }
+            }
+        }
+
+        // ── Duration → auto-manage clearAnnotation event ──
+        if (action === 'annotation') {
+            // Remove any existing paired clearAnnotation
+            for (var i = draft.events.length - 1; i >= 0; i--) {
+                if (draft.events[i].action === 'clearAnnotation' && draft.events[i]._pairOf === selectedEventIdx) {
+                    draft.events.splice(i, 1);
+                    if (i < selectedEventIdx) selectedEventIdx--;
+                }
+            }
+            if (durVal > 0) {
+                var clearEv = { t: t + durVal, action: 'clearAnnotation', channel: ev.channel || 0, _pairOf: selectedEventIdx };
+                draft.events.push(clearEv);
+            }
+            draft.events.sort(function(a, b) { return a.t - b.t; });
+            // Re-find selected index after sort
+            for (var i = 0; i < draft.events.length; i++) {
+                if (draft.events[i] === ev) { selectedEventIdx = i; break; }
+            }
+            // Re-assign _pairOf references after sort
+            for (var i = 0; i < draft.events.length; i++) {
+                if (draft.events[i]._pairOf !== undefined) {
+                    // Find the annotation event this clear pairs with
+                    for (var j = 0; j < draft.events.length; j++) {
+                        if (draft.events[j] === ev) { draft.events[i]._pairOf = j; break; }
+                    }
+                }
+            }
+        }
+
+        draft.duration = Math.max(draft.duration, t + (durVal || 0));
+        applyDraft();
+        rebuildAll();
+        setStatus((action === 'annotation' ? 'Annotation' : 'Clear-annotation') + ' set @ ' + t.toFixed(2) + 's.', '');
+    }
+
+    // ── Add new annotation event ─────────────────────────────────────────────
+    function addNewAnnotationEvent() {
+        if (!draft) {
+            draft = normalizeTL({ name: 'Untitled', duration: 12, tracks: [], events: [] });
+        }
+        var t = currentTime();
+        pushUndo();
+        var ev = { t: t, action: 'annotation', channel: selectedEventChannel,
+                   note: { title: '', text: '', anchor: { mode: 'world', target: 'black_hole' },
+                           placement: 'auto', color: '#7cc5ff' } };
+        draft.events.push(ev);
+        draft.events.sort(function(a, b) { return a.t - b.t; });
+        for (var i = 0; i < draft.events.length; i++) {
+            if (draft.events[i] === ev) { selectedEventIdx = i; break; }
+        }
+        clearMultiSelect();
+        applyDraft();
+        rebuildAll();
+        fillEventInspector(draft.events[selectedEventIdx], selectedEventIdx);
+        setStatus('Annotation added at ' + t.toFixed(2) + 's \u2013 edit title/text and click SET EVENT.', 'tl-status--info');
+    }
+
+    // ── Preview annotation live ──────────────────────────────────────────────
+    function previewAnnotation() {
+        if (typeof setPresentationAnnotation !== 'function') return;
+        var note = buildNoteFromInspector();
+        if (!note) { if (typeof clearPresentationAnnotation === 'function') clearPresentationAnnotation(); return; }
+        setPresentationAnnotation(note);
+    }
+
+    function buildNoteFromInspector() {
+        var title = evTitleInput.value.trim();
+        var body  = evBodyInput.value;
+        if (!title && !body.trim()) return null;
+        var widthVal = parseInt(evWidthInput.value, 10);
+        if (!isFinite(widthVal) || widthVal < 100) widthVal = 320;
+        var placement = evPlacement.value || 'auto';
+        var prevNote = (selectedEventIdx >= 0 && draft && draft.events[selectedEventIdx])
+            ? draft.events[selectedEventIdx].note || {} : {};
+        var note = {
+            anchor: prevNote.anchor || { mode: 'world', target: 'black_hole' },
+            placement: placement === 'manual' ? (prevNote.placement || 'auto') : placement,
+            color: evColorInput.value || '#7cc5ff',
+            width: widthVal
+        };
+        if (placement === 'manual') {
+            if (typeof prevNote.boxX === 'number') note.boxX = prevNote.boxX;
+            if (typeof prevNote.boxY === 'number') note.boxY = prevNote.boxY;
+        }
+        if (title) note.title = title;
+        if (body.trim()) note.text = body;
+        return note;
+    }
+
+    // ── Drag overlay for positioning box and pointer ─────────────────────────
+    function startPositionDrag() {
+        if (typeof setPresentationAnnotation !== 'function') return;
+        var note = buildNoteFromInspector();
+        if (!note) { setStatus('Add title or text first.', 'tl-status--warn'); return; }
+
+        // Create fullscreen overlay
+        var overlay = document.createElement('div');
+        overlay.className = 'tl-drag-overlay';
+        overlay.innerHTML =
+            '<div class="tl-drag-help">Drag <b>box</b> to position bubble. Drag <b>circle</b> to position pointer tip. Press <b>Esc</b> or <b>right-click</b> to finish.</div>' +
+            '<div class="tl-drag-handle tl-drag-handle--box" title="Drag to move bubble"></div>' +
+            '<div class="tl-drag-handle tl-drag-handle--ptr" title="Drag to move pointer tip"></div>';
+        document.body.appendChild(overlay);
+
+        var boxHandle = overlay.querySelector('.tl-drag-handle--box');
+        var ptrHandle = overlay.querySelector('.tl-drag-handle--ptr');
+
+        var viewW = window.innerWidth;
+        var viewH = window.innerHeight;
+
+        // Initial positions
+        var boxX = (typeof note.boxX === 'number') ? note.boxX : 0.7;
+        var boxY = (typeof note.boxY === 'number') ? note.boxY : 0.3;
+        var anchorX = (note.anchor && typeof note.anchor.x === 'number') ? note.anchor.x : 0.5;
+        var anchorY = (note.anchor && typeof note.anchor.y === 'number') ? note.anchor.y : 0.5;
+
+        function updateHandles() {
+            boxHandle.style.left = (boxX * viewW) + 'px';
+            boxHandle.style.top  = (boxY * viewH) + 'px';
+            ptrHandle.style.left = (anchorX * viewW) + 'px';
+            ptrHandle.style.top  = (anchorY * viewH) + 'px';
+        }
+
+        function updateLivePreview() {
+            note.boxX = boxX;
+            note.boxY = boxY;
+            note.anchor = { mode: 'screen', x: anchorX, y: anchorY };
+            note.placement = note.placement || 'auto';
+            setPresentationAnnotation(note);
+        }
+
+        updateHandles();
+        updateLivePreview();
+
+        var dragging = null; // 'box' or 'ptr'
+        var dragOffX = 0, dragOffY = 0;
+
+        function onDown(e) {
+            e.preventDefault();
+            var target = e.target;
+            if (target === boxHandle) {
+                dragging = 'box';
+            } else if (target === ptrHandle) {
+                dragging = 'ptr';
+            } else {
+                return;
+            }
+            var rect = target.getBoundingClientRect();
+            dragOffX = e.clientX - rect.left - rect.width / 2;
+            dragOffY = e.clientY - rect.top - rect.height / 2;
+        }
+
+        function onMove(e) {
+            if (!dragging) return;
+            e.preventDefault();
+            var x = (e.clientX - dragOffX) / viewW;
+            var y = (e.clientY - dragOffY) / viewH;
+            x = Math.max(0, Math.min(1, x));
+            y = Math.max(0, Math.min(1, y));
+            if (dragging === 'box') {
+                boxX = x; boxY = y;
+            } else {
+                anchorX = x; anchorY = y;
+            }
+            updateHandles();
+            updateLivePreview();
+        }
+
+        function onUp() {
+            dragging = null;
+        }
+
+        function finish() {
+            overlay.removeEventListener('pointerdown', onDown);
+            overlay.removeEventListener('pointermove', onMove);
+            overlay.removeEventListener('pointerup', onUp);
+            document.removeEventListener('keydown', onKey);
+            overlay.removeEventListener('contextmenu', onContext);
+            document.body.removeChild(overlay);
+            if (typeof clearPresentationAnnotation === 'function') clearPresentationAnnotation();
+
+            // Apply to draft
+            if (draft && selectedEventIdx >= 0 && draft.events[selectedEventIdx]) {
+                pushUndo();
+                var ev = draft.events[selectedEventIdx];
+                if (!ev.note) ev.note = {};
+                ev.note.boxX = boxX;
+                ev.note.boxY = boxY;
+                ev.note.anchor = { mode: 'screen', x: anchorX, y: anchorY };
+                evPlacement.value = 'manual';
+                applyDraft();
+                rebuildAll();
+                fillEventInspector(draft.events[selectedEventIdx], selectedEventIdx);
+                setStatus('Position set. Click SET EVENT to save all changes.', 'tl-status--info');
+            }
+        }
+
+        function onKey(e) {
+            if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish(); }
+        }
+
+        function onContext(e) {
+            e.preventDefault();
+            finish();
+        }
+
+        overlay.addEventListener('pointerdown', onDown);
+        overlay.addEventListener('pointermove', onMove);
+        overlay.addEventListener('pointerup', onUp);
+        document.addEventListener('keydown', onKey, true);
+        overlay.addEventListener('contextmenu', onContext);
+    }
+
     function rebuildAll() {
         rebuildTrackList();
         rebuildLanes();
+        rebuildEventsLane();
         updateRuler();
         updateInspector();
         updatePathDatalist();
     }
+
+    // ── Timeline zoom & scroll ───────────────────────────────────────────────
+    function updateZoomDisplay() {
+        if (!zoomResetBtn) return;
+        if (tlZoom <= 1.005) {
+            zoomResetBtn.textContent = '1\u00d7';
+        } else {
+            zoomResetBtn.textContent = (tlZoom < 10 ? tlZoom.toFixed(1) : Math.round(tlZoom)) + '\u00d7';
+        }
+    }
+
+    function applyZoomWidth() {
+        if (!timeContentEl) return;
+        timeContentEl.style.width = (tlZoom * 100).toFixed(3) + '%';
+    }
+
+    function zoomAtClientX(newZoom, clientX) {
+        newZoom = clamp(newZoom, ZOOM_MIN, ZOOM_MAX);
+        var oldZoom = tlZoom;
+        if (Math.abs(newZoom - oldZoom) < 1e-4) return;
+        var rect = scrollWrapEl.getBoundingClientRect();
+        var cx = (clientX !== undefined) ? clamp(clientX - rect.left, 0, rect.width) : rect.width * 0.5;
+        var oldScroll = scrollWrapEl.scrollLeft;
+        tlZoom = newZoom;
+        applyZoomWidth();
+        // Keep the time-point under the cursor at the same screen position
+        var ratio = oldZoom / newZoom;
+        var newScroll = (oldScroll + cx) * (newZoom / oldZoom) - cx;
+        var maxScroll = rect.width * (newZoom - 1);
+        scrollWrapEl.scrollLeft = clamp(newScroll, 0, maxScroll);
+        updateZoomDisplay();
+        updateRuler();
+        updatePlayheads();
+    }
+
+    function resetZoom() {
+        tlZoom = 1.0;
+        applyZoomWidth();
+        scrollWrapEl.scrollLeft = 0;
+        updateZoomDisplay();
+        updateRuler();
+        updatePlayheads();
+    }
+
+    // Scroll the view so the current playhead is visible
+    function scrollToPlayhead() {
+        if (!scrollWrapEl || tlZoom <= 1.0) return;
+        var t = currentTime(), d = getDuration();
+        var viewW = scrollWrapEl.clientWidth;
+        var contentW = viewW * tlZoom;
+        var phPx = (t / Math.max(d, 0.001)) * contentW;
+        var sl = scrollWrapEl.scrollLeft;
+        var margin = viewW * 0.12;
+        if (phPx > sl + viewW - margin) {
+            scrollWrapEl.scrollLeft = clamp(phPx - viewW + margin, 0, contentW - viewW);
+        } else if (phPx < sl + margin) {
+            scrollWrapEl.scrollLeft = clamp(phPx - margin, 0, contentW - viewW);
+        }
+    }
+
+    // Ctrl+wheel → zoom; plain wheel when zoomed + deltaX=0 → horizontal scroll
+    scrollWrapEl.addEventListener('wheel', function(e) {
+        if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            var factor = e.deltaY > 0 ? (1.0 / 1.25) : 1.25;
+            zoomAtClientX(tlZoom * factor, e.clientX);
+        } else if (tlZoom > 1.0 && e.deltaX === 0 && e.deltaY !== 0) {
+            // Regular mouse wheel: redirect vertical scroll to horizontal when zoomed
+            e.preventDefault();
+            scrollWrapEl.scrollLeft += e.deltaY;
+        }
+    }, { passive: false });
+
+    zoomOutBtn.addEventListener('click', function() { zoomAtClientX(tlZoom / 1.5); });
+    zoomInBtn.addEventListener('click', function() { zoomAtClientX(tlZoom * 1.5); });
+    zoomResetBtn.addEventListener('click', resetZoom);
 
     function startSync() {
         if (syncTimer) return;
@@ -612,6 +1228,11 @@ function buildTimelinePanel() {
             updateScrubber();
             updatePlayheads();
             syncRecModal();
+            // Auto-scroll to keep playhead visible during playback
+            if (tlZoom > 1.0) {
+                var pst = typeof getPresentationState === 'function' ? getPresentationState() : null;
+                if (pst && pst.active && !pst.paused) scrollToPlayhead();
+            }
         }, 80);
     }
     function stopSync() { clearInterval(syncTimer); syncTimer = null; }
@@ -620,7 +1241,14 @@ function buildTimelinePanel() {
     function normalizeTL(raw) {
         var src = (raw && typeof raw === 'object') ? clonePlain(raw) : {};
         var out = { name: src.name || 'Untitled', duration: Math.max(0.5, parseTime(src.duration, 12)),
-                    loop: !!src.loop, tracks: [], events: [] };
+                    loop: !!src.loop, tracks: [], events: [], annotationTracks: [] };
+        if (Array.isArray(src.annotationTracks)) {
+            for (var ati = 0; ati < src.annotationTracks.length; ati++) {
+                var at = src.annotationTracks[ati];
+                if (at && typeof at === 'object') out.annotationTracks.push({ label: at.label || ('Annotation ' + (ati + 1)) });
+            }
+        }
+        if (!out.annotationTracks.length) out.annotationTracks.push({ label: 'Annotation 1' });
         var tracks = Array.isArray(src.tracks) ? src.tracks : [];
         for (var i = 0; i < tracks.length; i++) {
             var tr = tracks[i];
@@ -712,24 +1340,34 @@ function buildTimelinePanel() {
         selectedTrack = btn.getAttribute('data-path');
         selectedKeyT = NaN;
         clearMultiSelect();
+        selectedEventIdx = -1;
         rebuildTrackList();
         rebuildLanes();
+        rebuildEventsLane();
         updateInspector();
     });
 
     // ── Ruler (time header in dopesheet) ────────────────────────────────────
     function updateRuler() {
         var d = getDuration();
-        var tickCount = d >= 30 ? 12 : (d >= 10 ? 10 : 8);
-        var html = '';
-        for (var i = 0; i <= tickCount; i++) {
-            var pct = (i / tickCount) * 100;
-            var t = (i / tickCount) * d;
-            html += '<span class="tl-ruler-tick" style="left:' + pct.toFixed(2) + '%">' +
-                '<span class="tl-ruler-label">' + t.toFixed(1) + 's</span></span>';
+        // Compute tick spacing based on the visible time range for nice round numbers
+        var visibleD = d / Math.max(1, tlZoom);
+        var rawSpacing = visibleD / 10;
+        var niceSpacings = [0.1, 0.2, 0.5, 1, 2, 5, 10, 15, 20, 30, 60, 120];
+        var spacing = niceSpacings[niceSpacings.length - 1];
+        for (var ni = 0; ni < niceSpacings.length; ni++) {
+            if (niceSpacings[ni] >= rawSpacing) { spacing = niceSpacings[ni]; break; }
         }
-        // playhead
-        var phPct = clamp(currentTime() / Math.max(d, 0.001) * 100, 0, 100);
+        var html = '';
+        var t = 0, safeD = Math.max(d, 0.001);
+        while (t <= d + spacing * 0.01) {
+            var pct = (t / safeD) * 100;
+            var label = t < 60 ? t.toFixed(t % 1 === 0 ? 0 : 1) + 's' : (Math.floor(t / 60) + ':' + ('0' + Math.round(t % 60)).slice(-2));
+            html += '<span class="tl-ruler-tick" style="left:' + pct.toFixed(3) + '%">' +
+                '<span class="tl-ruler-label">' + label + '</span></span>';
+            t = Math.round((t + spacing) * 10000) / 10000;
+        }
+        var phPct = clamp(currentTime() / safeD * 100, 0, 100);
         html += '<span class="tl-ruler-playhead" id="tl-ruler-playhead" style="left:' + phPct.toFixed(2) + '%"></span>';
         rulerEl.innerHTML = html;
     }
@@ -830,6 +1468,8 @@ function buildTimelinePanel() {
         if (dragJustCommitted) { dragJustCommitted = false; return; }
         var diamond = e.target.closest('.tl-diamond');
         if (diamond) {
+            selectedEventIdx = -1;
+            showKeyInspector();
             var path = diamond.getAttribute('data-path');
             var ki = parseInt(diamond.getAttribute('data-ki'), 10);
             var track = getTrackByPath(path);
@@ -866,6 +1506,7 @@ function buildTimelinePanel() {
             selectedTrack = lane.getAttribute('data-path');
             selectedKeyT = NaN;
             clearMultiSelect();
+            selectedEventIdx = -1;
             // Seek to the clicked time position
             var rect = lane.getBoundingClientRect();
             if (rect.width > 0) {
@@ -1001,6 +1642,17 @@ function buildTimelinePanel() {
 
     // ── Inspector (right column) ────────────────────────────────────────────
     function updateInspector() {
+        // If an event is selected, keep the event inspector showing
+        if (selectedEventIdx >= 0) {
+            if (!draft || selectedEventIdx >= draft.events.length) {
+                selectedEventIdx = -1;
+                showKeyInspector();
+            } else {
+                fillEventInspector(draft.events[selectedEventIdx], selectedEventIdx);
+                return;
+            }
+        }
+        showKeyInspector();
         // Multi-selection summary
         if (selectedKeys.length > 1) {
             var pathSet = {};
@@ -1149,6 +1801,122 @@ function buildTimelinePanel() {
         rebuildAll();
         setStatus('Key deleted.', '');
     });
+
+    // ── Annotation lane pointer handler (select + drag markers, multi-channel) ──
+    (function() {
+        var dragEi = -1;
+        var dragLaneEl = null;
+        var dragStartX = 0;
+        var dragged = false;
+        var DRAG_THRESHOLD = 4;
+
+        annotLaneColEl.addEventListener('pointerdown', function(e) {
+            if (e.button !== 0) return;
+            var marker = e.target.closest('.tl-ev-marker');
+            if (marker) {
+                dragEi = parseInt(marker.getAttribute('data-ei'), 10);
+                dragLaneEl = marker.closest('.tl-events-lane');
+                dragStartX = e.clientX;
+                dragged = false;
+                annotLaneColEl.setPointerCapture(e.pointerId);
+                e.preventDefault();
+            }
+        });
+
+        annotLaneColEl.addEventListener('pointermove', function(e) {
+            if (dragEi < 0) return;
+            var dx = e.clientX - dragStartX;
+            if (!dragged && Math.abs(dx) < DRAG_THRESHOLD) return;
+            dragged = true;
+            if (!dragLaneEl || !draft) return;
+            var rect = dragLaneEl.getBoundingClientRect();
+            if (rect.width <= 0) return;
+            var dur = getDuration();
+            var ratio = clamp((e.clientX - rect.left) / rect.width, 0, 1);
+            var newT = ratio * dur;
+            draft.events[dragEi].t = Math.max(0, newT);
+            var markerEl = dragLaneEl.querySelector('.tl-ev-marker[data-ei="' + dragEi + '"]');
+            if (markerEl && dur > 0) markerEl.style.left = ((newT / dur) * 100) + '%';
+        });
+
+        annotLaneColEl.addEventListener('pointerup', function(e) {
+            if (dragEi < 0) return;
+            var ei = dragEi;
+            dragEi = -1;
+            annotLaneColEl.releasePointerCapture(e.pointerId);
+
+            if (dragged && draft) {
+                pushUndo();
+                var ev = draft.events[ei];
+                draft.events.sort(function(a, b) { return a.t - b.t; });
+                for (var i = 0; i < draft.events.length; i++) {
+                    if (draft.events[i] === ev) { selectedEventIdx = i; break; }
+                }
+                dragLaneEl = null;
+                applyDraft();
+                rebuildAll();
+                fillEventInspector(draft.events[selectedEventIdx], selectedEventIdx);
+                setStatus('Event moved to ' + ev.t.toFixed(2) + 's.', '');
+            } else {
+                dragLaneEl = null;
+                if (draft && draft.events[ei]) {
+                    clearMultiSelect();
+                    selectedTrack = '';
+                    fillEventInspector(draft.events[ei], ei);
+                    rebuildEventsLane();
+                    rebuildTrackList();
+                    rebuildLanes();
+                }
+            }
+        });
+
+        // Background click: deselect + seek, and track active channel
+        annotLaneColEl.addEventListener('click', function(e) {
+            if (e.target.closest('.tl-ev-marker')) return;
+            var lane = e.target.closest('.tl-events-lane');
+            if (lane) {
+                var lch = parseInt(lane.getAttribute('data-ch'), 10);
+                if (isFinite(lch)) selectedEventChannel = lch;
+            }
+            if (selectedEventIdx >= 0) {
+                selectedEventIdx = -1;
+                showKeyInspector();
+                rebuildEventsLane();
+            }
+            if (lane) {
+                var rect = lane.getBoundingClientRect();
+                if (rect.width > 0) {
+                    var ratio = clamp((e.clientX - rect.left) / rect.width, 0, 1);
+                    var t2 = ratio * getDuration();
+                    if (typeof seekPresentation === 'function') seekPresentation(t2);
+                    updateTimeInputs(); updateScrubber(); updatePlayheads();
+                }
+            }
+        });
+    })();
+
+    // ── Text event inspector handlers ────────────────────────────────────────
+    evUseTimeBtn.addEventListener('click', function() {
+        evTimeInput.value = currentTime().toFixed(2);
+    });
+    evSetBtn.addEventListener('click', doSetEvent);
+    evTimeInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); doSetEvent(); }
+    });
+    evDelBtn.addEventListener('click', function() {
+        if (!draft || selectedEventIdx < 0) return;
+        pushUndo();
+        draft.events.splice(selectedEventIdx, 1);
+        selectedEventIdx = -1;
+        showKeyInspector();
+        applyDraft();
+        rebuildAll();
+        setStatus('Annotation event deleted.', '');
+    });
+    evNewBtn.addEventListener('click', addNewAnnotationEvent);
+    addTextBtn.addEventListener('click', addNewAnnotationEvent);
+    evPositionBtn.addEventListener('click', startPositionDrag);
+    evPreviewBtn.addEventListener('click', previewAnnotation);
 
     // ── Add track ───────────────────────────────────────────────────────────
     addTrackBtn.addEventListener('click', function() {
@@ -1977,9 +2745,15 @@ function buildTimelinePanel() {
 
         if (inInput) return;
 
-        // Escape → close motion modal if open
+        // Escape → close motion modal if open, or deselect event
         if (e.code === 'Escape') {
-            if (motionModal.classList.contains('is-open')) { closeMotionModal(); e.preventDefault(); }
+            if (motionModal.classList.contains('is-open')) { closeMotionModal(); e.preventDefault(); return; }
+            if (selectedEventIdx >= 0) {
+                selectedEventIdx = -1;
+                showKeyInspector();
+                rebuildEventsLane();
+                e.preventDefault();
+            }
             return;
         }
 

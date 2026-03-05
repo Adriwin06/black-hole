@@ -162,7 +162,7 @@ var presentationCaptureState = {
 var presentationAnnotationState = {
     enabled: true,
     includeInRecording: false,
-    note: null,
+    notes: {},   // { channel: note } keyed by channel number
     canvas: null,
     ctx: null,
     resizeBound: false
@@ -230,20 +230,25 @@ function resizePresentationAnnotationCanvas() {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 
-function setPresentationAnnotation(note) {
+function setPresentationAnnotation(note, channel) {
+    var ch = (typeof channel === 'number' && channel >= 0) ? channel : 0;
     if (!note || typeof note !== 'object') {
-        presentationAnnotationState.note = null;
-        updatePresentationOverlay(true);
+        delete presentationAnnotationState.notes[ch];
+        updatePresentationOverlay();
         return false;
     }
-    presentationAnnotationState.note = clonePresentationData(note);
+    presentationAnnotationState.notes[ch] = clonePresentationData(note);
     updatePresentationOverlay();
     return true;
 }
 
-function clearPresentationAnnotation() {
-    presentationAnnotationState.note = null;
-    updatePresentationOverlay(true);
+function clearPresentationAnnotation(channel) {
+    if (typeof channel === 'number' && channel >= 0) {
+        delete presentationAnnotationState.notes[channel];
+    } else {
+        presentationAnnotationState.notes = {};
+    }
+    updatePresentationOverlay();
 }
 
 function setPresentationAnnotationsEnabled(enabled) {
@@ -261,7 +266,7 @@ function getPresentationAnnotationsState() {
     return {
         enabled: !!presentationAnnotationState.enabled,
         includeInRecording: !!presentationAnnotationState.includeInRecording,
-        active: !!presentationAnnotationState.note
+        active: Object.keys(presentationAnnotationState.notes).length > 0
     };
 }
 
@@ -495,94 +500,125 @@ function buildPresentationNoteLayout(ctx, note, viewWidth, viewHeight) {
     var height = paddingY + titleSpace + bodySpace + paddingY;
 
     var anchor = getAnnotationAnchorPoint(note, viewWidth, viewHeight);
-    var safeMargins = getPresentationOverlaySafeMargins(viewWidth);
-    var placement = (note.placement || 'right').toLowerCase();
-    var sideInset = parseFloat(note.sideInset);
-    if (!isFinite(sideInset)) sideInset = 26;
-    sideInset = presentationClamp(sideInset, 0, Math.max(0, viewWidth * 0.18));
-    var sideDockLeft = safeMargins.left + sideInset;
-    var sideDockRight = Math.max(sideDockLeft, viewWidth - safeMargins.right - width - sideInset);
-    if (placement === 'auto') {
-        var usableCenterX = safeMargins.left +
-            (viewWidth - safeMargins.left - safeMargins.right) * 0.5;
-        placement = (anchor.x >= usableCenterX) ? 'left' : 'right';
-    }
-    var offset = parseFloat(note.offset);
-    if (!isFinite(offset)) offset = 56;
-    offset = Math.max(16, offset);
-    var x = anchor.x;
-    var y = anchor.y;
 
-    if (placement === 'left') {
-        x = sideDockLeft;
-        x = Math.min(x, anchor.x - width - offset);
-        y -= height * 0.45;
-    } else if (placement === 'top') {
-        x -= width * 0.5;
-        y -= height + offset;
-    } else if (placement === 'bottom') {
-        x -= width * 0.5;
-        y += offset;
+    // ── Direct box position override (set by drag UI) ──
+    var hasDirectBox = (typeof note.boxX === 'number' && typeof note.boxY === 'number');
+    var x, y;
+    if (hasDirectBox) {
+        x = presentationClamp(note.boxX * viewWidth, 0, Math.max(0, viewWidth - width));
+        y = presentationClamp(note.boxY * viewHeight, 0, Math.max(0, viewHeight - height));
     } else {
-        x = sideDockRight;
-        x = Math.max(x, anchor.x + offset);
-        y -= height * 0.45;
-    }
-
-    // Keep the center action clear by pushing notes away from the projected black-hole region.
-    var bhProj = projectPresentationWorldPoint((typeof THREE !== 'undefined') ? new THREE.Vector3(0.0, 0.0, 0.0) : null);
-    if (bhProj && !bhProj.offscreen) {
-        var bhX = (bhProj.x * 0.5 + 0.5) * viewWidth;
-        var bhY = (-bhProj.y * 0.5 + 0.5) * viewHeight;
-        var protectRadius = presentationClamp(Math.min(viewWidth, viewHeight) * 0.24, 140, 340);
-        var centerGap = Math.max(18, parseFloat(note.centerGap) || 24);
+        var safeMargins = getPresentationOverlaySafeMargins(viewWidth);
+        var placement = (note.placement || 'right').toLowerCase();
+        var sideInset = parseFloat(note.sideInset);
+        if (!isFinite(sideInset)) sideInset = 26;
+        sideInset = presentationClamp(sideInset, 0, Math.max(0, viewWidth * 0.18));
+        var sideDockLeft = safeMargins.left + sideInset;
+        var sideDockRight = Math.max(sideDockLeft, viewWidth - safeMargins.right - width - sideInset);
+        if (placement === 'auto') {
+            var usableCenterX = safeMargins.left +
+                (viewWidth - safeMargins.left - safeMargins.right) * 0.5;
+            placement = (anchor.x >= usableCenterX) ? 'left' : 'right';
+        }
+        var offset = parseFloat(note.offset);
+        if (!isFinite(offset)) offset = 56;
+        offset = Math.max(16, offset);
+        x = anchor.x;
+        y = anchor.y;
 
         if (placement === 'left') {
-            var leftMaxX = bhX - protectRadius - width - centerGap;
-            if (isFinite(leftMaxX)) x = Math.min(x, leftMaxX);
-        } else if (placement === 'right') {
-            var rightMinX = bhX + protectRadius + centerGap;
-            if (isFinite(rightMinX)) x = Math.max(x, rightMinX);
+            x = sideDockLeft;
+            x = Math.min(x, anchor.x - width - offset);
+            y -= height * 0.45;
         } else if (placement === 'top') {
-            var topMaxY = bhY - protectRadius - height - centerGap;
-            if (isFinite(topMaxY)) y = Math.min(y, topMaxY);
+            x -= width * 0.5;
+            y -= height + offset;
         } else if (placement === 'bottom') {
-            var bottomMinY = bhY + protectRadius + centerGap;
-            if (isFinite(bottomMinY)) y = Math.max(y, bottomMinY);
+            x -= width * 0.5;
+            y += offset;
+        } else {
+            x = sideDockRight;
+            x = Math.max(x, anchor.x + offset);
+            y -= height * 0.45;
         }
 
-        // If still intersecting the protected center, force to the far outer side.
-        if (rectIntersectsCircle(x, y, width, height, bhX, bhY, protectRadius)) {
-            if (placement === 'left' || placement === 'right') {
-                x = (anchor.x >= bhX) ? sideDockLeft : sideDockRight;
-            } else {
-                y = (anchor.y >= bhY)
-                    ? Math.max(14, bhY - protectRadius - height - centerGap)
-                    : Math.min(viewHeight - height - 14, bhY + protectRadius + centerGap);
+        // Keep the center action clear by pushing notes away from the projected black-hole region.
+        var bhProj = projectPresentationWorldPoint((typeof THREE !== 'undefined') ? new THREE.Vector3(0.0, 0.0, 0.0) : null);
+        if (bhProj && !bhProj.offscreen) {
+            var bhX = (bhProj.x * 0.5 + 0.5) * viewWidth;
+            var bhY = (-bhProj.y * 0.5 + 0.5) * viewHeight;
+            var protectRadius = presentationClamp(Math.min(viewWidth, viewHeight) * 0.24, 140, 340);
+            var centerGap = Math.max(18, parseFloat(note.centerGap) || 24);
+
+            if (placement === 'left') {
+                var leftMaxX = bhX - protectRadius - width - centerGap;
+                if (isFinite(leftMaxX)) x = Math.min(x, leftMaxX);
+            } else if (placement === 'right') {
+                var rightMinX = bhX + protectRadius + centerGap;
+                if (isFinite(rightMinX)) x = Math.max(x, rightMinX);
+            } else if (placement === 'top') {
+                var topMaxY = bhY - protectRadius - height - centerGap;
+                if (isFinite(topMaxY)) y = Math.min(y, topMaxY);
+            } else if (placement === 'bottom') {
+                var bottomMinY = bhY + protectRadius + centerGap;
+                if (isFinite(bottomMinY)) y = Math.max(y, bottomMinY);
+            }
+
+            // If still intersecting the protected center, force to the far outer side.
+            if (rectIntersectsCircle(x, y, width, height, bhX, bhY, protectRadius)) {
+                if (placement === 'left' || placement === 'right') {
+                    x = (anchor.x >= bhX) ? sideDockLeft : sideDockRight;
+                } else {
+                    y = (anchor.y >= bhY)
+                        ? Math.max(14, bhY - protectRadius - height - centerGap)
+                        : Math.min(viewHeight - height - 14, bhY + protectRadius + centerGap);
+                }
             }
         }
+
+        x = presentationClamp(
+            x,
+            safeMargins.left,
+            Math.max(safeMargins.left, viewWidth - width - safeMargins.right)
+        );
+        y = presentationClamp(y, 14, Math.max(14, viewHeight - height - 14));
     }
 
-    x = presentationClamp(
-        x,
-        safeMargins.left,
-        Math.max(safeMargins.left, viewWidth - width - safeMargins.right)
-    );
-    y = presentationClamp(y, 14, Math.max(14, viewHeight - height - 14));
     var lineEndX;
     var lineEndY;
-    if (placement === 'left') {
-        lineEndX = x + width - 8;
-        lineEndY = presentationClamp(anchor.y, y + 8, y + height - 8);
-    } else if (placement === 'top') {
-        lineEndX = presentationClamp(anchor.x, x + 8, x + width - 8);
-        lineEndY = y + height - 8;
-    } else if (placement === 'bottom') {
-        lineEndX = presentationClamp(anchor.x, x + 8, x + width - 8);
-        lineEndY = y + 8;
+    // Compute pointer line end: closest box edge to anchor
+    if (hasDirectBox) {
+        // With direct positioning, connect to nearest box edge
+        var acx = anchor.x, acy = anchor.y;
+        var bCenterX = x + width * 0.5, bCenterY = y + height * 0.5;
+        var dx = acx - bCenterX, dy = acy - bCenterY;
+        if (Math.abs(dx) * height > Math.abs(dy) * width) {
+            // Left or right edge
+            lineEndX = dx > 0 ? x + width - 8 : x + 8;
+            lineEndY = presentationClamp(acy, y + 8, y + height - 8);
+        } else {
+            // Top or bottom edge
+            lineEndX = presentationClamp(acx, x + 8, x + width - 8);
+            lineEndY = dy > 0 ? y + height - 8 : y + 8;
+        }
     } else {
-        lineEndX = x + 8;
-        lineEndY = presentationClamp(anchor.y, y + 8, y + height - 8);
+        var resolvedPlacement = (note.placement || 'right').toLowerCase();
+        if (resolvedPlacement === 'auto') {
+            resolvedPlacement = (anchor.x >= viewWidth * 0.5) ? 'left' : 'right';
+        }
+        if (resolvedPlacement === 'left') {
+            lineEndX = x + width - 8;
+            lineEndY = presentationClamp(anchor.y, y + 8, y + height - 8);
+        } else if (resolvedPlacement === 'top') {
+            lineEndX = presentationClamp(anchor.x, x + 8, x + width - 8);
+            lineEndY = y + height - 8;
+        } else if (resolvedPlacement === 'bottom') {
+            lineEndX = presentationClamp(anchor.x, x + 8, x + width - 8);
+            lineEndY = y + 8;
+        } else {
+            lineEndX = x + 8;
+            lineEndY = presentationClamp(anchor.y, y + 8, y + height - 8);
+        }
     }
 
     return {
@@ -604,13 +640,8 @@ function buildPresentationNoteLayout(ctx, note, viewWidth, viewHeight) {
     };
 }
 
-function drawPresentationNote(ctx, layout, clearOnly) {
-    var canvas = presentationAnnotationState.canvas;
-    if (!canvas || !ctx) return;
-    var viewWidth = parseFloat(canvas.style.width) || window.innerWidth || 1;
-    var viewHeight = parseFloat(canvas.style.height) || window.innerHeight || 1;
-    ctx.clearRect(0, 0, viewWidth, viewHeight);
-    if (clearOnly) return;
+function drawPresentationNote(ctx, layout) {
+    if (!ctx || !layout) return;
 
     var accent = layout.color || '#7cc5ff';
     var fill = 'rgba(8, 17, 33, 0.86)';
@@ -661,20 +692,24 @@ function drawPresentationNote(ctx, layout, clearOnly) {
     ctx.restore();
 }
 
-function updatePresentationOverlay(forceClear) {
+function updatePresentationOverlay() {
     var canvas = ensurePresentationAnnotationCanvas();
     var ctx = presentationAnnotationState.ctx;
     if (!canvas || !ctx) return;
 
-    if (forceClear || !presentationAnnotationState.enabled || !presentationAnnotationState.note) {
-        drawPresentationNote(ctx, null, true);
-        return;
-    }
-
     var viewWidth = parseFloat(canvas.style.width) || window.innerWidth || 1;
     var viewHeight = parseFloat(canvas.style.height) || window.innerHeight || 1;
-    var layout = buildPresentationNoteLayout(ctx, presentationAnnotationState.note, viewWidth, viewHeight);
-    drawPresentationNote(ctx, layout, false);
+    ctx.clearRect(0, 0, viewWidth, viewHeight);
+
+    if (!presentationAnnotationState.enabled) return;
+    var notes = presentationAnnotationState.notes;
+    var channels = Object.keys(notes);
+    for (var i = 0; i < channels.length; i++) {
+        var note = notes[channels[i]];
+        if (!note) continue;
+        var layout = buildPresentationNoteLayout(ctx, note, viewWidth, viewHeight);
+        drawPresentationNote(ctx, layout);
+    }
 }
 
 function normalizePresentationTimeline(timeline) {
@@ -1028,10 +1063,10 @@ function executePresentationEvent(event) {
             presentationState.compileRequested = true;
             break;
         case 'annotation':
-            setPresentationAnnotation(event.note);
+            setPresentationAnnotation(event.note, event.channel || 0);
             break;
         case 'clearAnnotation':
-            clearPresentationAnnotation();
+            clearPresentationAnnotation(typeof event.channel === 'number' ? event.channel : undefined);
             break;
     }
 }
