@@ -96,7 +96,9 @@ function buildTimelinePanel() {
             '<div class="tl-transport-right">' +
                 '<label for="tl-preset-select" class="tl-preset-label">Preset</label>' +
                 '<select id="tl-preset-select" class="tl-preset-select"></select>' +
+                '<button id="tl-btn-del-preset" class="tl-btn tl-btn--del-preset" type="button" title="Remove this imported preset" style="display:none">&#128465;</button>' +
                 '<span class="tl-transport-sep"></span>' +
+                '<button id="tl-btn-save" class="tl-btn tl-btn--save" type="button" title="Save changes to the loaded file">&#128190;&nbsp;SAVE</button>' +
                 '<button id="tl-btn-motion" class="tl-btn tl-btn--motion" type="button" title="Insert a predefined motion function">⊕&nbsp;FX</button>' +
                 '<button id="tl-btn-rec" class="tl-btn tl-btn--rec" type="button" title="Recording settings">&#9679;&nbsp;REC</button>' +
                 '<span class="tl-transport-sep"></span>' +
@@ -299,6 +301,8 @@ function buildTimelinePanel() {
     var addTrackBtn  = panel.querySelector('#tl-btn-add-track');
     var importBtn    = panel.querySelector('#tl-btn-import');
     var exportBtn    = panel.querySelector('#tl-btn-export');
+    var saveBtn      = panel.querySelector('#tl-btn-save');
+    var delPresetBtn = panel.querySelector('#tl-btn-del-preset');
     var closeBtn     = panel.querySelector('#tl-btn-close');
     var timeCurrent  = panel.querySelector('#tl-time-current');
     var timeDuration = panel.querySelector('#tl-time-duration');
@@ -383,6 +387,8 @@ function buildTimelinePanel() {
     var panelOpen      = false;
     var autoKeySnapshot= null;
     var syncTimer      = null;
+    var importedPresets = {};     // { presetName: true } for user-imported presets (removable)
+    var linkedFileName  = null;   // filename linked to this draft for save-in-place
     var PANEL_HEIGHT_KEY  = 'black-hole.tl-panel.height';
     var PANEL_STATE_KEY   = 'black-hole.tl-panel.state';
     var PANEL_DEFAULT_H   = 320;
@@ -427,6 +433,13 @@ function buildTimelinePanel() {
     // ── Persistence ───────────────────────────────────────────────────────
     function saveState() {
         try {
+            // Also save the imported preset data so they survive reload
+            var importedData = {};
+            for (var ipn in importedPresets) {
+                if (importedPresets.hasOwnProperty(ipn) && typeof PRESENTATION_PRESETS !== 'undefined' && PRESENTATION_PRESETS[ipn]) {
+                    importedData[ipn] = clonePlain(PRESENTATION_PRESETS[ipn]);
+                }
+            }
             var state = {
                 preset: presetSelect.value || '',
                 draft: draft ? clonePlain(draft) : null,
@@ -436,7 +449,10 @@ function buildTimelinePanel() {
                 selectedEventChannel: selectedEventChannel,
                 tlZoom: tlZoom,
                 tlScrollLeft: scrollWrapEl ? scrollWrapEl.scrollLeft : 0,
-                wasOpen: panelOpen
+                wasOpen: panelOpen,
+                importedPresets: importedPresets,
+                importedData: importedData,
+                linkedFileName: linkedFileName
             };
             sessionStorage.setItem(PANEL_STATE_KEY, JSON.stringify(state));
         } catch(e) {}
@@ -462,6 +478,21 @@ function buildTimelinePanel() {
         if (panelOpen) {
             updatePushedOffset();
             var saved = loadState();
+            if (saved) {
+                // Restore imported presets first so they are available in the dropdown
+                if (saved.importedPresets && typeof saved.importedPresets === 'object') {
+                    importedPresets = saved.importedPresets;
+                    var iData = saved.importedData || {};
+                    for (var ip in importedPresets) {
+                        if (importedPresets.hasOwnProperty(ip) && typeof registerPresentationPreset === 'function') {
+                            if (iData[ip]) {
+                                registerPresentationPreset(clonePlain(iData[ip]), ip);
+                            }
+                        }
+                    }
+                }
+                if (saved.linkedFileName) linkedFileName = saved.linkedFileName;
+            }
             populatePresets();
             if (saved) {
                 // Restore persisted state
@@ -486,6 +517,7 @@ function buildTimelinePanel() {
                         scrollWrapEl.scrollLeft = saved.tlScrollLeft;
                     }
                 }
+                updateDelPresetBtn();
             } else {
                 // No saved state — default to a fresh empty timeline
                 presetSelect.value = '';
@@ -642,13 +674,13 @@ function buildTimelinePanel() {
         // "New (empty)" option
         var emptyOpt = document.createElement('option');
         emptyOpt.value = '';
-        emptyOpt.textContent = '— new empty —';
+        emptyOpt.textContent = '\u2014 new empty \u2014';
         presetSelect.appendChild(emptyOpt);
 
         for (var i = 0; i < names.length; i++) {
             var opt = document.createElement('option');
             opt.value = names[i];
-            opt.textContent = names[i];
+            opt.textContent = (importedPresets[names[i]] ? '\u2606 ' : '') + names[i];
             presetSelect.appendChild(opt);
         }
 
@@ -656,7 +688,6 @@ function buildTimelinePanel() {
         if (currentVal && presetSelect.querySelector('option[value="' + CSS.escape(currentVal) + '"]')) {
             presetSelect.value = currentVal;
         } else if (names.length) {
-            // Pick current loaded timeline name or first preset
             var st = typeof getPresentationState === 'function' ? getPresentationState() : null;
             var loadedName = st && st.name ? st.name : '';
             if (loadedName && names.indexOf(loadedName) !== -1) {
@@ -666,6 +697,12 @@ function buildTimelinePanel() {
                 presetSelect.value = defaultName;
             }
         }
+        updateDelPresetBtn();
+    }
+
+    function updateDelPresetBtn() {
+        var name = presetSelect.value;
+        delPresetBtn.style.display = (name && importedPresets[name]) ? '' : 'none';
     }
 
     function loadPresetByName(name) {
@@ -673,9 +710,13 @@ function buildTimelinePanel() {
             // Empty = start fresh
             draft = normalizeTL({ name: 'Untitled', duration: 12, tracks: [], events: [] });
             if (typeof setPresentationTimeline === 'function') {
+                applyingDraft = true;
                 setPresentationTimeline(clonePlain(draft));
+                applyingDraft = false;
             }
+            linkedFileName = null;
             rebuildAll();
+            updateDelPresetBtn();
             setStatus('New empty timeline created.', '');
             return;
         }
@@ -683,6 +724,8 @@ function buildTimelinePanel() {
             if (loadPresentationPreset(name)) {
                 syncFromRuntime();
                 resetZoom();
+                linkedFileName = null;
+                updateDelPresetBtn();
                 setStatus('Loaded preset: ' + name, '');
             } else {
                 setStatus('Failed to load preset: ' + name, 'tl-status--warn');
@@ -754,9 +797,42 @@ function buildTimelinePanel() {
                     var color = (ev.note && ev.note.color) ? ev.note.color : '#7cc5ff';
                     var tip = ev.t.toFixed(2) + 's: ' + lbl;
                     var borderStyle = (!isSel && !isClear) ? 'border-color:' + esc(color) + ';' : '';
+                    // Compute annotation bar width: end = earliest of paired clearAnnotation,
+                    // any clearAnnotation on same channel, or next annotation on same channel
+                    // (implicit replace — each new annotation fires on the same channel).
+                    var durPct = 0;
+                    if (ev.action === 'annotation') {
+                        var endT = Infinity;
+                        for (var ci = 0; ci < draft.events.length; ci++) {
+                            var ce = draft.events[ci];
+                            if (ce.action === 'clearAnnotation' && ce._pairOf === i && ce.t > ev.t) {
+                                endT = Math.min(endT, ce.t); break;
+                            }
+                        }
+                        if (!isFinite(endT)) {
+                            for (var ci = 0; ci < draft.events.length; ci++) {
+                                var ce = draft.events[ci];
+                                if (ce.action === 'clearAnnotation' && (ce.channel || 0) === ch && ce.t > ev.t) {
+                                    endT = Math.min(endT, ce.t); break;
+                                }
+                            }
+                        }
+                        // Next annotation on same channel is an implicit clear
+                        for (var ci = 0; ci < draft.events.length; ci++) {
+                            var ce = draft.events[ci];
+                            if (ce.action === 'annotation' && (ce.channel || 0) === ch && ce.t > ev.t) {
+                                endT = Math.min(endT, ce.t); break;
+                            }
+                        }
+                        if (isFinite(endT)) {
+                            durPct = (endT - ev.t) / Math.max(d, 0.001) * 100;
+                        }
+                    }
+                    var widthStyle = durPct > 0 ? 'width:' + durPct.toFixed(3) + '%;' : '';
+                    var hasDur = durPct > 0 ? ' has-dur' : '';
                     laneHtml += '<button type="button" class="tl-ev-marker' +
-                        (isSel ? ' is-sel' : '') + (isClear ? ' is-clear' : '') + '"' +
-                        ' style="left:' + kPct.toFixed(3) + '%;' + borderStyle + '"' +
+                        (isSel ? ' is-sel' : '') + (isClear ? ' is-clear' : '') + hasDur + '"' +
+                        ' style="left:' + kPct.toFixed(3) + '%;' + widthStyle + borderStyle + '"' +
                         ' data-ei="' + i + '" data-ch="' + ch + '" title="' + esc(tip) + '"></button>';
                 }
             }
@@ -1249,8 +1325,7 @@ function buildTimelinePanel() {
             }
         }
         if (!out.annotationTracks.length) out.annotationTracks.push({ label: 'Annotation 1' });
-        var tracks = Array.isArray(src.tracks) ? src.tracks : [];
-        for (var i = 0; i < tracks.length; i++) {
+        var tracks = Array.isArray(src.tracks) ? src.tracks : [];        for (var i = 0; i < tracks.length; i++) {
             var tr = tracks[i];
             if (!tr || !tr.path) continue;
             var keys = [];
@@ -1274,6 +1349,74 @@ function buildTimelinePanel() {
             out.events.push(clonePlain(ev));
         }
         out.events.sort(function(a, b) { return a.t - b.t; });
+
+        // If no annotation event carries an explicit channel > 0, auto-assign channels
+        // via greedy interval scheduling so overlapping bars land on separate tracks.
+        var anyExplicitCh = false;
+        for (var exi = 0; exi < out.events.length; exi++) {
+            var exEv = out.events[exi];
+            if ((exEv.action === 'annotation' || exEv.action === 'clearAnnotation')
+                    && typeof exEv.channel === 'number' && exEv.channel > 0) {
+                anyExplicitCh = true; break;
+            }
+        }
+        if (!anyExplicitCh) {
+            // Gather annotation-event indices (already time-sorted).
+            var annotIdxs = [];
+            for (var axi = 0; axi < out.events.length; axi++) {
+                if (out.events[axi].action === 'annotation') annotIdxs.push(axi);
+            }
+            // Each annotation's visual end = next annotation start OR an explicit
+            // clearAnnotation (whichever is earlier).  Use that for overlap detection.
+            var chEnds = [];
+            for (var aii = 0; aii < annotIdxs.length; aii++) {
+                var aEvIdx = annotIdxs[aii];
+                var aEv    = out.events[aEvIdx];
+                var aStart = aEv.t;
+                var aEnd   = (aii + 1 < annotIdxs.length)
+                    ? out.events[annotIdxs[aii + 1]].t : out.duration;
+                for (var cxi = 0; cxi < out.events.length; cxi++) {
+                    var cxEv = out.events[cxi];
+                    if (cxEv.action === 'clearAnnotation' && cxEv.t > aStart && cxEv.t < aEnd) {
+                        aEnd = cxEv.t; break;
+                    }
+                }
+                // Find the channel with the earliest end that freed up by aStart.
+                var bestCh = -1, bestEnd = Infinity;
+                for (var bci = 0; bci < chEnds.length; bci++) {
+                    if (chEnds[bci] <= aStart && chEnds[bci] < bestEnd) {
+                        bestEnd = chEnds[bci]; bestCh = bci;
+                    }
+                }
+                if (bestCh < 0) { bestCh = chEnds.length; chEnds.push(0); }
+                out.events[aEvIdx].channel = bestCh;
+                chEnds[bestCh] = aEnd;
+            }
+            // Assign clearAnnotation events to the channel of their nearest preceding annotation.
+            for (var cei = 0; cei < out.events.length; cei++) {
+                var ceEv = out.events[cei];
+                if (ceEv.action === 'clearAnnotation' && typeof ceEv.channel !== 'number') {
+                    var bestAnnCh = 0, bestAnnT = -1;
+                    for (var aei = 0; aei < out.events.length; aei++) {
+                        var ae = out.events[aei];
+                        if (ae.action === 'annotation' && ae.t <= ceEv.t && ae.t > bestAnnT) {
+                            bestAnnT = ae.t; bestAnnCh = ae.channel || 0;
+                        }
+                    }
+                    ceEv.channel = bestAnnCh;
+                }
+            }
+        }
+        // Grow annotationTracks to cover all referenced channels.
+        var maxCh = 0;
+        for (var ei = 0; ei < out.events.length; ei++) {
+            var ech = out.events[ei].channel;
+            if (typeof ech === 'number' && ech > maxCh) maxCh = ech;
+        }
+        while (out.annotationTracks.length <= maxCh) {
+            var n = out.annotationTracks.length + 1;
+            out.annotationTracks.push({ label: 'Annotation ' + n });
+        }
         return out;
     }
 
@@ -1291,10 +1434,13 @@ function buildTimelinePanel() {
         return -1;
     }
 
+    var applyingDraft = false;
     function applyDraft() {
         if (!draft) return;
         if (typeof setPresentationTimeline === 'function') {
+            applyingDraft = true;
             setPresentationTimeline(clonePlain(draft));
+            applyingDraft = false;
             setStatus('Timeline applied.', '');
         }
     }
@@ -1325,7 +1471,9 @@ function buildTimelinePanel() {
         for (var i = 0; i < draft.tracks.length; i++) {
             var tr = draft.tracks[i];
             var sel = (tr.path === selectedTrack);
-            html += '<button type="button" class="tl-track-item' + (sel ? ' is-sel' : '') +
+            // Show red border when the row is selected but no individual key is picked (delete-row mode)
+            var rowDel = sel && selectedKeys.length === 0;
+            html += '<button type="button" class="tl-track-item' + (sel ? ' is-sel' : '') + (rowDel ? ' is-sel--row' : '') +
                 '" data-path="' + esc(tr.path) + '">' +
                 '<span class="tl-track-path">' + esc(tr.path) + '</span>' +
                 '<span class="tl-track-keycount">' + tr.keys.length + ' key' + (tr.keys.length === 1 ? '' : 's') + '</span>' +
@@ -1476,26 +1624,37 @@ function buildTimelinePanel() {
             if (track && track.keys[ki]) {
                 var t = track.keys[ki].t;
                 var isCtrl = e.ctrlKey || e.metaKey;
-                if (isCtrl) {
+                var isShift = e.shiftKey;
+                if (isShift) {
+                    // Shift+click = select all keys in this column (same time on all tracks)
+                    selectedTrack = path;
+                    selectedKeyT = t;
+                    selectAllKeysAtTime(t);
+                } else if (isCtrl) {
                     // Toggle this key in multi-selection
                     if (isKeyMultiSelected(path, t)) {
                         removeFromMultiSelect(path, t);
                     } else {
                         addToMultiSelect(path, t);
                     }
+                    selectedTrack = path;
+                    selectedKeyT = t;
+                    rebuildTrackList();
+                    rebuildLanes();
+                    if (selectedKeys.length === 1) {
+                        fillInspector(track, ki);
+                    } else {
+                        inspSummary.textContent = selectedKeys.length + ' keyframes selected.';
+                    }
                 } else {
                     // Replace selection with just this key
                     clearMultiSelect();
                     addToMultiSelect(path, t);
-                }
-                selectedTrack = path;
-                selectedKeyT = t;
-                rebuildTrackList();
-                rebuildLanes();
-                if (selectedKeys.length === 1) {
+                    selectedTrack = path;
+                    selectedKeyT = t;
+                    rebuildTrackList();
+                    rebuildLanes();
                     fillInspector(track, ki);
-                } else {
-                    inspSummary.textContent = selectedKeys.length + ' keyframes selected.';
                 }
             }
             return;
@@ -1659,6 +1818,8 @@ function buildTimelinePanel() {
             for (var s = 0; s < selectedKeys.length; s++) pathSet[selectedKeys[s].path] = 1;
             var pathCount = Object.keys(pathSet).length;
             inspSummary.textContent = selectedKeys.length + ' keyframes selected (' + pathCount + ' track' + (pathCount > 1 ? 's' : '') + ')';
+            inspDel.textContent = 'DELETE KEY';
+            inspDel.title = '';
             inspPath.value = '';
             inspTime.value = '';
             inspValue.value = '';
@@ -1684,13 +1845,17 @@ function buildTimelinePanel() {
             var ki2 = getKeyAt(track, selectedKeyT);
             if (ki2 >= 0) return fillInspector(track, ki2);
         }
-        inspSummary.textContent = 'Track: ' + track.path + ' (' + track.keys.length + ' keys)';
+        inspSummary.textContent = 'Track: ' + track.path + ' (' + track.keys.length + ' key' + (track.keys.length === 1 ? '' : 's') + ')  — Del to remove';
         inspPath.value = track.path;
         inspTime.value = currentTime().toFixed(2);
         inspValue.value = '';
+        inspDel.textContent = 'DELETE TRACK';
+        inspDel.title = 'Delete the entire track (all keys)';
     }
 
     function fillInspector(track, ki) {
+        inspDel.textContent = 'DELETE KEY';
+        inspDel.title = '';
         var key = track.keys[ki];
         if (!key) return;
         inspPath.value = track.path;
@@ -1805,16 +1970,25 @@ function buildTimelinePanel() {
     // ── Annotation lane pointer handler (select + drag markers, multi-channel) ──
     (function() {
         var dragEi = -1;
+        var dragOrigCh = -1;
+        var dragTargetCh = -1;
         var dragLaneEl = null;
         var dragStartX = 0;
         var dragged = false;
         var DRAG_THRESHOLD = 4;
+
+        function clearLaneHighlight() {
+            var marked = annotLaneColEl.querySelectorAll('.tl-lane--drag-target');
+            for (var i = 0; i < marked.length; i++) marked[i].classList.remove('tl-lane--drag-target');
+        }
 
         annotLaneColEl.addEventListener('pointerdown', function(e) {
             if (e.button !== 0) return;
             var marker = e.target.closest('.tl-ev-marker');
             if (marker) {
                 dragEi = parseInt(marker.getAttribute('data-ei'), 10);
+                dragOrigCh = parseInt(marker.getAttribute('data-ch'), 10);
+                dragTargetCh = dragOrigCh;
                 dragLaneEl = marker.closest('.tl-events-lane');
                 dragStartX = e.clientX;
                 dragged = false;
@@ -1837,26 +2011,68 @@ function buildTimelinePanel() {
             draft.events[dragEi].t = Math.max(0, newT);
             var markerEl = dragLaneEl.querySelector('.tl-ev-marker[data-ei="' + dragEi + '"]');
             if (markerEl && dur > 0) markerEl.style.left = ((newT / dur) * 100) + '%';
+
+            // Detect which annotation lane the pointer is hovering over for cross-track drop.
+            var overEl = document.elementFromPoint(e.clientX, e.clientY);
+            var overLane = overEl && overEl.closest('.tl-events-lane');
+            var newTargetCh = dragOrigCh;
+            if (overLane) {
+                var lch = parseInt(overLane.getAttribute('data-ch'), 10);
+                if (isFinite(lch)) newTargetCh = lch;
+            }
+            if (newTargetCh !== dragTargetCh) {
+                clearLaneHighlight();
+                dragTargetCh = newTargetCh;
+                if (newTargetCh !== dragOrigCh) {
+                    var targetLaneEl = annotLaneColEl.querySelector('.tl-events-lane[data-ch="' + newTargetCh + '"]');
+                    if (targetLaneEl) targetLaneEl.classList.add('tl-lane--drag-target');
+                }
+            }
         });
 
         annotLaneColEl.addEventListener('pointerup', function(e) {
             if (dragEi < 0) return;
             var ei = dragEi;
-            dragEi = -1;
+            var origCh = dragOrigCh;
+            var targetCh = dragTargetCh;
+            dragEi = -1; dragOrigCh = -1; dragTargetCh = -1;
+            clearLaneHighlight();
             annotLaneColEl.releasePointerCapture(e.pointerId);
 
             if (dragged && draft) {
                 pushUndo();
                 var ev = draft.events[ei];
+                // Reassign channel when dropped onto a different track.
+                if (targetCh >= 0 && targetCh !== origCh) {
+                    ev.channel = targetCh;
+                    // Also move any paired clearAnnotation to the new channel.
+                    for (var i = 0; i < draft.events.length; i++) {
+                        if (draft.events[i].action === 'clearAnnotation' && draft.events[i]._pairOf === ei) {
+                            draft.events[i].channel = targetCh;
+                        }
+                    }
+                }
                 draft.events.sort(function(a, b) { return a.t - b.t; });
                 for (var i = 0; i < draft.events.length; i++) {
                     if (draft.events[i] === ev) { selectedEventIdx = i; break; }
+                }
+                // Re-index _pairOf references invalidated by the sort.
+                for (var i = 0; i < draft.events.length; i++) {
+                    if (draft.events[i].action === 'clearAnnotation' &&
+                            typeof draft.events[i]._pairOf === 'number') {
+                        // Only the moved event's index may have changed.
+                        if (draft.events[i]._pairOf === ei) {
+                            draft.events[i]._pairOf = selectedEventIdx;
+                        }
+                    }
                 }
                 dragLaneEl = null;
                 applyDraft();
                 rebuildAll();
                 fillEventInspector(draft.events[selectedEventIdx], selectedEventIdx);
-                setStatus('Event moved to ' + ev.t.toFixed(2) + 's.', '');
+                var msg = 'Event moved to ' + ev.t.toFixed(2) + 's.';
+                if (targetCh >= 0 && targetCh !== origCh) msg += ' Track: ' + (targetCh + 1) + '.';
+                setStatus(msg, '');
             } else {
                 dragLaneEl = null;
                 if (draft && draft.events[ei]) {
@@ -1868,6 +2084,14 @@ function buildTimelinePanel() {
                     rebuildLanes();
                 }
             }
+        });
+
+        annotLaneColEl.addEventListener('pointercancel', function() {
+            if (dragEi < 0) return;
+            dragEi = -1; dragOrigCh = -1; dragTargetCh = -1;
+            clearLaneHighlight();
+            dragLaneEl = null;
+            rebuildEventsLane();
         });
 
         // Background click: deselect + seek, and track active channel
@@ -1968,6 +2192,41 @@ function buildTimelinePanel() {
         }
         return out;
     }
+    // ── Auto Key initial-state modal ─────────────────────────────────────────
+    function showAutoKeyModal(t, snap, paths, onFull, onDiff) {
+        var overlay = document.createElement('div');
+        overlay.className = 'tl-modal-overlay';
+        var tLabel = t < 0.01 ? 't = 0' : 't = ' + t.toFixed(2) + 's';
+        overlay.innerHTML =
+            '<div class="tl-modal">' +
+            '<div class="tl-modal-title">Auto Key &#8212; Initial State</div>' +
+            '<p class="tl-modal-body">First Auto Key capture at <b>' + esc(tLabel) + '</b>.<br>' +
+            'How should the initial state be recorded?</p>' +
+            '<div class="tl-modal-choices">' +
+            '<button class="tl-modal-btn tl-modal-btn--full" type="button">' +
+            '<span class="tl-modal-btn-label">Full initial state</span>' +
+            '<span class="tl-modal-btn-sub">Key every parameter now (' + paths.length + ' values) &mdash; guarantees a clean reset on play</span>' +
+            '</button>' +
+            '<button class="tl-modal-btn tl-modal-btn--diff" type="button">' +
+            '<span class="tl-modal-btn-label">Changes only (diff mode)</span>' +
+            '<span class="tl-modal-btn-sub">Only record what changes on the next press &mdash; lighter, manual approach</span>' +
+            '</button>' +
+            '</div>' +
+            '<button class="tl-modal-btn tl-modal-btn--cancel" type="button">Cancel</button>' +
+            '</div>';
+        document.body.appendChild(overlay);
+
+        function close() { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); }
+        overlay.querySelector('.tl-modal-btn--full').addEventListener('click', function() { close(); onFull(); });
+        overlay.querySelector('.tl-modal-btn--diff').addEventListener('click', function() { close(); onDiff(); });
+        overlay.querySelector('.tl-modal-btn--cancel').addEventListener('click', close);
+        overlay.addEventListener('mousedown', function(e) { if (e.target === overlay) close(); });
+        overlay.addEventListener('keydown', function(e) { if (e.key === 'Escape') close(); });
+        // Focus the overlay so Escape works immediately
+        overlay.setAttribute('tabindex', '-1');
+        overlay.focus();
+    }
+
     autoKeyBtn.addEventListener('click', function() {
         if (!draft) { setStatus('Load a timeline first.', 'tl-status--warn'); return; }
         var t = currentTime();
@@ -1976,6 +2235,33 @@ function buildTimelinePanel() {
         if (!paths.length) { setStatus('Nothing to capture.', 'tl-status--warn'); return; }
 
         if (!autoKeySnapshot) {
+            // First press — check if this looks like an initial state (t≈0 or no tracks yet)
+            var isInitial = (t < 0.01 || !draft.tracks.length);
+            if (isInitial) {
+                showAutoKeyModal(t, snap, paths,
+                    // Full state
+                    function() {
+                        pushUndo();
+                        var count = 0;
+                        for (var i = 0; i < paths.length; i++) {
+                            upsertKey(paths[i], 0, snap[paths[i]], 'linear');
+                            count++;
+                        }
+                        draft.tracks.sort(function(a, b) { return a.path.localeCompare(b.path); });
+                        normalizeQuatSigns();
+                        autoKeySnapshot = { time: t, values: clonePlain(snap) };
+                        applyDraft();
+                        rebuildAll();
+                        setStatus('Full initial state saved: ' + count + ' parameters keyed at t=0. Now change controls & press AUTO KEY.', 'tl-status--info');
+                    },
+                    // Diff mode
+                    function() {
+                        autoKeySnapshot = { time: t, values: clonePlain(snap) };
+                        setStatus('Baseline captured at ' + t.toFixed(2) + 's. Change controls, press AUTO KEY again.', 'tl-status--info');
+                    }
+                );
+                return;
+            }
             autoKeySnapshot = { time: t, values: clonePlain(snap) };
             setStatus('Baseline captured at ' + t.toFixed(2) + 's. Change controls, press AUTO KEY again.', 'tl-status--info');
             return;
@@ -2084,11 +2370,29 @@ function buildTimelinePanel() {
             reader.onload = function() {
                 try {
                     var obj = JSON.parse(reader.result);
+                    // Derive a name from the JSON name field or the filename
+                    var presetName = (obj && obj.name && obj.name.trim()) ? obj.name.trim()
+                        : file.name.replace(/\.json$/i, '').replace(/[_-]+/g, ' ').trim();
+                    if (!presetName) presetName = 'Imported';
+                    obj.name = presetName;
+
+                    if (typeof registerPresentationPreset === 'function') {
+                        registerPresentationPreset(obj, presetName);
+                    }
+                    importedPresets[presetName] = true;
+
                     if (typeof setPresentationTimeline === 'function') {
+                        applyingDraft = true;
                         if (setPresentationTimeline(obj)) {
+                            applyingDraft = false;
                             syncFromRuntime();
+                            linkedFileName = file.name;
+                            populatePresets();
+                            presetSelect.value = presetName;
+                            updateDelPresetBtn();
                             setStatus('Imported: ' + file.name, '');
                         } else {
+                            applyingDraft = false;
                             setStatus('Invalid timeline data in ' + file.name, 'tl-status--error');
                         }
                     }
@@ -2110,22 +2414,89 @@ function buildTimelinePanel() {
         var tl = typeof getPresentationTimeline === 'function' ? getPresentationTimeline() : null;
         if (!tl && draft) tl = clonePlain(draft);
         if (!tl) { setStatus('No timeline to export.', 'tl-status--warn'); return; }
+        var defaultName = (tl.name && tl.name !== 'Untitled' && tl.name !== 'Custom')
+            ? tl.name : '';
+        var exportName = prompt('Name for the exported timeline:', defaultName);
+        if (exportName === null) return; // cancelled
+        exportName = exportName.trim();
+        if (!exportName) exportName = 'timeline';
+        tl.name = exportName;
+        if (draft) draft.name = exportName;
         var json = JSON.stringify(tl, null, 2);
         var blob = new Blob([json], { type: 'application/json' });
         var url = URL.createObjectURL(blob);
         var a = document.createElement('a');
         a.href = url;
-        a.download = (tl.name ? tl.name.replace(/[^a-zA-Z0-9_-]/g, '_') : 'timeline') + '.json';
+        var safeFilename = exportName.replace(/[^a-zA-Z0-9_-]/g, '_');
+        a.download = safeFilename + '.json';
         document.body.appendChild(a);
         a.click();
         a.remove();
         URL.revokeObjectURL(url);
+        linkedFileName = safeFilename + '.json';
         setStatus('Exported: ' + a.download, '');
+    });
+
+    // ── Delete imported preset ──────────────────────────────────────────────
+    delPresetBtn.addEventListener('click', function() {
+        var name = presetSelect.value;
+        if (!name || !importedPresets[name]) return;
+        if (!confirm('Remove imported preset "' + name + '" from the list?')) return;
+        delete importedPresets[name];
+        if (typeof PRESENTATION_PRESETS !== 'undefined') delete PRESENTATION_PRESETS[name];
+        if (typeof PRESENTATION_PRESET_ORDER !== 'undefined') {
+            var idx = PRESENTATION_PRESET_ORDER.indexOf(name);
+            if (idx !== -1) PRESENTATION_PRESET_ORDER.splice(idx, 1);
+        }
+        presetSelect.value = '';
+        loadPresetByName('');
+        populatePresets();
+        setStatus('Preset "' + name + '" removed.', '');
+    });
+
+    // ── Save button ─────────────────────────────────────────────────────────
+    saveBtn.addEventListener('click', function() {
+        var tl = typeof getPresentationTimeline === 'function' ? getPresentationTimeline() : null;
+        if (!tl && draft) tl = clonePlain(draft);
+        if (!tl) { setStatus('No timeline to save.', 'tl-status--warn'); return; }
+
+        if (!linkedFileName) {
+            // Not linked to any file—ask for a name and export as a new file
+            var saveName = prompt('No file linked. Enter a name to save as:', (tl.name && tl.name !== 'Untitled' && tl.name !== 'Custom') ? tl.name : '');
+            if (saveName === null) return; // cancelled
+            saveName = saveName.trim();
+            if (!saveName) { setStatus('Save cancelled.', 'tl-status--warn'); return; }
+            tl.name = saveName;
+            if (draft) draft.name = saveName;
+            linkedFileName = saveName.replace(/[^a-zA-Z0-9_-]/g, '_') + '.json';
+        }
+
+        var json = JSON.stringify(tl, null, 2);
+        var blob = new Blob([json], { type: 'application/json' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = linkedFileName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+
+        // Also update the registered preset if it exists
+        var name = tl.name || (draft && draft.name) || '';
+        if (name && typeof registerPresentationPreset === 'function') {
+            registerPresentationPreset(tl, name);
+            importedPresets[name] = true;
+            populatePresets();
+            presetSelect.value = name;
+            updateDelPresetBtn();
+        }
+        setStatus('Saved: ' + a.download, '');
     });
 
     // ── Listen for external timeline loads ──────────────────────────────────
     window.addEventListener('presentation:timeline-panel-sync', function() {
-        if (panelOpen) syncFromRuntime();
+        if (panelOpen && !applyingDraft) syncFromRuntime();
     });
 
     // ══ Motion Functions ═════════════════════════════════════════════════════
@@ -2630,8 +3001,29 @@ function buildTimelinePanel() {
     }, true);
 
     // ── Keyboard shortcuts ──────────────────────────────────────────────────
+    function deleteTrack(path) {
+        if (!draft || !path) return;
+        pushUndo();
+        draft.tracks = draft.tracks.filter(function(tr) { return tr.path !== path; });
+        // Remove any selectedKeys that were on this track
+        selectedKeys = selectedKeys.filter(function(sk) { return sk.path !== path; });
+        if (selectedTrack === path) {
+            selectedTrack = draft.tracks.length ? draft.tracks[0].path : '';
+            selectedKeyT = NaN;
+        }
+        applyDraft();
+        rebuildAll();
+        setStatus('Track deleted: ' + path, '');
+    }
+
     function deleteSelectedKeys() {
-        if (!draft || !selectedKeys.length) return;
+        if (!draft) return;
+        // If no keys are selected but a track is active, delete the whole track
+        if (!selectedKeys.length && selectedTrack) {
+            deleteTrack(selectedTrack);
+            return;
+        }
+        if (!selectedKeys.length) return;
         pushUndo();
         var count = 0;
         for (var s = 0; s < selectedKeys.length; s++) {
@@ -2769,10 +3161,17 @@ function buildTimelinePanel() {
             return;
         }
 
-        // Delete / Backspace → delete selected keyframes
+        // Delete / Backspace → delete selected keyframes, or the selected track if none selected
         if (e.code === 'Delete' || e.code === 'Backspace') {
             e.preventDefault();
             deleteSelectedKeys();
+            return;
+        }
+
+        // Shift+A → select all keys in the same column as the current playhead time
+        if (e.shiftKey && e.code === 'KeyA') {
+            e.preventDefault();
+            selectAllKeysAtTime(currentTime());
             return;
         }
 

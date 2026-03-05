@@ -721,8 +721,16 @@ function normalizePresentationTimeline(timeline) {
         loop: !!raw.loop,
         duration: 0.0,
         tracks: [],
-        events: []
+        events: [],
+        annotationTracks: []
     };
+
+    if (Array.isArray(raw.annotationTracks)) {
+        for (var ai = 0; ai < raw.annotationTracks.length; ai++) {
+            var at = raw.annotationTracks[ai];
+            if (at && typeof at === 'object') out.annotationTracks.push({ label: at.label || ('Annotation ' + (ai + 1)) });
+        }
+    }
 
     var maxTime = 0.0;
     var tracks = Array.isArray(raw.tracks) ? raw.tracks : [];
@@ -762,14 +770,17 @@ function normalizePresentationTimeline(timeline) {
         if (!isFinite(et)) continue;
         et = Math.max(0.0, et);
         if (et > maxTime) maxTime = et;
-        out.events.push({
+        var normEv = {
             t: et,
             action: ev.action,
             path: ev.path,
             value: ev.value,
             compile: !!ev.compile,
             note: ev.note
-        });
+        };
+        if (typeof ev.channel === 'number') normEv.channel = ev.channel;
+        if (ev._pairOf !== undefined) normEv._pairOf = ev._pairOf;
+        out.events.push(normEv);
     }
     out.events.sort(function(a, b) { return a.t - b.t; });
 
