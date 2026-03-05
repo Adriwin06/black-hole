@@ -198,6 +198,7 @@ Open `◀ ANIMATIONS` → expand **PRESENTATION TIMELINE** to access:
 - Scrubber bar and Play / Pause / Stop
 - Recording quality, mode, resolution, FPS, bitrate
 - Start Rec / Stop Rec
+- `PNG SNAPSHOT` button: captures a still image by forcing the Offline/Cinematic quality preset and downloading a `.png`
 
 ## 15. Save as a reusable preset
 

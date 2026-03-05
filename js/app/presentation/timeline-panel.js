@@ -215,6 +215,7 @@ function buildTimelinePanel() {
                 '</div>' +
             '</div>' +
             '<div class="tl-rec-actions">' +
+                '<button id="tl-rec-shot" class="tl-mini-btn" type="button">PNG SNAPSHOT</button>' +
                 '<button id="tl-rec-start" class="tl-mini-btn tl-mini-btn--accent" type="button">&#9679; START REC</button>' +
                 '<button id="tl-rec-stop" class="tl-mini-btn tl-mini-btn--danger" type="button">&#9632; STOP REC</button>' +
             '</div>' +
@@ -274,6 +275,7 @@ function buildTimelinePanel() {
     var recResSelect     = panel.querySelector('#tl-rec-resolution');
     var recFpsInput      = panel.querySelector('#tl-rec-fps');
     var recBitrateInput  = panel.querySelector('#tl-rec-bitrate');
+    var recShotBtn       = panel.querySelector('#tl-rec-shot');
     var recStartBtn      = panel.querySelector('#tl-rec-start');
     var recStopBtn       = panel.querySelector('#tl-rec-stop');
     var recStatusEl      = panel.querySelector('#tl-rec-status');
@@ -1687,7 +1689,8 @@ function buildTimelinePanel() {
             { v: '1280x720',  l: '1280\xd7720 (HD)' },
             { v: '1920x1080', l: '1920\xd71080 (Full HD)' },
             { v: '2560x1440', l: '2560\xd71440 (2K)' },
-            { v: '3840x2160', l: '3840\xd72160 (4K)' }
+            { v: '3840x2160', l: '3840\xd72160 (4K)' },
+            { v: '7680x4320', l: '7680\xd74320 (8K)' }
         ];
         for (var i = 0; i < opts.length; i++) {
             var o = document.createElement('option');
@@ -1721,11 +1724,16 @@ function buildTimelinePanel() {
 
         // Keep REC button indicator in sync
         if (recBtn) recBtn.classList.toggle('is-recording', !!s.recording);
+        if (recShotBtn) recShotBtn.disabled = !!s.recording;
 
         if (!s.recording) {
             recStartBtn.disabled = false;
             recStopBtn.disabled  = true;
-            setRecStatus('Idle', '');
+            if (s.recording_offline_unavailable_reason) {
+                setRecStatus(s.recording_offline_unavailable_reason, 'is-warning');
+            } else {
+                setRecStatus('Idle', '');
+            }
             return;
         }
 
@@ -1793,6 +1801,25 @@ function buildTimelinePanel() {
     });
     recAnnotRecordCb.addEventListener('change', function() {
         if (typeof setPresentationAnnotationsIncludedInRecording === 'function') setPresentationAnnotationsIncludedInRecording(recAnnotRecordCb.checked);
+    });
+
+    recShotBtn.addEventListener('click', function() {
+        if (typeof capturePresentationScreenshot !== 'function') return;
+        if (recQualitySelect && recQualitySelect.querySelector('option[value="cinematic"]')) {
+            recQualitySelect.value = 'cinematic';
+        }
+        var captured = capturePresentationScreenshot({
+            qualityPreset: 'cinematic',
+            recordingResolution: recResSelect ? recResSelect.value : 'current',
+            includeAnnotationsInScreenshot: !!recAnnotRecordCb.checked
+        });
+        if (!captured) {
+            var st = (typeof getPresentationState === 'function') ? getPresentationState() : {};
+            setRecStatus(st.recording_offline_unavailable_reason || 'Failed to capture screenshot.', 'is-warning');
+        } else {
+            setRecStatus('Offline screenshot downloaded (.png).', '');
+        }
+        syncRecModal();
     });
 
     recStartBtn.addEventListener('click', function() {

@@ -1553,9 +1553,14 @@ body.tl-resizing, body.tl-resizing * {
 .tl-rec-actions {
     display: flex;
     gap: 8px;
+    flex-wrap: wrap;
     padding: 8px 12px;
     border-top: 1px solid #1e3050;
     background: rgba(8,12,24,0.6);
+}
+.tl-rec-actions .tl-mini-btn {
+    flex: 1 1 92px;
+    text-align: center;
 }
 .tl-rec-status {
     padding: 5px 12px;

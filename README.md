@@ -36,6 +36,7 @@ A real-time, GPU-accelerated ray-tracing simulation of a black hole with an accr
 - **Presentation Timeline** — bottom-docked dopesheet editor (inspired by Blender / After Effects) for scripted keyframe animations; supports linear, smooth, and smoother easing
 - **Built-in animation presets** — *Full Feature Tour* (186 s), *Orbit Showcase*, *Horizon Dive*, *Hover Blueshift*
 - **WebM video recording** — capture the canvas directly to a `.webm` file via MediaRecorder, rate-controlled by the timeline playback
+- **Offline PNG snapshot** — one-click still export that forces the Cinematic (offline) quality preset before download
 - **High-quality offline rendering** — Cinematic preset with manually boosted supersampling for publication-quality stills and video frames 
 
 ---
@@ -204,6 +205,7 @@ Additions over the [upstream oseiskar/black-hole](https://github.com/oseiskar/bl
 | GRMHD accretion model | σ, R_high, MAD flux, MRI turbulence, κ-distribution electrons |
 | Presentation Timeline | Keyframe dopesheet editor with transport controls and easing curves |
 | WebM recording | MediaRecorder capture synced to timeline playback |
+| Offline PNG snapshot | One-click still image export using the Cinematic offline preset |
 | Built-in animation presets | Full Feature Tour, Orbit Showcase, Horizon Dive, Hover Blueshift |
 | Astrophysical BH presets | M87\*, Sgr A\*, Cygnus X-1, GRS 1915+105 from published data |
 | Temporal Anti-Aliasing | Motion-rejection TAA for artifact-free high-quality frames |

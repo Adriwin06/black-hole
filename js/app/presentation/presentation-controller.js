@@ -1374,7 +1374,19 @@ function presentationCaptureFilename(prefix, mimeType) {
         pad2(now.getHours()) +
         pad2(now.getMinutes()) +
         pad2(now.getSeconds());
-    var ext = (mimeType && mimeType.indexOf('mp4') !== -1) ? 'mp4' : 'webm';
+    var ext = 'webm';
+    if (typeof mimeType === 'string' && mimeType) {
+        var cleanMime = mimeType.toLowerCase();
+        if (cleanMime.indexOf('png') !== -1) {
+            ext = 'png';
+        } else if (cleanMime.indexOf('jpeg') !== -1 || cleanMime.indexOf('jpg') !== -1) {
+            ext = 'jpg';
+        } else if (cleanMime.indexOf('mp4') !== -1) {
+            ext = 'mp4';
+        } else if (cleanMime.indexOf('webm') !== -1) {
+            ext = 'webm';
+        }
+    }
     return (prefix || 'black-hole-presentation') + '-' + stamp + '.' + ext;
 }
 
@@ -1702,6 +1714,17 @@ function stopPresentationCaptureStreamTracks(stream) {
     }
 }
 
+function downloadPresentationCaptureDataUrl(dataUrl, mime, filenamePrefix) {
+    if (!dataUrl || typeof dataUrl !== 'string') return false;
+    var a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = presentationCaptureFilename(filenamePrefix, mime || 'image/png');
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    return true;
+}
+
 function downloadPresentationRecordingBlob(blob, mime, filenamePrefix) {
     if (!blob || blob.size <= 0) return;
     var url = URL.createObjectURL(blob);
@@ -1714,21 +1737,25 @@ function downloadPresentationRecordingBlob(blob, mime, filenamePrefix) {
     setTimeout(function() { URL.revokeObjectURL(url); }, 1500);
 }
 
-function cleanupPresentationRecordingState() {
-    stopPresentationCaptureStreamTracks(presentationCaptureState.stream);
-
-    setPresentationRendererOfflineStepping(false);
+function clearPresentationCaptureBuffers() {
     stopPresentationCompositeCapture();
-
-    presentationCaptureState.active = false;
-    presentationCaptureState.recorder = null;
-    presentationCaptureState.stream = null;
-    presentationCaptureState.chunks = [];
     presentationCaptureState.includeAnnotationsInRecording = false;
     presentationCaptureState.captureCanvas = null;
     presentationCaptureState.captureCtx = null;
     presentationCaptureState.outputWidth = 0;
     presentationCaptureState.outputHeight = 0;
+}
+
+function cleanupPresentationRecordingState() {
+    stopPresentationCaptureStreamTracks(presentationCaptureState.stream);
+
+    setPresentationRendererOfflineStepping(false);
+
+    presentationCaptureState.active = false;
+    presentationCaptureState.recorder = null;
+    presentationCaptureState.stream = null;
+    presentationCaptureState.chunks = [];
+    clearPresentationCaptureBuffers();
     presentationCaptureState.backgroundThrottleDetected = false;
     presentationCaptureState.offlineJob = null;
 
@@ -1934,6 +1961,139 @@ function runOfflinePresentationRecordingLoop() {
     }
 
     encodeNextFrame();
+}
+
+function capturePresentationScreenshot(options) {
+    if (!renderer || !renderer.domElement) return false;
+    if (presentationCaptureState.active) {
+        presentationCaptureState.offlineUnavailableReason =
+            'Offline screenshot capture is unavailable while recording is active.';
+        refreshPresentationUiBindings();
+        return false;
+    }
+
+    options = options || {};
+    var qualityPreset = normalizePresentationRecordingQualityPreset(
+        (options.qualityPreset === undefined) ? 'cinematic' : options.qualityPreset
+    );
+    if (qualityPreset === 'current') qualityPreset = 'cinematic';
+
+    var resolutionPreset = normalizePresentationRecordingResolutionPreset(
+        (options.recordingResolution === undefined)
+            ? presentationCaptureState.resolutionPreset
+            : options.recordingResolution
+    );
+    var resolvedResolution = resolvePresentationRecordingResolution(resolutionPreset);
+    var includeAnnotations = (options.includeAnnotationsInScreenshot === undefined)
+        ? !!presentationAnnotationState.includeInRecording
+        : !!options.includeAnnotationsInScreenshot;
+    var filenamePrefix = options.filenamePrefix || 'black-hole-screenshot';
+    var previousCaptureQualityPreset = presentationCaptureState.qualityPreset;
+    var previousCaptureResolutionPreset = presentationCaptureState.resolutionPreset;
+
+    var previousQualitySnapshot = capturePresentationQualitySnapshot();
+    var qualityOverridden = false;
+
+    function fail(reason) {
+        presentationCaptureState.offlineUnavailableReason =
+            reason || 'Offline screenshot capture failed.';
+        refreshPresentationUiBindings();
+        return false;
+    }
+
+    if (!previousQualitySnapshot) {
+        return fail('Offline screenshot capture failed: renderer quality state is unavailable.');
+    }
+
+    if (!applyPresentationRecordingQualityPreset(qualityPreset)) {
+        return fail('Offline screenshot capture failed: unable to apply Offline quality preset.');
+    }
+    qualityOverridden = true;
+
+    presentationCaptureState.qualityPreset = qualityPreset;
+    presentationCaptureState.resolutionPreset = resolvedResolution.preset;
+    presentationCaptureState.includeAnnotationsInRecording = includeAnnotations;
+    presentationCaptureState.offlineUnavailableReason = '';
+
+    try {
+        if (includeAnnotations) {
+            ensurePresentationAnnotationCanvas();
+            updatePresentationOverlay();
+            var overlayCompositeCanvas = document.createElement('canvas');
+            var overlayCompositeCtx = overlayCompositeCanvas.getContext('2d');
+            if (!overlayCompositeCtx) {
+                return fail('Offline screenshot capture failed: annotation compositing is unavailable.');
+            }
+            syncPresentationCompositeSize(overlayCompositeCanvas);
+            presentationCaptureState.compositeCanvas = overlayCompositeCanvas;
+            presentationCaptureState.compositeCtx = overlayCompositeCtx;
+        } else {
+            stopPresentationCompositeCapture();
+        }
+
+        if (!ensurePresentationCaptureCanvas(resolvedResolution.width, resolvedResolution.height)) {
+            return fail('Offline screenshot capture failed: capture canvas is unavailable.');
+        }
+
+        // Force a fresh frame render at cinematic quality before copying to PNG.
+        if (typeof render === 'function') {
+            render();
+        } else if (!stepPresentationRendererOfflineFrame(1.0 / 60.0)) {
+            return fail('Offline screenshot capture failed: renderer frame API is unavailable.');
+        }
+
+        if (!drawPresentationCaptureFrame()) {
+            return fail('Offline screenshot capture failed: could not read rendered pixels.');
+        }
+
+        var captureCanvas = presentationCaptureState.captureCanvas;
+        if (!captureCanvas) {
+            return fail('Offline screenshot capture failed: capture canvas is unavailable.');
+        }
+
+        var mimeType = 'image/png';
+        var downloadStarted = false;
+
+        if (typeof captureCanvas.toBlob === 'function') {
+            captureCanvas.toBlob(function(blob) {
+                if (blob && blob.size > 0) {
+                    downloadPresentationRecordingBlob(blob, mimeType, filenamePrefix);
+                    return;
+                }
+                try {
+                    var fallbackUrl = captureCanvas.toDataURL(mimeType);
+                    downloadPresentationCaptureDataUrl(fallbackUrl, mimeType, filenamePrefix);
+                } catch (fallbackErr) {
+                    console.warn('Offline screenshot fallback download failed:', fallbackErr);
+                }
+            }, mimeType);
+            downloadStarted = true;
+        } else if (typeof captureCanvas.toDataURL === 'function') {
+            var dataUrl = captureCanvas.toDataURL(mimeType);
+            downloadStarted =
+                downloadPresentationCaptureDataUrl(dataUrl, mimeType, filenamePrefix);
+        }
+
+        if (!downloadStarted) {
+            return fail('Offline screenshot capture failed: PNG export is unsupported.');
+        }
+
+        presentationCaptureState.offlineUnavailableReason = '';
+        refreshPresentationUiBindings();
+        return true;
+    } catch (err) {
+        console.warn('Offline screenshot capture failed:', err);
+        return fail('Offline screenshot capture failed.');
+    } finally {
+        clearPresentationCaptureBuffers();
+        presentationCaptureState.qualityPreset = previousCaptureQualityPreset;
+        presentationCaptureState.resolutionPreset = previousCaptureResolutionPreset;
+        if (qualityOverridden && previousQualitySnapshot) {
+            restorePresentationQualitySnapshot(previousQualitySnapshot);
+        } else {
+            refreshPresentationUiBindings();
+        }
+    }
 }
 
 function stopPresentationRecording() {
@@ -2318,6 +2478,7 @@ if (typeof window !== 'undefined') {
         clearAnnotation: clearPresentationAnnotation,
         getPathValue: getPresentationPathValue,
         startRecording: startPresentationRecording,
-        stopRecording: stopPresentationRecording
+        stopRecording: stopPresentationRecording,
+        captureScreenshot: capturePresentationScreenshot
     };
 }
