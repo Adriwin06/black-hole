@@ -236,6 +236,7 @@ function buildTimelinePanel() {
             '<div class="tl-motion-row tl-motion-type-row">' +
                 '<label>Type</label>' +
                 '<select id="tl-motion-type" class="tl-motion-input">' +
+                    '<option value="sky_reveal">Intro: sky reveal</option>' +
                     '<option value="orbit">Orbit around&nbsp;BH</option>' +
                     '<option value="zoom">Zoom in / out</option>' +
                     '<option value="exposure">Exposure fade</option>' +
@@ -2511,6 +2512,14 @@ function buildTimelinePanel() {
     // ══ Motion Functions ═════════════════════════════════════════════════════
     // Each entry: params[] with { id, label, type, min, step, def, defaultFn, options }
     var MOTION_TYPES = {
+        sky_reveal: {
+            params: [
+                { id: 'start',    label: 'Start time (s)',        type: 'number', min: 0,   step: 0.1, defaultFn: function() { return currentTime().toFixed(2); } },
+                { id: 'duration', label: 'Duration (s)',          type: 'number', min: 0.1, step: 1,   def: 14 },
+                { id: 'tilt',     label: 'Initial sky tilt (\u00b0)', type: 'number', min: 10,  step: 5,   def: 90 },
+                { id: 'ease',     label: 'Ease',                  type: 'select', options: [['smoother','smoother'],['smooth','smooth'],['linear','linear']] }
+            ]
+        },
         orbit: {
             params: [
                 { id: 'start',    label: 'Start time (s)',     type: 'number', min: 0,    step: 0.1,  defaultFn: function() { return currentTime().toFixed(2); } },
@@ -2618,6 +2627,40 @@ function buildTimelinePanel() {
         return { x: qx, y: qy, z: qz, w: qw };
     }
 
+    // Multiply two unit quaternions: q1 * q2
+    function quatMul(q1, q2) {
+        return {
+            w: q1.w*q2.w - q1.x*q2.x - q1.y*q2.y - q1.z*q2.z,
+            x: q1.w*q2.x + q1.x*q2.w + q1.y*q2.z - q1.z*q2.y,
+            y: q1.w*q2.y - q1.x*q2.z + q1.y*q2.w + q1.z*q2.x,
+            z: q1.w*q2.z + q1.x*q2.y - q1.y*q2.x + q1.z*q2.w
+        };
+    }
+
+    // Spherical-linear interpolation between two unit quaternions
+    function quatSlerp(q1, q2, t) {
+        var dot = q1.x*q2.x + q1.y*q2.y + q1.z*q2.z + q1.w*q2.w;
+        // Take shortest arc
+        if (dot < 0) { q2 = { x:-q2.x, y:-q2.y, z:-q2.z, w:-q2.w }; dot = -dot; }
+        if (dot > 0.9995) {
+            var rx = q1.x + t*(q2.x-q1.x), ry = q1.y + t*(q2.y-q1.y);
+            var rz = q1.z + t*(q2.z-q1.z), rw = q1.w + t*(q2.w-q1.w);
+            var rlen = Math.sqrt(rx*rx + ry*ry + rz*rz + rw*rw);
+            return { x:rx/rlen, y:ry/rlen, z:rz/rlen, w:rw/rlen };
+        }
+        var theta0 = Math.acos(dot);
+        var sinTheta0 = Math.sin(theta0);
+        var theta = theta0 * t;
+        var s1 = Math.cos(theta) - dot * Math.sin(theta) / sinTheta0;
+        var s2 = Math.sin(theta) / sinTheta0;
+        return {
+            x: s1*q1.x + s2*q2.x,
+            y: s1*q1.y + s2*q2.y,
+            z: s1*q1.z + s2*q2.z,
+            w: s1*q1.w + s2*q2.w
+        };
+    }
+
     // Linear-interpolate a draft track at a given time (used to seed orbit start)
     function sampleTrackDraft(track, t) {
         var keys = track.keys;
@@ -2721,6 +2764,60 @@ function buildTimelinePanel() {
             upsertKey('observer.orbital_inclination', start + duration, toV,   ease);
             selectedTrack = 'observer.orbital_inclination';
             setStatus('Inclination: ' + fromV + '\u00b0 \u2192 ' + toV + '\u00b0 over ' + duration + 's.', '');
+
+        } else if (type === 'sky_reveal') {
+            var tiltDeg = getMotionParam('tilt');
+            if (!isFinite(tiltDeg) || tiltDeg < 1) tiltDeg = 90;
+
+            // Seed camera position from draft tracks at start time, then fall back to runtime
+            var cpx = 0, cpy = 0, cpz = 11;
+            if (typeof getPresentationPathValue === 'function') {
+                var vx = getPresentationPathValue('camera.position.x');
+                var vy = getPresentationPathValue('camera.position.y');
+                var vz = getPresentationPathValue('camera.position.z');
+                if (typeof vx === 'number') cpx = vx;
+                if (typeof vy === 'number') cpy = vy;
+                if (typeof vz === 'number') cpz = vz;
+            }
+            var txd = getTrackByPath('camera.position.x');
+            var tyd = getTrackByPath('camera.position.y');
+            var tzd = getTrackByPath('camera.position.z');
+            if (txd && txd.keys.length) cpx = sampleTrackDraft(txd, start);
+            if (tyd && tyd.keys.length) cpy = sampleTrackDraft(tyd, start);
+            if (tzd && tzd.keys.length) cpz = sampleTrackDraft(tzd, start);
+
+            // qEnd: camera looking toward the black hole at origin
+            var qEnd = lookAtOriginQuat(cpx, cpy, cpz);
+            // Tilt camera upward in its local frame by tiltDeg around the camera's X axis.
+            // Positive rotation tilts the view upward so the BH moves below frame
+            // (the camera is looking at the sky). Slerping back to qEnd reveals the BH.
+            var halfRad = (tiltDeg * Math.PI / 180) / 2;
+            var localTilt = { x: Math.sin(halfRad), y: 0, z: 0, w: Math.cos(halfRad) };
+            var qStart = quatMul(qEnd, localTilt);
+
+            // Enough keyframes for a smooth slerp; ease is baked via denser sampling
+            var numSteps = Math.max(24, Math.round(duration * 4));
+            for (var si = 0; si <= numSteps; si++) {
+                var frac  = si / numSteps;
+                // Apply ease curve to frac so the reveal starts slowly and settles gently
+                var efrac = (ease === 'smoother')
+                    ? frac*frac*frac*(frac*(frac*6 - 15) + 10)
+                    : (ease === 'smooth')
+                        ? frac*frac*(3 - 2*frac)
+                        : frac;
+                var ktime = start + frac * duration;
+                var q = quatSlerp(qStart, qEnd, efrac);
+                upsertKey('camera.position.x',   ktime, cpx,  'linear');
+                upsertKey('camera.position.y',   ktime, cpy,  'linear');
+                upsertKey('camera.position.z',   ktime, cpz,  'linear');
+                upsertKey('camera.quaternion.x', ktime, q.x,  'linear');
+                upsertKey('camera.quaternion.y', ktime, q.y,  'linear');
+                upsertKey('camera.quaternion.z', ktime, q.z,  'linear');
+                upsertKey('camera.quaternion.w', ktime, q.w,  'linear');
+            }
+            normalizeQuatSigns();
+            selectedTrack = 'camera.quaternion.w';
+            setStatus('Sky reveal: ' + tiltDeg + '\u00b0 tilt \u2192 BH over ' + duration + 's.', '');
         }
 
         draft.duration = Math.max(draft.duration, start + duration);
