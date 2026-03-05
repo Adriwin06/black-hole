@@ -679,8 +679,10 @@ function init(glslSource, textures) {
     taaPass = setupTemporalAA();
 
     stats = new Stats();
-    stats.domElement.style.position = 'absolute';
+    stats.domElement.style.position = 'fixed';
     stats.domElement.style.top = '0px';
+    stats.domElement.style.left = '0px';
+    stats.domElement.style.zIndex = '1000';
     container.appendChild( stats.domElement );
     $(stats.domElement).addClass('hidden-phone');
 

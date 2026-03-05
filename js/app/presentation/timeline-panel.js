@@ -496,8 +496,8 @@ function buildTimelinePanel() {
             }
             populatePresets();
             if (saved) {
-                // Restore persisted state
-                if (saved.preset && presetSelect.querySelector('option[value="' + CSS.escape(saved.preset) + '"]')) {
+                // Restore persisted state (saved.preset may be '' for the "new empty" option)
+                if (typeof saved.preset === 'string' && presetSelect.querySelector('option[value="' + CSS.escape(saved.preset) + '"]')) {
                     presetSelect.value = saved.preset;
                 }
                 if (saved.draft) {
@@ -685,8 +685,8 @@ function buildTimelinePanel() {
             presetSelect.appendChild(opt);
         }
 
-        // Restore previous selection if possible
-        if (currentVal && presetSelect.querySelector('option[value="' + CSS.escape(currentVal) + '"]')) {
+        // Restore previous selection if possible (currentVal may be '' for the "new empty" option)
+        if (presetSelect.querySelector('option[value="' + CSS.escape(currentVal) + '"]')) {
             presetSelect.value = currentVal;
         } else if (names.length) {
             var st = typeof getPresentationState === 'function' ? getPresentationState() : null;
@@ -694,8 +694,7 @@ function buildTimelinePanel() {
             if (loadedName && names.indexOf(loadedName) !== -1) {
                 presetSelect.value = loadedName;
             } else {
-                var defaultName = (names.indexOf('Full Feature Tour') !== -1) ? 'Full Feature Tour' : names[0];
-                presetSelect.value = defaultName;
+                presetSelect.value = '';
             }
         }
         updateDelPresetBtn();
@@ -2471,6 +2470,16 @@ function buildTimelinePanel() {
         a.remove();
         URL.revokeObjectURL(url);
         linkedFileName = safeFilename + '.json';
+
+        // Register in the preset list (same as import) so it can be reloaded
+        if (typeof registerPresentationPreset === 'function') {
+            registerPresentationPreset(clonePlain(tl), exportName);
+        }
+        importedPresets[exportName] = true;
+        populatePresets();
+        presetSelect.value = exportName;
+        updateDelPresetBtn();
+
         setStatus('Exported: ' + a.download, '');
     });
 

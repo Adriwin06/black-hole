@@ -1913,6 +1913,9 @@ body.tl-resizing, body.tl-resizing * {
 #tl-key-section,
 #tl-ev-section {
     padding: 6px 2px 2px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
 }
 .tl-inspector-title {
     font-size: 9px;
@@ -1960,7 +1963,7 @@ body.tl-resizing, body.tl-resizing * {
 }
 .tl-insp-actions {
     display: flex;
-    gap: 4px;
+    gap: 6px;
 }
 
 .tl-mini-btn {
