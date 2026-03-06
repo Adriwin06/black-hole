@@ -162,7 +162,9 @@ var presentationCaptureState = {
 var presentationAnnotationState = {
     enabled: true,
     includeInRecording: false,
-    notes: {},   // { channel: note } keyed by channel number
+    notes: {},     // { channel: note } keyed by channel number
+    fadeMeta: {},  // { channel: { startTime, duration } } — active fades
+    fadeRafId: 0,  // requestAnimationFrame id (0 = not running)
     canvas: null,
     ctx: null,
     resizeBound: false
@@ -234,10 +236,21 @@ function setPresentationAnnotation(note, channel) {
     var ch = (typeof channel === 'number' && channel >= 0) ? channel : 0;
     if (!note || typeof note !== 'object') {
         delete presentationAnnotationState.notes[ch];
+        delete presentationAnnotationState.fadeMeta[ch];
         updatePresentationOverlay();
         return false;
     }
     presentationAnnotationState.notes[ch] = clonePresentationData(note);
+    var fd = parseFloat(note.fadeIn);
+    if (isFinite(fd) && fd > 0) {
+        presentationAnnotationState.fadeMeta[ch] = {
+            startTime: performance.now(),
+            duration: fd * 1000
+        };
+        startAnnotationFade();
+    } else {
+        delete presentationAnnotationState.fadeMeta[ch];
+    }
     updatePresentationOverlay();
     return true;
 }
@@ -245,10 +258,40 @@ function setPresentationAnnotation(note, channel) {
 function clearPresentationAnnotation(channel) {
     if (typeof channel === 'number' && channel >= 0) {
         delete presentationAnnotationState.notes[channel];
+        delete presentationAnnotationState.fadeMeta[channel];
     } else {
         presentationAnnotationState.notes = {};
+        presentationAnnotationState.fadeMeta = {};
     }
     updatePresentationOverlay();
+}
+
+function getChannelFadeAlpha(ch) {
+    var meta = presentationAnnotationState.fadeMeta[ch];
+    if (!meta) return 1.0;
+    var elapsed = performance.now() - meta.startTime;
+    if (elapsed >= meta.duration) {
+        delete presentationAnnotationState.fadeMeta[ch];
+        return 1.0;
+    }
+    return elapsed / meta.duration;
+}
+
+function hasPendingAnnotationFades() {
+    return Object.keys(presentationAnnotationState.fadeMeta).length > 0;
+}
+
+function annotationFadeTick() {
+    presentationAnnotationState.fadeRafId = 0;
+    updatePresentationOverlay();
+    if (hasPendingAnnotationFades()) {
+        presentationAnnotationState.fadeRafId = requestAnimationFrame(annotationFadeTick);
+    }
+}
+
+function startAnnotationFade() {
+    if (presentationAnnotationState.fadeRafId) return; // already ticking
+    presentationAnnotationState.fadeRafId = requestAnimationFrame(annotationFadeTick);
 }
 
 function setPresentationAnnotationsEnabled(enabled) {
@@ -640,8 +683,11 @@ function buildPresentationNoteLayout(ctx, note, viewWidth, viewHeight) {
     };
 }
 
-function drawPresentationNote(ctx, layout) {
+function drawPresentationNote(ctx, layout, alpha) {
     if (!ctx || !layout) return;
+
+    var masterAlpha = (typeof alpha === 'number') ? presentationClamp(alpha, 0, 1) : 1.0;
+    if (masterAlpha <= 0) return;
 
     var accent = layout.color || '#7cc5ff';
     var fill = 'rgba(8, 17, 33, 0.86)';
@@ -650,6 +696,7 @@ function drawPresentationNote(ctx, layout) {
     var glow = colorWithAlpha(accent, 0.3, 'rgba(124, 197, 255, 0.3)');
 
     ctx.save();
+    ctx.globalAlpha = masterAlpha;
     ctx.lineWidth = 2;
     ctx.strokeStyle = line;
     ctx.shadowBlur = 10;
@@ -666,6 +713,7 @@ function drawPresentationNote(ctx, layout) {
     ctx.restore();
 
     ctx.save();
+    ctx.globalAlpha = masterAlpha;
     drawRoundedRectPath(ctx, layout.x, layout.y, layout.width, layout.height, 12);
     ctx.fillStyle = fill;
     ctx.fill();
@@ -705,10 +753,12 @@ function updatePresentationOverlay() {
     var notes = presentationAnnotationState.notes;
     var channels = Object.keys(notes);
     for (var i = 0; i < channels.length; i++) {
-        var note = notes[channels[i]];
+        var ch = channels[i];
+        var note = notes[ch];
         if (!note) continue;
+        var alpha = getChannelFadeAlpha(ch);
         var layout = buildPresentationNoteLayout(ctx, note, viewWidth, viewHeight);
-        drawPresentationNote(ctx, layout);
+        drawPresentationNote(ctx, layout, alpha);
     }
 }
 

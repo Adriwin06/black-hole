@@ -200,6 +200,11 @@ function buildTimelinePanel() {
                         '<input id="tl-ev-width" type="number" min="170" max="800" step="10" value="320" style="width:48px">' +
                     '</div>' +
                     '<div class="tl-insp-row">' +
+                        '<label>Fade in</label>' +
+                        '<input id="tl-ev-fadein" type="number" min="0" max="10" step="0.1" value="0" style="width:52px" title="Fade-in duration in seconds (0 = instant)">' +
+                        '<span class="tl-ev-dur-hint">s</span>' +
+                    '</div>' +
+                    '<div class="tl-insp-row">' +
                         '<label>Place</label>' +
                         '<select id="tl-ev-placement">' +
                             '<option value="auto">Auto</option>' +
@@ -365,6 +370,7 @@ function buildTimelinePanel() {
     var evBodyInput   = panel.querySelector('#tl-ev-body');
     var evColorInput  = panel.querySelector('#tl-ev-color');
     var evWidthInput  = panel.querySelector('#tl-ev-width');
+    var evFadeInput   = panel.querySelector('#tl-ev-fadein');
     var evDurInput    = panel.querySelector('#tl-ev-dur');
     var evPlacement   = panel.querySelector('#tl-ev-placement');
     var evUseTimeBtn  = panel.querySelector('#tl-ev-use-time');
@@ -938,6 +944,7 @@ function buildTimelinePanel() {
         evBodyInput.value  = note.text || note.body || '';
         evColorInput.value = note.color || '#7cc5ff';
         evWidthInput.value = note.width || 320;
+        evFadeInput.value  = (note.fadeIn && note.fadeIn > 0) ? note.fadeIn : 0;
         evPlacement.value  = (typeof note.boxX === 'number' && typeof note.boxY === 'number')
             ? 'manual' : (note.placement || 'auto');
 
@@ -1004,6 +1011,8 @@ function buildTimelinePanel() {
             }
             if (title) note.title = title;
             if (body.trim()) note.text = body;
+            var fadeInVal = parseFloat(evFadeInput.value);
+            if (isFinite(fadeInVal) && fadeInVal > 0) note.fadeIn = fadeInVal;
         }
         var action = note ? 'annotation' : 'clearAnnotation';
 
@@ -1111,6 +1120,8 @@ function buildTimelinePanel() {
         ev.note.color = evColorInput.value || '#7cc5ff';
         var w = parseInt(evWidthInput.value, 10);
         ev.note.width = (isFinite(w) && w >= 100) ? w : 320;
+        var fi = parseFloat(evFadeInput.value);
+        if (isFinite(fi) && fi > 0) ev.note.fadeIn = fi; else delete ev.note.fadeIn;
     }
 
     // ── Preview annotation live ──────────────────────────────────────────────
@@ -1142,6 +1153,8 @@ function buildTimelinePanel() {
         }
         if (title) note.title = title;
         if (body.trim()) note.text = body;
+        var fadeIn = parseFloat(evFadeInput.value);
+        if (isFinite(fadeIn) && fadeIn > 0) note.fadeIn = fadeIn;
         return note;
     }
 
@@ -1160,6 +1173,10 @@ function buildTimelinePanel() {
             '<div class="tl-drag-handle tl-drag-handle--box" title="Drag to move bubble"></div>' +
             '<div class="tl-drag-handle tl-drag-handle--ptr" title="Drag to move pointer tip"></div>';
         document.body.appendChild(overlay);
+
+        // Hide the timeline panel so it doesn't obstruct the full-screen drag area
+        panel.classList.add('tl-panel--collapsed');
+        document.body.classList.remove('has-timeline-panel');
 
         var boxHandle = overlay.querySelector('.tl-drag-handle--box');
         var ptrHandle = overlay.querySelector('.tl-drag-handle--ptr');
@@ -1236,6 +1253,12 @@ function buildTimelinePanel() {
             document.removeEventListener('keydown', onKey);
             overlay.removeEventListener('contextmenu', onContext);
             document.body.removeChild(overlay);
+            // Restore the timeline panel
+            if (panelOpen) {
+                panel.classList.remove('tl-panel--collapsed');
+                document.body.classList.add('has-timeline-panel');
+                updatePushedOffset();
+            }
             if (typeof clearPresentationAnnotation === 'function') clearPresentationAnnotation();
 
             // Apply to draft — save the full note (title/text/color from form + position from drag)
@@ -2220,6 +2243,7 @@ function buildTimelinePanel() {
     evBodyInput.addEventListener('input', syncInspectorToDraft);
     evColorInput.addEventListener('input', syncInspectorToDraft);
     evWidthInput.addEventListener('change', syncInspectorToDraft);
+    evFadeInput.addEventListener('change', syncInspectorToDraft);
     evDelBtn.addEventListener('click', function() {
         if (!draft || selectedEventIdx < 0) return;
         pushUndo();
