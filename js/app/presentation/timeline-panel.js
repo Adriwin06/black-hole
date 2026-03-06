@@ -3016,10 +3016,9 @@ function buildTimelinePanel() {
             var eta  = (s.recording_offline_eta_s != null && s.recording_offline_eta_s >= 0)
                 ? (' ETA ' + formatRecDuration(s.recording_offline_eta_s)) : '';
             setRecStatus('Rendering ' + pct + '% (' + done + '/' + total + ')' + fps + eta, 'is-recording');
-        } else if (phase === 'finalizing') {
+        } else if (phase === 'finalizing-encode' || phase === 'finalizing-mux' || phase === 'finalizing-download') {
             var fp = s.recording_offline_finalizing_progress;
-            var sub = s.recording_offline_finalizing_sub || '';
-            var label = sub === 'encode' ? 'Encoding' : sub === 'mux' ? 'Muxing' : sub === 'download' ? 'Downloading' : 'Finalizing';
+            var label = phase === 'finalizing-encode' ? 'Encoding' : phase === 'finalizing-mux' ? 'Muxing' : 'Downloading';
             var pctStr = (fp != null && fp >= 0) ? (' ' + Math.round(fp * 100) + '%') : '\u2026';
             setRecStatus(label + pctStr, 'is-recording');
         } else {
@@ -3079,7 +3078,7 @@ function buildTimelinePanel() {
         syncRecModal();
     });
 
-    recStartBtn.addEventListener('click', function() {
+    recStartBtn.addEventListener('click', async function() {
         if (typeof startPresentationRecording !== 'function') return;
         if (recResetSimCb && recResetSimCb.checked) {
             if (typeof observer !== 'undefined' && observer) observer.time = 0.0;
@@ -3089,16 +3088,42 @@ function buildTimelinePanel() {
         var bitrate = clampNum(parseFloat(recBitrateInput.value) || 20, 4, 80);
         recFpsInput.value     = Math.round(fps);
         recBitrateInput.value = Math.round(bitrate);
-        var started = startPresentationRecording({
+        var recMode = recModeSelect ? recModeSelect.value : 'offline';
+        var recOptions = {
             fps: fps,
             bitrateMbps: bitrate,
             autoStopOnPresentationEnd: true,
-            recordingMode:       recModeSelect    ? recModeSelect.value    : 'offline',
+            recordingMode:       recMode,
             recordingResolution: recResSelect     ? recResSelect.value     : 'current',
             qualityPreset:       recQualitySelect ? recQualitySelect.value : 'optimal',
             includeAnnotationsInRecording: !!recAnnotRecordCb.checked
-        });
+        };
+
+        // For offline mode, try to use the File System Access API to stream encoded
+        // chunks directly to disk. This avoids accumulating the entire video as a
+        // growing ArrayBuffer in RAM, which causes GPU/browser crashes on long renders.
+        if (recMode === 'offline' &&
+            typeof showSaveFilePicker === 'function' &&
+            typeof window.WebMMuxer !== 'undefined' &&
+            typeof window.WebMMuxer.FileSystemWritableFileStreamTarget === 'function') {
+            try {
+                var fileHandle = await showSaveFilePicker({
+                    suggestedName: 'black-hole-recording.webm',
+                    types: [{ description: 'WebM video', accept: { 'video/webm': ['.webm'] } }]
+                });
+                recOptions.writableFileStream = await fileHandle.createWritable();
+            } catch (pickerErr) {
+                if (pickerErr.name === 'AbortError') return; // user cancelled the dialog
+                // File picker failed for another reason — fall back to ArrayBuffer mode silently
+                console.warn('File picker failed, falling back to in-memory recording:', pickerErr);
+            }
+        }
+
+        var started = startPresentationRecording(recOptions);
         if (!started) {
+            if (recOptions.writableFileStream) {
+                try { recOptions.writableFileStream.abort(); } catch (e) {}
+            }
             var st = (typeof getPresentationState === 'function') ? getPresentationState() : {};
             setRecStatus(st.recording_offline_unavailable_reason || 'Failed to start recording.', 'is-warning');
         }

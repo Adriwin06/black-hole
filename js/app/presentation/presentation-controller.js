@@ -1847,7 +1847,49 @@ function finalizeOfflinePresentationRecording() {
             return;
         }
 
-        Promise.resolve(offlineJob.encoder.flush()).then(function() {
+        // Guard against two failure modes caused by GPU context loss / hardware encoder crash:
+        //   1. flush() throws synchronously (encoder state already 'closed')
+        //   2. flush() returns a Promise that never settles (HW encoder died silently,
+        //      no error callback fired). Without a watchdog this hangs the UI at 10% forever.
+        var flushSettled = false;
+        var flushWatchdog = setTimeout(function() {
+            if (flushSettled) return;
+            flushSettled = true;
+            offlineJob.flushWatchdog = null;
+            console.warn('Offline encoder flush timed out — GPU context may have been lost.');
+            offlineJob.failed = true;
+            offlineJob.phase = 'failed';
+            refreshPresentationUiBindings();
+            if (offlineJob.encoder && typeof offlineJob.encoder.close === 'function') {
+                try { offlineJob.encoder.close(); } catch (closeErr) {}
+            }
+            finishCleanup();
+        }, 30000);
+
+        var flushPromise;
+        try {
+            offlineJob.flushWatchdog = flushWatchdog;
+            flushPromise = offlineJob.encoder.flush();
+        } catch (syncFlushErr) {
+            clearTimeout(flushWatchdog);
+            offlineJob.flushWatchdog = null;
+            flushSettled = true;
+            console.warn('Offline encoder flush threw synchronously:', syncFlushErr);
+            offlineJob.failed = true;
+            offlineJob.phase = 'failed';
+            refreshPresentationUiBindings();
+            if (offlineJob.encoder && typeof offlineJob.encoder.close === 'function') {
+                try { offlineJob.encoder.close(); } catch (closeErr) {}
+            }
+            finishCleanup();
+            return;
+        }
+
+        Promise.resolve(flushPromise).then(function() {
+            clearTimeout(flushWatchdog);
+            offlineJob.flushWatchdog = null;
+            if (flushSettled) return;
+            flushSettled = true;
             offlineJob.phase = 'finalizing-mux';
             refreshPresentationUiBindings();
 
@@ -1861,25 +1903,42 @@ function finalizeOfflinePresentationRecording() {
                     refreshPresentationUiBindings();
 
                     setTimeout(function() {
-                        try {
-                            var buffer = offlineJob.target && offlineJob.target.buffer;
-                            if (buffer) {
-                                var mime = 'video/webm';
-                                var blob = new Blob([buffer], { type: mime });
-                                downloadPresentationRecordingBlob(
-                                    blob,
-                                    mime,
-                                    presentationCaptureState.filenamePrefix
-                                );
-                            }
-                        } catch (downloadErr) {
-                            console.warn('Offline recording download preparation failed:', downloadErr);
-                            offlineJob.failed = true;
-                        }
                         if (offlineJob.encoder && typeof offlineJob.encoder.close === 'function') {
                             try { offlineJob.encoder.close(); } catch (closeErr) {}
                         }
-                        finishCleanup();
+
+                        if (offlineJob.writableFileStream) {
+                            // FileSystemWritableFileStreamTarget path: data already streamed to
+                            // disk during encoding. Just close the writable stream (which also
+                            // flushes any pending buffered writes) and we're done — no Blob ever
+                            // accumulates in RAM.
+                            offlineJob.writableFileStream.close().then(function() {
+                                finishCleanup();
+                            }).catch(function(closeErr) {
+                                console.warn('Failed to close recording file stream:', closeErr);
+                                offlineJob.failed = true;
+                                finishCleanup();
+                            });
+                        } else {
+                            // ArrayBufferTarget path: build a Blob from the in-memory buffer
+                            // and trigger the browser download dialog.
+                            try {
+                                var buffer = offlineJob.target && offlineJob.target.buffer;
+                                if (buffer) {
+                                    var mime = 'video/webm';
+                                    var blob = new Blob([buffer], { type: mime });
+                                    downloadPresentationRecordingBlob(
+                                        blob,
+                                        mime,
+                                        presentationCaptureState.filenamePrefix
+                                    );
+                                }
+                            } catch (downloadErr) {
+                                console.warn('Offline recording download preparation failed:', downloadErr);
+                                offlineJob.failed = true;
+                            }
+                            finishCleanup();
+                        }
                     }, 0);
                 } catch (muxErr) {
                     console.warn('Offline recording finalize failed:', muxErr);
@@ -1891,6 +1950,10 @@ function finalizeOfflinePresentationRecording() {
                 }
             }, 0);
         }).catch(function(flushErr) {
+            clearTimeout(flushWatchdog);
+            offlineJob.flushWatchdog = null;
+            if (flushSettled) return;
+            flushSettled = true;
             console.warn('Offline encoder flush failed:', flushErr);
             offlineJob.failed = true;
             offlineJob.phase = 'failed';
@@ -1915,7 +1978,6 @@ function runOfflinePresentationRecordingLoop() {
     if (!presentationCaptureState.active || !offlineJob) return;
 
     var frameDt = 1.0 / Math.max(presentationCaptureState.fps, 1);
-    var yieldEveryNFrames = 2;
 
     function encodeNextFrame() {
         if (!presentationCaptureState.active || !presentationCaptureState.offlineJob ||
@@ -1998,12 +2060,16 @@ function runOfflinePresentationRecordingLoop() {
             return;
         }
 
-        if (offlineJob.encoder.encodeQueueSize >= 6 ||
-            (offlineJob.frameCount % yieldEveryNFrames) === 0) {
-            setTimeout(encodeNextFrame, 0);
-        } else {
-            encodeNextFrame();
-        }
+        // Always yield via setTimeout — never call encodeNextFrame() directly.
+        // This prevents the JS thread from hammering the GPU in tight synchronous bursts,
+        // which is the primary cause of VRAM spikes and TDR (GPU driver reset) on long renders.
+        //
+        // When the encode queue is backing up (hardware encoder falling behind), add a real
+        // delay so the encoder has time to drain VRAM before the next frame is submitted.
+        // Each 2K VideoFrame is ~14 MB of raw data; without back-pressure they accumulate fast.
+        var queueSize = offlineJob.encoder ? offlineJob.encoder.encodeQueueSize : 0;
+        var frameDelay = (queueSize >= 3) ? 50 : (queueSize >= 1) ? 8 : 0;
+        setTimeout(encodeNextFrame, frameDelay);
     }
 
     encodeNextFrame();
@@ -2289,60 +2355,103 @@ function startPresentationRecording(options) {
             { encoder: 'av01.0.08M.08', muxer: 'V_AV1' }
         ];
 
+        // Phase 1: find a supported codec using lightweight test encoders.
+        // We do this before creating the real muxer+target so that we can use
+        // FileSystemWritableFileStreamTarget (which streams to disk) without
+        // having to discard any partially-written file on codec fallback.
         var selectedVariant = null;
-        var encoder = null;
-        var muxer = null;
-        var target = null;
         for (var cv = 0; cv < codecVariants.length; cv++) {
-            var variant = codecVariants[cv];
+            var testEncoder = null;
             try {
-                target = new muxApi.ArrayBufferTarget();
-                muxer = new muxApi.Muxer({
-                    target: target,
-                    video: {
-                        codec: variant.muxer,
-                        width: width,
-                        height: height,
-                        frameRate: fps
-                    }
-                });
-                encoder = new VideoEncoder({
-                    output: function(chunk, meta) {
-                        try {
-                            if (offlineJob && offlineJob.muxer) {
-                                offlineJob.muxer.addVideoChunk(chunk, meta);
-                            }
-                        } catch (muxErr) {
-                            console.warn('Offline recording mux error:', muxErr);
-                            if (offlineJob) offlineJob.failed = true;
-                        }
-                    },
-                    error: function(err) {
-                        console.warn('Offline recording encoder error:', err);
-                        if (offlineJob) offlineJob.failed = true;
-                    }
-                });
-                encoder.configure({
-                    codec: variant.encoder,
+                testEncoder = new VideoEncoder({ output: function() {}, error: function() {} });
+                testEncoder.configure({
+                    codec: codecVariants[cv].encoder,
                     width: width,
                     height: height,
                     bitrate: Math.round(bitrate * 1000000.0),
                     framerate: fps
                 });
-                selectedVariant = variant;
+                selectedVariant = codecVariants[cv];
+                testEncoder.close();
                 break;
             } catch (codecErr) {
-                if (encoder && typeof encoder.close === 'function') {
-                    try { encoder.close(); } catch (closeErr) {}
+                if (testEncoder && typeof testEncoder.close === 'function') {
+                    try { testEncoder.close(); } catch (closeErr) {}
                 }
-                encoder = null;
-                muxer = null;
             }
         }
 
-        if (!selectedVariant || !encoder || !muxer) {
+        if (!selectedVariant) {
             presentationCaptureState.offlineUnavailableReason =
                 'No supported WebCodecs video encoder was found for offline rendering.';
+            rollbackRecordingQualityOverride();
+            refreshPresentationUiBindings();
+            return false;
+        }
+
+        // Phase 2: create the real target, muxer, and encoder with the winning codec.
+        // Prefer FileSystemWritableFileStreamTarget (streams directly to disk, no giant
+        // ArrayBuffer accumulating in RAM) when the caller passed a writable file stream.
+        var writableFileStream = options.writableFileStream || null;
+        var target = null;
+        var muxer = null;
+        var encoder = null;
+        try {
+            if (writableFileStream && typeof muxApi.FileSystemWritableFileStreamTarget === 'function') {
+                target = new muxApi.FileSystemWritableFileStreamTarget(writableFileStream);
+            } else {
+                writableFileStream = null;
+                target = new muxApi.ArrayBufferTarget();
+            }
+            muxer = new muxApi.Muxer({
+                target: target,
+                video: {
+                    codec: selectedVariant.muxer,
+                    width: width,
+                    height: height,
+                    frameRate: fps
+                }
+            });
+            encoder = new VideoEncoder({
+                output: function(chunk, meta) {
+                    try {
+                        if (offlineJob && offlineJob.muxer) {
+                            offlineJob.muxer.addVideoChunk(chunk, meta);
+                        }
+                    } catch (muxErr) {
+                        console.warn('Offline recording mux error:', muxErr);
+                        if (offlineJob) offlineJob.failed = true;
+                    }
+                },
+                error: function(err) {
+                    console.warn('Offline recording encoder error:', err);
+                    if (offlineJob) {
+                        offlineJob.failed = true;
+                        // If the error fires while flush() is already pending (e.g. after a
+                        // GPU context loss), kick the watchdog so cleanup runs immediately
+                        // rather than waiting the full timeout.
+                        if (offlineJob.flushWatchdog) {
+                            clearTimeout(offlineJob.flushWatchdog);
+                            offlineJob.flushWatchdog = null;
+                            offlineJob.phase = 'failed';
+                            refreshPresentationUiBindings();
+                            cleanupPresentationRecordingState();
+                            refreshPresentationUiBindings();
+                        }
+                    }
+                }
+            });
+            encoder.configure({
+                codec: selectedVariant.encoder,
+                width: width,
+                height: height,
+                bitrate: Math.round(bitrate * 1000000.0),
+                framerate: fps
+            });
+        } catch (setupErr) {
+            console.warn('Offline recording setup failed:', setupErr);
+            if (encoder && typeof encoder.close === 'function') { try { encoder.close(); } catch(e) {} }
+            presentationCaptureState.offlineUnavailableReason = 'Failed to initialize offline encoder.';
             rollbackRecordingQualityOverride();
             refreshPresentationUiBindings();
             return false;
@@ -2356,6 +2465,7 @@ function startPresentationRecording(options) {
             encoder: encoder,
             muxer: muxer,
             target: target,
+            writableFileStream: writableFileStream,
             codec: selectedVariant.encoder,
             frameDurationUs: Math.max(1, Math.round(1000000.0 / fps)),
             nextTimestampUs: 0,
