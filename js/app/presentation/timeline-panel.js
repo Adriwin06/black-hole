@@ -715,6 +715,7 @@ function buildTimelinePanel() {
                 applyingDraft = false;
             }
             linkedFileName = null;
+            autoKeySnapshot = null;
             rebuildAll();
             updateDelPresetBtn();
             setStatus('New empty timeline created.', '');
@@ -725,6 +726,7 @@ function buildTimelinePanel() {
                 syncFromRuntime();
                 resetZoom();
                 linkedFileName = null;
+                autoKeySnapshot = null;
                 updateDelPresetBtn();
                 setStatus('Loaded preset: ' + name, '');
             } else {
@@ -900,6 +902,31 @@ function buildTimelinePanel() {
         setStatus('Annotation track removed.', '');
     }
 
+    // ── _pairOf re-indexing after sort ────────────────────────────────────────
+    // Rebuilds all _pairOf indices by looking up annotation objects that each
+    // clearAnnotation's _pairOf previously pointed to.  Must be called AFTER
+    // the events array has been sorted (and before any further _pairOf reads).
+    function reindexAllPairOf(events) {
+        for (var i = 0; i < events.length; i++) {
+            var e = events[i];
+            if (e.action !== 'clearAnnotation' || typeof e._pairOf !== 'number') continue;
+            // _pairOf might be stale; just leave it if we can't find anything better.
+            // Heuristic: among annotation events on the same channel that start
+            // before this clear, pick the nearest one.
+            var bestIdx = -1, bestT = -Infinity;
+            var ch = (typeof e.channel === 'number') ? e.channel : 0;
+            for (var j = 0; j < events.length; j++) {
+                if (events[j].action === 'annotation' &&
+                    ((events[j].channel || 0) === ch) &&
+                    events[j].t < e.t && events[j].t > bestT) {
+                    bestT = events[j].t;
+                    bestIdx = j;
+                }
+            }
+            if (bestIdx >= 0) e._pairOf = bestIdx;
+        }
+    }
+
     // ── Event inspector fill ─────────────────────────────────────────────────
     function fillEventInspector(ev, idx) {
         selectedEventIdx = idx;
@@ -980,6 +1007,20 @@ function buildTimelinePanel() {
         }
         var action = note ? 'annotation' : 'clearAnnotation';
 
+        // Save the object reference of the currently paired clear event (if any)
+        // so we can find it reliably after sorting.
+        var oldPairedClear = null;
+        if (selectedEventIdx >= 0 && draft.events[selectedEventIdx]) {
+            var origEv = draft.events[selectedEventIdx];
+            for (var i = 0; i < draft.events.length; i++) {
+                if (draft.events[i].action === 'clearAnnotation' &&
+                    draft.events[i]._pairOf === selectedEventIdx) {
+                    oldPairedClear = draft.events[i];
+                    break;
+                }
+            }
+        }
+
         if (selectedEventIdx >= 0 && draft.events[selectedEventIdx]) {
             ev = draft.events[selectedEventIdx];
             ev.t      = t;
@@ -1001,31 +1042,32 @@ function buildTimelinePanel() {
 
         // ── Duration → auto-manage clearAnnotation event ──
         if (action === 'annotation') {
-            // Remove any existing paired clearAnnotation
-            for (var i = draft.events.length - 1; i >= 0; i--) {
-                if (draft.events[i].action === 'clearAnnotation' && draft.events[i]._pairOf === selectedEventIdx) {
-                    draft.events.splice(i, 1);
-                    if (i < selectedEventIdx) selectedEventIdx--;
+            // Remove any existing paired clearAnnotation (found by object reference)
+            if (oldPairedClear) {
+                for (var i = draft.events.length - 1; i >= 0; i--) {
+                    if (draft.events[i] === oldPairedClear) {
+                        draft.events.splice(i, 1);
+                        if (i < selectedEventIdx) selectedEventIdx--;
+                        break;
+                    }
                 }
             }
+            var newClearEv = null;
             if (durVal > 0) {
-                var clearEv = { t: t + durVal, action: 'clearAnnotation', channel: ev.channel || 0, _pairOf: selectedEventIdx };
-                draft.events.push(clearEv);
+                newClearEv = { t: t + durVal, action: 'clearAnnotation', channel: ev.channel || 0 };
+                draft.events.push(newClearEv);
             }
             draft.events.sort(function(a, b) { return a.t - b.t; });
             // Re-find selected index after sort
             for (var i = 0; i < draft.events.length; i++) {
                 if (draft.events[i] === ev) { selectedEventIdx = i; break; }
             }
-            // Re-assign _pairOf references after sort
-            for (var i = 0; i < draft.events.length; i++) {
-                if (draft.events[i]._pairOf !== undefined) {
-                    // Find the annotation event this clear pairs with
-                    for (var j = 0; j < draft.events.length; j++) {
-                        if (draft.events[j] === ev) { draft.events[i]._pairOf = j; break; }
-                    }
-                }
+            // Set _pairOf on the newly created clear event only
+            if (newClearEv) {
+                newClearEv._pairOf = selectedEventIdx;
             }
+            // Re-index all other _pairOf references using object identity
+            reindexAllPairOf(draft.events);
         }
 
         draft.duration = Math.max(draft.duration, t + (durVal || 0));
@@ -1054,6 +1096,21 @@ function buildTimelinePanel() {
         rebuildAll();
         fillEventInspector(draft.events[selectedEventIdx], selectedEventIdx);
         setStatus('Annotation added at ' + t.toFixed(2) + 's \u2013 edit title/text and click SET EVENT.', 'tl-status--info');
+    }
+
+    // ── Auto-sync inspector fields into draft event (no undo push) ──────────
+    function syncInspectorToDraft() {
+        if (!draft || selectedEventIdx < 0 || !draft.events[selectedEventIdx]) return;
+        var ev = draft.events[selectedEventIdx];
+        if (ev.action !== 'annotation') return;
+        if (!ev.note) ev.note = {};
+        var title = evTitleInput.value.trim();
+        var body  = evBodyInput.value;
+        if (title) ev.note.title = title; else delete ev.note.title;
+        if (body.trim()) ev.note.text = body; else delete ev.note.text;
+        ev.note.color = evColorInput.value || '#7cc5ff';
+        var w = parseInt(evWidthInput.value, 10);
+        ev.note.width = (isFinite(w) && w >= 100) ? w : 320;
     }
 
     // ── Preview annotation live ──────────────────────────────────────────────
@@ -1091,6 +1148,7 @@ function buildTimelinePanel() {
     // ── Drag overlay for positioning box and pointer ─────────────────────────
     function startPositionDrag() {
         if (typeof setPresentationAnnotation !== 'function') return;
+        syncInspectorToDraft();
         var note = buildNoteFromInspector();
         if (!note) { setStatus('Add title or text first.', 'tl-status--warn'); return; }
 
@@ -1180,19 +1238,21 @@ function buildTimelinePanel() {
             document.body.removeChild(overlay);
             if (typeof clearPresentationAnnotation === 'function') clearPresentationAnnotation();
 
-            // Apply to draft
+            // Apply to draft — save the full note (title/text/color from form + position from drag)
             if (draft && selectedEventIdx >= 0 && draft.events[selectedEventIdx]) {
                 pushUndo();
                 var ev = draft.events[selectedEventIdx];
-                if (!ev.note) ev.note = {};
-                ev.note.boxX = boxX;
-                ev.note.boxY = boxY;
-                ev.note.anchor = { mode: 'screen', x: anchorX, y: anchorY };
+                // Build complete note from inspector fields + drag position
+                var fullNote = buildNoteFromInspector() || {};
+                fullNote.boxX = boxX;
+                fullNote.boxY = boxY;
+                fullNote.anchor = { mode: 'screen', x: anchorX, y: anchorY };
+                ev.note = fullNote;
                 evPlacement.value = 'manual';
                 applyDraft();
                 rebuildAll();
                 fillEventInspector(draft.events[selectedEventIdx], selectedEventIdx);
-                setStatus('Position set. Click SET EVENT to save all changes.', 'tl-status--info');
+                setStatus('Position saved.', 'tl-status--info');
             }
         }
 
@@ -2092,16 +2152,8 @@ function buildTimelinePanel() {
                 for (var i = 0; i < draft.events.length; i++) {
                     if (draft.events[i] === ev) { selectedEventIdx = i; break; }
                 }
-                // Re-index _pairOf references invalidated by the sort.
-                for (var i = 0; i < draft.events.length; i++) {
-                    if (draft.events[i].action === 'clearAnnotation' &&
-                            typeof draft.events[i]._pairOf === 'number') {
-                        // Only the moved event's index may have changed.
-                        if (draft.events[i]._pairOf === ei) {
-                            draft.events[i]._pairOf = selectedEventIdx;
-                        }
-                    }
-                }
+                // Re-index all _pairOf references invalidated by the sort.
+                reindexAllPairOf(draft.events);
                 dragLaneEl = null;
                 applyDraft();
                 rebuildAll();
@@ -2163,6 +2215,11 @@ function buildTimelinePanel() {
     evTimeInput.addEventListener('keydown', function(e) {
         if (e.key === 'Enter') { e.preventDefault(); doSetEvent(); }
     });
+    // Auto-sync inspector fields to draft while typing
+    evTitleInput.addEventListener('input', syncInspectorToDraft);
+    evBodyInput.addEventListener('input', syncInspectorToDraft);
+    evColorInput.addEventListener('input', syncInspectorToDraft);
+    evWidthInput.addEventListener('change', syncInspectorToDraft);
     evDelBtn.addEventListener('click', function() {
         if (!draft || selectedEventIdx < 0) return;
         pushUndo();
