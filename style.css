@@ -1934,6 +1934,39 @@ body.tl-resizing, body.tl-resizing * {
     background: #0a1524;
     min-height: 20px;
 }
+.tl-ev-end-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 8px;
+    border: 1px solid #3a2a10;
+    border-radius: 4px;
+    background: #1a1408;
+    color: #d4a84b;
+    font-size: 10px;
+}
+.tl-ev-end-banner span {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.tl-mini-btn {
+    padding: 2px 8px;
+    border-radius: 3px;
+    border: 1px solid #3a3a2a;
+    background: #252514;
+    color: #ccc080;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    cursor: pointer;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+.tl-mini-btn:hover { background: #3a3518; }
+.tl-mini-btn--danger { border-color: #4a2010; background: #200c06; color: #e07050; }
+.tl-mini-btn--danger:hover { background: #3a1408; }
 .tl-insp-row {
     display: flex;
     align-items: center;

@@ -175,6 +175,10 @@ function buildTimelinePanel() {
                 '</div>' +
                 '<div id="tl-ev-section" class="tl-ev-section" style="display:none">' +
                     '<div class="tl-inspector-title">&#9998;&nbsp;TEXT EVENT</div>' +
+                    '<div id="tl-ev-end-banner" class="tl-ev-end-banner" style="display:none">' +
+                        '<span id="tl-ev-end-label">&#x23f9; End marker</span>' +
+                        '<button id="tl-ev-end-remove" class="tl-mini-btn tl-mini-btn--danger" type="button" title="Remove end marker (annotation becomes permanent)">REMOVE END</button>' +
+                    '</div>' +
                     '<div id="tl-ev-summary" class="tl-insp-summary">No event selected.</div>' +
                     '<div class="tl-insp-row">' +
                         '<label>Time</label>' +
@@ -380,6 +384,9 @@ function buildTimelinePanel() {
     var evPositionBtn = panel.querySelector('#tl-ev-position');
     var evPreviewBtn  = panel.querySelector('#tl-ev-preview');
     var addTextBtn    = panel.querySelector('#tl-btn-add-text');
+    var evEndBanner   = panel.querySelector('#tl-ev-end-banner');
+    var evEndLabel    = panel.querySelector('#tl-ev-end-label');
+    var evEndRemove   = panel.querySelector('#tl-ev-end-remove');
 
     // ── State ───────────────────────────────────────────────────────────────
     var draft          = null;
@@ -762,9 +769,19 @@ function buildTimelinePanel() {
         keySection.style.display = '';
         evSection.style.display  = 'none';
     }
-    function showEventInspector() {
+    function showEventInspector(isClearEvent) {
         keySection.style.display = 'none';
         evSection.style.display  = '';
+        // Show/hide the end-marker banner and form fields based on event type
+        var isEnd = !!isClearEvent;
+        evEndBanner.style.display  = isEnd ? '' : 'none';
+        // Disable editing fields for end markers so the user can't accidentally re-save
+        var fields = [evTimeInput, evTitleInput, evBodyInput, evColorInput, evWidthInput,
+                      evFadeInput, evDurInput, evPlacement, evUseTimeBtn, evSetBtn,
+                      evPositionBtn, evPreviewBtn];
+        for (var _fi = 0; _fi < fields.length; _fi++) {
+            if (fields[_fi]) fields[_fi].disabled = isEnd;
+        }
     }
 
     // ── Events lane (center) + row label (left) ──────────────────────────────
@@ -871,7 +888,13 @@ function buildTimelinePanel() {
         if (!draft) { draft = normalizeTL({ name: 'Untitled', duration: 12, tracks: [], events: [] }); }
         pushUndo();
         if (!Array.isArray(draft.annotationTracks)) draft.annotationTracks = [{ label: 'Annotation 1' }];
+        // Find a unique label that doesn't collide with any existing track
+        var existingLabels = {};
+        for (var _li = 0; _li < draft.annotationTracks.length; _li++) {
+            existingLabels[draft.annotationTracks[_li].label] = true;
+        }
         var n = draft.annotationTracks.length + 1;
+        while (existingLabels['Annotation ' + n]) n++;
         draft.annotationTracks.push({ label: 'Annotation ' + n });
         selectedEventChannel = draft.annotationTracks.length - 1;
         applyDraft();
@@ -903,6 +926,8 @@ function buildTimelinePanel() {
             selectedEventIdx = -1;
             showKeyInspector();
         }
+        // Reindex _pairOf after events were spliced out, before applying
+        reindexAllPairOf(draft.events);
         applyDraft();
         rebuildAll();
         setStatus('Annotation track removed.', '');
@@ -915,7 +940,8 @@ function buildTimelinePanel() {
     function reindexAllPairOf(events) {
         for (var i = 0; i < events.length; i++) {
             var e = events[i];
-            if (e.action !== 'clearAnnotation' || typeof e._pairOf !== 'number') continue;
+            if (e.action !== 'clearAnnotation') continue;
+            // Process all clearAnnotation events, even those without a _pairOf yet
             // _pairOf might be stale; just leave it if we can't find anything better.
             // Heuristic: among annotation events on the same channel that start
             // before this clear, pick the nearest one.
@@ -937,7 +963,8 @@ function buildTimelinePanel() {
     function fillEventInspector(ev, idx) {
         selectedEventIdx = idx;
         selectedEventChannel = ev.channel || 0;
-        showEventInspector();
+        var isClear = (ev.action === 'clearAnnotation');
+        showEventInspector(isClear);
         evTimeInput.value  = ev.t.toFixed(2);
         var note = ev.note || {};
         evTitleInput.value = note.title || '';
@@ -948,7 +975,20 @@ function buildTimelinePanel() {
         evPlacement.value  = (typeof note.boxX === 'number' && typeof note.boxY === 'number')
             ? 'manual' : (note.placement || 'auto');
 
-        // Compute duration from paired clearAnnotation event
+        // For end markers, find the paired annotation title for the banner
+        if (isClear) {
+            var pairedTitle = '';
+            if (draft && typeof ev._pairOf === 'number' && draft.events[ev._pairOf]
+                    && draft.events[ev._pairOf].note) {
+                pairedTitle = draft.events[ev._pairOf].note.title || '';
+            }
+            evEndLabel.textContent = pairedTitle
+                ? '\u23f9 End marker for: \u201c' + pairedTitle + '\u201d'
+                : '\u23f9 End marker (clears annotation)';
+        }
+
+        // Compute duration from the explicitly paired clearAnnotation event only.
+        // Never fall back to an arbitrary clear event — that causes phantom durations.
         var dur = 0;
         if (draft && ev.action === 'annotation') {
             for (var i = 0; i < draft.events.length; i++) {
@@ -956,15 +996,6 @@ function buildTimelinePanel() {
                 if (ce.action === 'clearAnnotation' && ce.t > ev.t && ce._pairOf === idx) {
                     dur = ce.t - ev.t;
                     break;
-                }
-            }
-            if (!dur) {
-                for (var i = 0; i < draft.events.length; i++) {
-                    var ce = draft.events[i];
-                    if (ce.action === 'clearAnnotation' && ce.t > ev.t) {
-                        dur = ce.t - ev.t;
-                        break;
-                    }
                 }
             }
         }
@@ -1013,6 +1044,11 @@ function buildTimelinePanel() {
             if (body.trim()) note.text = body;
             var fadeInVal = parseFloat(evFadeInput.value);
             if (isFinite(fadeInVal) && fadeInVal > 0) note.fadeIn = fadeInVal;
+        } else if (selectedEventIdx >= 0 && draft.events[selectedEventIdx]) {
+            // Fields are blank — preserve the existing note so that SET EVENT with an empty
+            // title/body (e.g. the user only changed the time) never silently converts an
+            // annotation into a clearAnnotation.
+            note = draft.events[selectedEventIdx].note || null;
         }
         var action = note ? 'annotation' : 'clearAnnotation';
 
@@ -1432,6 +1468,9 @@ function buildTimelinePanel() {
             out.events.push(clonePlain(ev));
         }
         out.events.sort(function(a, b) { return a.t - b.t; });
+        // Pair clearAnnotation events to their nearest preceding annotation on the same channel.
+        // This ensures _pairOf is valid for JSON files that were saved without it.
+        reindexAllPairOf(out.events);
 
         // If no annotation event carries an explicit channel > 0, auto-assign channels
         // via greedy interval scheduling so overlapping bars land on separate tracks.
@@ -2189,7 +2228,32 @@ function buildTimelinePanel() {
                 if (draft && draft.events[ei]) {
                     clearMultiSelect();
                     selectedTrack = '';
-                    fillEventInspector(draft.events[ei], ei);
+                    var clickedEv = draft.events[ei];
+                    // If the user clicked a clearAnnotation end-marker, redirect
+                    // focus to the paired annotation event instead.
+                    if (clickedEv.action === 'clearAnnotation') {
+                        var pairIdx = -1;
+                        if (typeof clickedEv._pairOf === 'number' && draft.events[clickedEv._pairOf]
+                                && draft.events[clickedEv._pairOf].action === 'annotation') {
+                            pairIdx = clickedEv._pairOf;
+                        } else {
+                            // Fallback: nearest preceding annotation on same channel
+                            var ch2 = clickedEv.channel || 0;
+                            for (var pi = ei - 1; pi >= 0; pi--) {
+                                if (draft.events[pi].action === 'annotation'
+                                        && (draft.events[pi].channel || 0) === ch2) {
+                                    pairIdx = pi; break;
+                                }
+                            }
+                        }
+                        if (pairIdx >= 0) {
+                            fillEventInspector(draft.events[pairIdx], pairIdx);
+                        } else {
+                            fillEventInspector(clickedEv, ei);
+                        }
+                    } else {
+                        fillEventInspector(clickedEv, ei);
+                    }
                     rebuildEventsLane();
                     rebuildTrackList();
                     rebuildLanes();
@@ -2244,15 +2308,79 @@ function buildTimelinePanel() {
     evColorInput.addEventListener('input', syncInspectorToDraft);
     evWidthInput.addEventListener('change', syncInspectorToDraft);
     evFadeInput.addEventListener('change', syncInspectorToDraft);
+    // Duration field: immediately update (or remove) the paired clearAnnotation event
+    evDurInput.addEventListener('change', function() {
+        if (!draft || selectedEventIdx < 0 || !draft.events[selectedEventIdx]) return;
+        var ev = draft.events[selectedEventIdx];
+        if (ev.action !== 'annotation') return;
+        var durVal = parseFloat(evDurInput.value);
+        if (!isFinite(durVal) || durVal < 0) durVal = 0;
+        pushUndo();
+        // Remove any existing paired clearAnnotation for this event
+        for (var i = draft.events.length - 1; i >= 0; i--) {
+            if (draft.events[i].action === 'clearAnnotation' &&
+                    draft.events[i]._pairOf === selectedEventIdx) {
+                draft.events.splice(i, 1);
+                if (i < selectedEventIdx) selectedEventIdx--;
+            }
+        }
+        // Create a new one if duration > 0
+        if (durVal > 0) {
+            var newClear = { t: ev.t + durVal, action: 'clearAnnotation', channel: ev.channel || 0 };
+            draft.events.push(newClear);
+            draft.events.sort(function(a, b) { return a.t - b.t; });
+            for (var j = 0; j < draft.events.length; j++) {
+                if (draft.events[j] === ev) { selectedEventIdx = j; break; }
+            }
+            newClear._pairOf = selectedEventIdx;
+        }
+        reindexAllPairOf(draft.events);
+        applyDraft();
+        rebuildAll();
+    });
     evDelBtn.addEventListener('click', function() {
         if (!draft || selectedEventIdx < 0) return;
         pushUndo();
         draft.events.splice(selectedEventIdx, 1);
+        reindexAllPairOf(draft.events);
         selectedEventIdx = -1;
         showKeyInspector();
         applyDraft();
         rebuildAll();
         setStatus('Annotation event deleted.', '');
+    });
+    // Remove End button: deletes only the clearAnnotation end marker so the
+    // annotation that owns it becomes permanent (no automatic clear).
+    evEndRemove.addEventListener('click', function() {
+        if (!draft || selectedEventIdx < 0) return;
+        var ev = draft.events[selectedEventIdx];
+        if (!ev || ev.action !== 'clearAnnotation') return;
+        // Find the paired annotation to keep selected after deletion
+        var pairIdx = -1;
+        if (typeof ev._pairOf === 'number' && draft.events[ev._pairOf]
+                && draft.events[ev._pairOf].action === 'annotation') {
+            pairIdx = ev._pairOf;
+        }
+        pushUndo();
+        draft.events.splice(selectedEventIdx, 1);
+        reindexAllPairOf(draft.events);
+        // Select the paired annotation (index may have shifted after splice)
+        if (pairIdx >= 0 && pairIdx < selectedEventIdx) {
+            selectedEventIdx = pairIdx;
+        } else if (pairIdx > selectedEventIdx) {
+            selectedEventIdx = pairIdx - 1;
+        } else {
+            selectedEventIdx = -1;
+        }
+        if (selectedEventIdx >= 0 && draft.events[selectedEventIdx]) {
+            fillEventInspector(draft.events[selectedEventIdx], selectedEventIdx);
+        } else {
+            selectedEventIdx = -1;
+            showKeyInspector();
+        }
+        applyDraft();
+        rebuildAll();
+        setStatus('End marker removed. Annotation will now persist.', '');
     });
     evNewBtn.addEventListener('click', addNewAnnotationEvent);
     addTextBtn.addEventListener('click', addNewAnnotationEvent);

@@ -100,7 +100,7 @@ function Shader(mustacheTemplate) {
         turbulence_loop_enabled: false,
         turbulence_loop_seconds: 20.0,
         observer: {
-            motion: true,
+            motion: false,
             distance: 11.0,
             orbital_inclination: -10
         },
