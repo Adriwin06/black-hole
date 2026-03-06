@@ -3107,8 +3107,11 @@ function buildTimelinePanel() {
             typeof window.WebMMuxer !== 'undefined' &&
             typeof window.WebMMuxer.FileSystemWritableFileStreamTarget === 'function') {
             try {
+                var suggestedName = (typeof presentationCaptureFilename === 'function')
+                    ? presentationCaptureFilename('black-hole-presentation', 'video/webm')
+                    : 'black-hole-presentation.webm';
                 var fileHandle = await showSaveFilePicker({
-                    suggestedName: 'black-hole-recording.webm',
+                    suggestedName: suggestedName,
                     types: [{ description: 'WebM video', accept: { 'video/webm': ['.webm'] } }]
                 });
                 recOptions.writableFileStream = await fileHandle.createWritable();
