@@ -85,12 +85,65 @@ a:hover {
     .dg .cr.number input[type=text] {
         font-size: 16px;
     }
-    /* Side panels responsive */
-    .sp-panel { width: min(85vw, 360px) !important; min-width: 0 !important; }
+
+    /* ── Side panels — mobile ── */
+    .sp-panel {
+        width: min(88vw, 400px) !important;
+        min-width: 0 !important;
+    }
     .sp-resize { display: none; }
-    .sp-open-btn { top: auto; bottom: 42px; }
-    .sp-open-btn--left  { left: 8px; border-left: 1px solid #2e5080; border-radius: 6px; }
-    .sp-open-btn--right { right: 8px; border-right: 1px solid #2e5080; border-radius: 6px; }
+
+    /* Close button inside panel — larger tap target */
+    .sp-close {
+        width: 36px;
+        height: 36px;
+        font-size: 20px;
+        border-radius: 6px;
+    }
+
+    /* ── Side open buttons — mobile redesign ── */
+    .sp-open-btn {
+        top: auto !important;
+        /* Clear the link-bar (≈40px) plus safe-area for iPhones */
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 52px) !important;
+        height: 40px !important;
+        min-height: unset !important;
+        line-height: 40px !important;
+        padding: 0 16px !important;
+        font-size: 11px !important;
+        letter-spacing: 0.8px !important;
+        font-weight: 700 !important;
+        border-radius: 20px !important;
+        border: 1px solid #3e6090 !important;
+        background: rgba(10, 18, 38, 0.93) !important;
+        box-shadow: 0 3px 14px rgba(0, 0, 0, 0.6) !important;
+        transform: none !important;
+        -webkit-tap-highlight-color: transparent;
+        white-space: nowrap;
+    }
+    .sp-open-btn:active {
+        background: rgba(20, 38, 74, 0.98) !important;
+        border-color: #5a86bc !important;
+        color: #d0eaff !important;
+    }
+    .sp-open-btn--left {
+        left: 10px !important;
+        right: auto !important;
+    }
+    .sp-open-btn--right {
+        right: 10px !important;
+        left: auto !important;
+    }
+
+    /* ── Timeline: hidden on mobile ── */
+    #tl-open-btn { display: none !important; }
+    .tl-panel    { display: none !important; }
+
+    /* Undo has-timeline-panel shifts that are desktop-only */
+    body.has-timeline-panel .sp-panel   { bottom: 0; }
+    body.has-timeline-panel .link-bar   { bottom: 6px; }
+    body.has-timeline-panel #axes-gizmo-container { bottom: auto !important; }
+
     #axes-gizmo-container {
         left: auto !important;
         right: 8px !important;
@@ -112,6 +165,24 @@ a:hover {
         top: 4px !important;
         transform: scale(0.84) !important;
     }
+
+    /* Extra-small screens: compact side buttons */
+    .sp-open-btn {
+        padding: 0 12px !important;
+        font-size: 10px !important;
+        height: 36px !important;
+        line-height: 36px !important;
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 46px) !important;
+        letter-spacing: 0.4px !important;
+    }
+    .sp-open-btn--left  { left: 6px !important; }
+    .sp-open-btn--right { right: 6px !important; }
+
+    /* Panels take nearly full width on small phones */
+    .sp-panel { width: min(93vw, 400px) !important; }
+
+    /* Smaller panel header on tiny screens */
+    .sp-title { font-size: 10px; letter-spacing: 1.5px; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════ */
