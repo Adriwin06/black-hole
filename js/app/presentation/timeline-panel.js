@@ -102,7 +102,7 @@ function buildTimelinePanel() {
                 '<button id="tl-btn-motion" class="tl-btn tl-btn--motion" type="button" title="Insert a predefined motion function">⊕&nbsp;FX</button>' +
                 '<button id="tl-btn-rec" class="tl-btn tl-btn--rec" type="button" title="Recording settings">&#9679;&nbsp;REC</button>' +
                 '<span class="tl-transport-sep"></span>' +
-                '<button id="tl-btn-auto-key" class="tl-btn tl-btn--warn" type="button" title="Auto Keyframe: capture changes">AUTO KEY</button>' +
+                '<button id="tl-btn-auto-key" class="tl-btn tl-btn--warn" type="button" title="Auto Keyframe: capture changes. Shift+click to skip camera.">AUTO KEY</button>' +
                 '<button id="tl-btn-add-track" class="tl-btn" type="button" title="Add a new track">+ TRACK</button>' +
                 '<button id="tl-btn-add-text" class="tl-btn tl-btn--text" type="button" title="Add annotation text at current time">&#9998;&nbsp;TEXT</button>' +
                 '<span class="tl-transport-sep"></span>' +
@@ -2472,11 +2472,18 @@ function buildTimelinePanel() {
         overlay.focus();
     }
 
-    autoKeyBtn.addEventListener('click', function() {
+    autoKeyBtn.addEventListener('click', function(e) {
         if (!draft) { setStatus('Load a timeline first.', 'tl-status--warn'); return; }
+        var skipCamera = e.shiftKey;
         var t = currentTime();
         var snap = captureSnapshot();
         var paths = Object.keys(snap);
+        if (skipCamera) {
+            paths = paths.filter(function(p) {
+                return p.indexOf('camera.position.') !== 0 &&
+                       p.indexOf('camera.quaternion.') !== 0;
+            });
+        }
         if (!paths.length) { setStatus('Nothing to capture.', 'tl-status--warn'); return; }
 
         if (!autoKeySnapshot) {
