@@ -2412,9 +2412,29 @@ function buildTimelinePanel() {
     });
 
     // ── Auto Keyframe ───────────────────────────────────────────────────────
+    // Parameters that are UI/performance meta-settings and should never be
+    // captured as timeline keyframes (they would override the user's choice on play).
+    // These are all the parameters owned by the quality preset system.
+    var SNAPSHOT_EXCLUDED_PATHS = {
+        'quality': true,
+        'n_steps': true,
+        'sample_count': true,
+        'max_revolutions': true,
+        'rk4_integration': true,
+        'cinematic_tonemap': true,
+        'resolution_scale': true,
+        'taa_enabled': true,
+        'taa.history_weight': true,
+        'taa.clip_box': true,
+        'taa.motion_rejection': true,
+        'taa.max_camera_delta': true,
+        'taa.motion_clip_scale': true
+    };
+
     function captureSnapshot() {
         var out = {};
         function add(p, v) {
+            if (SNAPSHOT_EXCLUDED_PATHS[p]) return;
             if (typeof v === 'number' && isFinite(v)) { out[p] = v; return; }
             if (typeof v === 'boolean' || typeof v === 'string') out[p] = v;
         }

@@ -783,10 +783,30 @@ function normalizePresentationTimeline(timeline) {
     }
 
     var maxTime = 0.0;
+    // Paths that are UI/performance meta-settings and must never be driven by
+    // a timeline (they would silently override the user's chosen setting on play).
+    // These are all the parameters owned by the quality preset system.
+    var TIMELINE_EXCLUDED_PATHS = {
+        'quality': true,
+        'n_steps': true,
+        'sample_count': true,
+        'max_revolutions': true,
+        'rk4_integration': true,
+        'cinematic_tonemap': true,
+        'resolution_scale': true,
+        'taa_enabled': true,
+        'taa.history_weight': true,
+        'taa.clip_box': true,
+        'taa.motion_rejection': true,
+        'taa.max_camera_delta': true,
+        'taa.motion_clip_scale': true
+    };
+
     var tracks = Array.isArray(raw.tracks) ? raw.tracks : [];
     for (var i = 0; i < tracks.length; i++) {
         var track = tracks[i];
         if (!track || typeof track.path !== 'string') continue;
+        if (TIMELINE_EXCLUDED_PATHS[track.path]) continue;
 
         var keys = Array.isArray(track.keys) ? track.keys : [];
         var normalizedKeys = [];
