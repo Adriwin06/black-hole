@@ -1580,6 +1580,11 @@ function getPresentationRendererRuntimeApi() {
     return runtimeApi;
 }
 
+function isRendererContextLost() {
+    var runtimeApi = getPresentationRendererRuntimeApi();
+    return runtimeApi && typeof runtimeApi.isContextLost === 'function' && runtimeApi.isContextLost();
+}
+
 function getPresentationWebMMuxerApi() {
     if (typeof window === 'undefined' || !window.WebMMuxer) return null;
     var muxApi = window.WebMMuxer;
@@ -2056,6 +2061,13 @@ function runOfflinePresentationRecordingLoop() {
         }
 
         if (offlineJob.stopRequested || offlineJob.failed) {
+            finalizeOfflinePresentationRecording();
+            return;
+        }
+
+        if (isRendererContextLost()) {
+            console.warn('Offline recording aborted: WebGL context lost (GPU driver reset / TDR).');
+            offlineJob.failed = true;
             finalizeOfflinePresentationRecording();
             return;
         }

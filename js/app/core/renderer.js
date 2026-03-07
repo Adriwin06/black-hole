@@ -673,6 +673,23 @@ function init(glslSource, textures) {
     renderer.domElement.style.touchAction = 'none';
     container.appendChild( renderer.domElement );
 
+    // ── WebGL context loss / restore handling ──────────────────────────────────
+    // GPU driver resets (TDR on Windows) silently destroy the GL context.
+    // Without explicit handling the offline recording loop continues pumping
+    // frames from a dead context and eventually hangs.
+    renderer.domElement.addEventListener('webglcontextlost', function(e) {
+        e.preventDefault(); // allow restoration
+        rendererContextLost = true;
+        console.warn('WebGL context lost — GPU driver may have reset (TDR).');
+    }, false);
+    renderer.domElement.addEventListener('webglcontextrestored', function() {
+        rendererContextLost = false;
+        console.info('WebGL context restored.');
+        if (shader) shader.needsUpdate = true;
+        resetTemporalAAHistory();
+    }, false);
+    // ──────────────────────────────────────────────────────────────────────────
+
     // ============== BLOOM POST-PROCESSING ==============
     bloomPass = setupBloom();
     // ============== END BLOOM ==============
@@ -1281,6 +1298,7 @@ function onWindowResize( event ) {
 var lastCameraMat = new THREE.Matrix4().identity();
 var resetRendererFrameClock = function() {};
 var rendererOfflineSteppingActive = false;
+var rendererContextLost = false;
 
 // ─── Frame timing ─────────────────────────────────────────────────────────────
 // Always called once per RAF tick (inside animate()), never inside render().
@@ -1436,6 +1454,9 @@ if (typeof window !== 'undefined') {
         stepOfflineFrame: stepRendererForOfflineRecording,
         resetFrameClock: function() {
             resetRendererFrameClock();
+        },
+        isContextLost: function() {
+            return rendererContextLost;
         }
     };
 }
