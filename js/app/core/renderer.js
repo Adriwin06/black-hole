@@ -1461,11 +1461,23 @@ if (typeof window !== 'undefined') {
         resizeForOfflineRecording: function(w, h) {
             if (!renderer) return false;
             renderer.setPixelRatio(1);
-            renderer.setSize(w, h);
+            // Pass false so the canvas CSS is NOT updated — the layout stays
+            // at the window dimensions, keeping the in-browser viewport intact
+            // while the WebGL backing store renders at the recording resolution.
+            renderer.setSize(w, h, false);
             var rw = renderer.domElement.width;
             var rh = renderer.domElement.height;
             if (bloomPass) bloomPass.resize(rw, rh);
             if (taaPass) taaPass.resize(rw, rh);
+            // Warm up TAA history at the new resolution so the first recorded
+            // frame already has a converged accumulation buffer.  We render
+            // without advancing simulation time: same scene, different jitter
+            // offsets each iteration, blended into history.
+            // history_weight=0.88 → ~37 frames to 99%;  64 is a safe margin.
+            var taaWarmupFrames = shader.parameters.taa_enabled ? 64 : 0;
+            for (var i = 0; i < taaWarmupFrames; i++) {
+                drawRendererFrame(true);
+            }
             return true;
         },
         restoreWindowSizeAfterRecording: function() {
