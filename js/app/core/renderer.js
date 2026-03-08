@@ -1461,14 +1461,22 @@ if (typeof window !== 'undefined') {
         resizeForOfflineRecording: function(w, h) {
             if (!renderer) return false;
             renderer.setPixelRatio(1);
-            // Pass false so the canvas CSS is NOT updated — the layout stays
-            // at the window dimensions, keeping the in-browser viewport intact
-            // while the WebGL backing store renders at the recording resolution.
+            // Pass false so Three.js does NOT set the canvas CSS width/height.
+            // We set object-fit:contain ourselves so the browser letterboxes the
+            // content without distorting it when the window aspect ≠ recording aspect.
             renderer.setSize(w, h, false);
+            renderer.domElement.style.objectFit = 'contain';
             var rw = renderer.domElement.width;
             var rh = renderer.domElement.height;
             if (bloomPass) bloomPass.resize(rw, rh);
             if (taaPass) taaPass.resize(rw, rh);
+            // Match the Three.js camera's projection aspect to the recording resolution
+            // so that world→screen projection (used by annotation anchor points) is
+            // consistent with what the raytracer shader actually renders.
+            if (camera) {
+                camera.aspect = w / h;
+                camera.updateProjectionMatrix();
+            }
             // Warm up TAA history at the new resolution so the first recorded
             // frame already has a converged accumulation buffer.  We render
             // without advancing simulation time: same scene, different jitter
@@ -1481,8 +1489,14 @@ if (typeof window !== 'undefined') {
             return true;
         },
         restoreWindowSizeAfterRecording: function() {
+            renderer.domElement.style.objectFit = '';
             resizeRendererAndPasses();
             resetTemporalAAHistory();
+            // Restore camera aspect ratio to match the window again.
+            if (camera) {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+            }
         }
     };
 }

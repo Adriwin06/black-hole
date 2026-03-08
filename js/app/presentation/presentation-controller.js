@@ -171,6 +171,16 @@ var presentationAnnotationState = {
     resizeBound: false
 };
 
+// ── Parameter HUD — live numeric / boolean readouts drawn on the overlay canvas ──
+var presentationParamHudState = {
+    enabled: true,
+    includeInRecording: false,
+    items: [],      // array of { path, label }
+    anchorX: 0.0,   // 0–1 fractional position (left edge of box)
+    anchorY: 1.0,   // 0–1 fractional position (bottom edge of box, so 1=bottom)
+    fontSize: 11    // px
+};
+
 var presentationUiRefreshAccumulator = 0.0;
 
 function clonePresentationData(value) {
@@ -312,6 +322,184 @@ function getPresentationAnnotationsState() {
         includeInRecording: !!presentationAnnotationState.includeInRecording,
         active: Object.keys(presentationAnnotationState.notes).length > 0
     };
+}
+
+// ── Parameter HUD API ────────────────────────────────────────────────────────
+
+function setPresentationParamHudEnabled(enabled) {
+    presentationParamHudState.enabled = !!enabled;
+    updatePresentationOverlay();
+    return presentationParamHudState.enabled;
+}
+
+function setPresentationParamHudIncludedInRecording(enabled) {
+    presentationParamHudState.includeInRecording = !!enabled;
+    return presentationParamHudState.includeInRecording;
+}
+
+function getPresentationParamHudState() {
+    return {
+        enabled: !!presentationParamHudState.enabled,
+        includeInRecording: !!presentationParamHudState.includeInRecording,
+        anchorX: presentationParamHudState.anchorX,
+        anchorY: presentationParamHudState.anchorY,
+        fontSize: presentationParamHudState.fontSize,
+        items: clonePresentationData(presentationParamHudState.items)
+    };
+}
+
+function setParamHudLayout(opts) {
+    if (!opts || typeof opts !== 'object') return;
+    if (typeof opts.anchorX === 'number' && isFinite(opts.anchorX)) {
+        presentationParamHudState.anchorX = Math.max(0, Math.min(1, opts.anchorX));
+    }
+    if (typeof opts.anchorY === 'number' && isFinite(opts.anchorY)) {
+        presentationParamHudState.anchorY = Math.max(0, Math.min(1, opts.anchorY));
+    }
+    if (typeof opts.fontSize === 'number' && isFinite(opts.fontSize)) {
+        presentationParamHudState.fontSize = Math.max(8, Math.min(48, Math.round(opts.fontSize)));
+    }
+    updatePresentationOverlay();
+}
+
+function isParamInHud(path) {
+    for (var i = 0; i < presentationParamHudState.items.length; i++) {
+        if (presentationParamHudState.items[i].path === path) return true;
+    }
+    return false;
+}
+
+function addParamToHud(path, label) {
+    if (!path || typeof path !== 'string') return false;
+    if (isParamInHud(path)) return false;
+    presentationParamHudState.items.push({ path: path, label: label || path });
+    updatePresentationOverlay();
+    return true;
+}
+
+function removeParamFromHud(path) {
+    var before = presentationParamHudState.items.length;
+    presentationParamHudState.items = presentationParamHudState.items.filter(function(item) {
+        return item.path !== path;
+    });
+    if (presentationParamHudState.items.length !== before) {
+        updatePresentationOverlay();
+        return true;
+    }
+    return false;
+}
+
+function toggleParamInHud(path, label) {
+    if (isParamInHud(path)) {
+        removeParamFromHud(path);
+        return false;
+    }
+    addParamToHud(path, label);
+    return true;
+}
+
+function clearParamHud() {
+    presentationParamHudState.items = [];
+    updatePresentationOverlay();
+}
+
+function formatParamHudValue(val) {
+    if (val === undefined || val === null) return '\u2014';
+    if (typeof val === 'boolean') return val ? 'true' : 'false';
+    if (typeof val === 'number') {
+        if (!isFinite(val)) return String(val);
+        // Snap floating-point noise near zero to zero
+        if (Math.abs(val) < 1e-9) return '0';
+        var abs = Math.abs(val);
+        // Choose decimal places so we get ~4 significant figures, no sci notation
+        var decimals;
+        if (abs >= 1000)       decimals = 0;
+        else if (abs >= 100)   decimals = 1;
+        else if (abs >= 10)    decimals = 2;
+        else if (abs >= 1)     decimals = 3;
+        else if (abs >= 0.1)   decimals = 4;
+        else if (abs >= 0.01)  decimals = 5;
+        else                   decimals = 6;
+        var s = val.toFixed(decimals);
+        // Strip trailing decimal zeros
+        if (s.indexOf('.') !== -1) s = s.replace(/\.?0+$/, '');
+        return s;
+    }
+    return String(val);
+}
+
+function drawParamHudOnCanvas(ctx, viewWidth, viewHeight) {
+    var items = presentationParamHudState.items;
+    if (!items.length) return;
+
+    // Collect rows with current live values
+    var rows = [];
+    for (var i = 0; i < items.length; i++) {
+        var item = items[i];
+        var val = getPresentationPathValue(item.path);
+        rows.push({ label: item.label || item.path, value: formatParamHudValue(val) });
+    }
+    if (!rows.length) return;
+
+    // Layout constants (scale with user-chosen font size)
+    var fs = Math.max(8, Math.min(48, presentationParamHudState.fontSize || 11));
+    var fontStr = fs + 'px Consolas, "Courier New", monospace';
+    var paddingX = Math.round(fs * 0.9);
+    var paddingY = Math.round(fs * 0.7);
+    var rowH = Math.round(fs * 1.55);
+    var gap = Math.round(fs * 0.7);
+
+    ctx.save();
+    ctx.font = fontStr;
+    var maxLabelW = 0, maxValueW = 0;
+    for (var r = 0; r < rows.length; r++) {
+        maxLabelW = Math.max(maxLabelW, ctx.measureText(rows[r].label + ':').width);
+        maxValueW = Math.max(maxValueW, ctx.measureText(rows[r].value).width);
+    }
+
+    var boxW = paddingX * 2 + maxLabelW + gap + maxValueW;
+    var boxH = paddingY * 2 + rows.length * rowH;
+
+    // Anchor: anchorX is box left as fraction of view width,
+    // anchorY is box top as fraction of view height (0=top, 1=bottom-aligned).
+    // When anchorY===1 the box stays just above the bottom (72px margin).
+    var ax = presentationParamHudState.anchorX;
+    var ay = presentationParamHudState.anchorY;
+    var minMarginX = 8;
+    var minMarginY = 8;
+    var x, y;
+    if (ay >= 1.0) {
+        // Legacy bottom-docked behaviour
+        x = ax * viewWidth;
+        y = viewHeight - boxH - 72;
+    } else {
+        x = ax * viewWidth;
+        y = ay * viewHeight;
+    }
+    // Clamp so box stays within viewport
+    x = Math.max(minMarginX, Math.min(viewWidth  - boxW - minMarginX, x));
+    y = Math.max(minMarginY, Math.min(viewHeight - boxH - minMarginY, y));
+
+    // Background
+    ctx.shadowBlur = 0;
+    drawRoundedRectPath(ctx, x, y, boxW, boxH, Math.round(fs * 0.5));
+    ctx.fillStyle = 'rgba(6, 14, 28, 0.82)';
+    ctx.fill();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(80, 140, 200, 0.45)';
+    ctx.stroke();
+
+    // Rows
+    ctx.font = fontStr;
+    for (var r2 = 0; r2 < rows.length; r2++) {
+        var ry = y + paddingY + r2 * rowH + rowH - Math.round(fs * 0.25);
+        ctx.fillStyle = '#7bbce8';
+        ctx.fillText(rows[r2].label + ':', x + paddingX, ry);
+        ctx.fillStyle = '#f0f5ff';
+        ctx.fillText(rows[r2].value, x + paddingX + maxLabelW + gap, ry);
+    }
+
+    ctx.restore();
 }
 
 function wrapCanvasTextLines(ctx, text, maxWidth) {
@@ -750,16 +938,21 @@ function updatePresentationOverlay() {
     var viewHeight = parseFloat(canvas.style.height) || window.innerHeight || 1;
     ctx.clearRect(0, 0, viewWidth, viewHeight);
 
-    if (!presentationAnnotationState.enabled) return;
-    var notes = presentationAnnotationState.notes;
-    var channels = Object.keys(notes);
-    for (var i = 0; i < channels.length; i++) {
-        var ch = channels[i];
-        var note = notes[ch];
-        if (!note) continue;
-        var alpha = getChannelFadeAlpha(ch);
-        var layout = buildPresentationNoteLayout(ctx, note, viewWidth, viewHeight);
-        drawPresentationNote(ctx, layout, alpha);
+    if (presentationAnnotationState.enabled) {
+        var notes = presentationAnnotationState.notes;
+        var channels = Object.keys(notes);
+        for (var i = 0; i < channels.length; i++) {
+            var ch = channels[i];
+            var note = notes[ch];
+            if (!note) continue;
+            var alpha = getChannelFadeAlpha(ch);
+            var layout = buildPresentationNoteLayout(ctx, note, viewWidth, viewHeight);
+            drawPresentationNote(ctx, layout, alpha);
+        }
+    }
+
+    if (presentationParamHudState.enabled && presentationParamHudState.items.length > 0) {
+        drawParamHudOnCanvas(ctx, viewWidth, viewHeight);
     }
 }
 
@@ -1417,7 +1610,10 @@ function getPresentationState() {
         recording_output_width: presentationCaptureState.outputWidth || 0,
         recording_output_height: presentationCaptureState.outputHeight || 0,
         annotations_enabled: !!presentationAnnotationState.enabled,
-        annotations_in_recording: !!presentationAnnotationState.includeInRecording
+        annotations_in_recording: !!presentationAnnotationState.includeInRecording,
+        param_hud_enabled: !!presentationParamHudState.enabled,
+        param_hud_in_recording: !!presentationParamHudState.includeInRecording,
+        param_hud_count: presentationParamHudState.items.length
     };
 }
 
@@ -1432,6 +1628,9 @@ function updatePresentation(dt) {
         processPresentationEvents(previousTime, nextTime);
         presentationState.time = nextTime;
         applyPresentationTracks(nextTime);
+        if (presentationParamHudState.enabled && presentationParamHudState.items.length > 0) {
+            updatePresentationOverlay();
+        }
         presentationUiRefreshAccumulator += dt;
         if (presentationUiRefreshAccumulator >= 0.2) {
             presentationUiRefreshAccumulator = 0.0;
@@ -1443,6 +1642,9 @@ function updatePresentation(dt) {
     // Final frame of the segment
     processPresentationEvents(previousTime, duration);
     applyPresentationTracks(duration);
+    if (presentationParamHudState.enabled && presentationParamHudState.items.length > 0) {
+        updatePresentationOverlay();
+    }
 
     if (presentationState.loop) {
         nextTime = nextTime % duration;
@@ -1741,7 +1943,9 @@ function drawPresentationCaptureFrame() {
     syncPresentationCaptureCanvasForCurrentResolution();
 
     var source = renderer.domElement;
-    if (presentationCaptureState.includeAnnotationsInRecording) {
+    var includeOverlayInRecording = presentationCaptureState.includeAnnotationsInRecording ||
+        (presentationParamHudState.includeInRecording && presentationParamHudState.items.length > 0);
+    if (includeOverlayInRecording) {
         if (!drawPresentationCompositeFrame(
             presentationCaptureState.compositeCanvas,
             presentationCaptureState.compositeCtx
@@ -1811,8 +2015,42 @@ function drawPresentationCompositeFrame(canvas, ctx) {
     var h = canvas.height;
     ctx.clearRect(0, 0, w, h);
     ctx.drawImage(renderer.domElement, 0, 0, w, h);
-    if (presentationAnnotationState.enabled && presentationAnnotationState.canvas) {
-        ctx.drawImage(presentationAnnotationState.canvas, 0, 0, w, h);
+    var showOverlayCanvas = (presentationAnnotationState.enabled ||
+        (presentationParamHudState.enabled && presentationParamHudState.items.length > 0));
+    if (showOverlayCanvas && presentationAnnotationState.canvas) {
+        var annCanvas = presentationAnnotationState.canvas;
+        var annCtx = presentationAnnotationState.ctx;
+        // When the annotation canvas is a different resolution from the composite
+        // (e.g. recording at 2560×1440 while the window is a different aspect ratio)
+        // temporarily resize it to the composite dimensions so that text is laid out
+        // at the correct positions and scale, then restore it to the window size.
+        if (annCtx && (annCanvas.width !== w || annCanvas.height !== h)) {
+            var savedStyleW = annCanvas.style.width;
+            var savedStyleH = annCanvas.style.height;
+            var savedW = annCanvas.width;
+            var savedH = annCanvas.height;
+            annCanvas.style.width = w + 'px';
+            annCanvas.style.height = h + 'px';
+            annCanvas.width = w;
+            annCanvas.height = h;
+            annCtx.setTransform(1, 0, 0, 1, 0, 0);
+            if (typeof updatePresentationOverlay === 'function') {
+                updatePresentationOverlay();
+            }
+            ctx.drawImage(annCanvas, 0, 0, w, h);
+            // Restore annotation canvas to window dimensions for the DOM overlay.
+            annCanvas.style.width = savedStyleW;
+            annCanvas.style.height = savedStyleH;
+            annCanvas.width = savedW;
+            annCanvas.height = savedH;
+            var dpr = Math.max((typeof window !== 'undefined' && window.devicePixelRatio) || 1, 1);
+            annCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            if (typeof updatePresentationOverlay === 'function') {
+                updatePresentationOverlay();
+            }
+        } else {
+            ctx.drawImage(annCanvas, 0, 0, w, h);
+        }
     }
     return true;
 }
@@ -2336,6 +2574,8 @@ function startPresentationRecording(options) {
     var includeAnnotationsInRecording = (options.includeAnnotationsInRecording === undefined)
         ? presentationAnnotationState.includeInRecording
         : !!options.includeAnnotationsInRecording;
+    var includeOverlayInRecording = includeAnnotationsInRecording ||
+        (presentationParamHudState.includeInRecording && presentationParamHudState.items.length > 0);
 
     var requestedMode = normalizePresentationRecordingMode(
         (options.recordingMode === undefined)
@@ -2408,7 +2648,7 @@ function startPresentationRecording(options) {
     var recorder = null;
     var mimeType = 'video/webm';
     var offlineJob = null;
-    if (includeAnnotationsInRecording) {
+    if (includeOverlayInRecording) {
         ensurePresentationAnnotationCanvas();
         updatePresentationOverlay();
 
@@ -2731,6 +2971,15 @@ if (typeof window !== 'undefined') {
         showAnnotation: setPresentationAnnotation,
         clearAnnotation: clearPresentationAnnotation,
         getPathValue: getPresentationPathValue,
+        setParamHudEnabled: setPresentationParamHudEnabled,
+        setParamHudIncludedInRecording: setPresentationParamHudIncludedInRecording,
+        paramHudState: getPresentationParamHudState,
+        setParamHudLayout: setParamHudLayout,
+        addParamToHud: addParamToHud,
+        removeParamFromHud: removeParamFromHud,
+        toggleParamInHud: toggleParamInHud,
+        isParamInHud: isParamInHud,
+        clearParamHud: clearParamHud,
         startRecording: startPresentationRecording,
         stopRecording: stopPresentationRecording,
         captureScreenshot: capturePresentationScreenshot

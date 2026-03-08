@@ -269,7 +269,16 @@ function buildTimelinePanel() {
                     '<label class="tl-rec-check"><input type="checkbox" id="tl-rec-loop"> Loop timeline</label>' +
                     '<label class="tl-rec-check"><input type="checkbox" id="tl-rec-annotations" checked> Show explanations</label>' +
                     '<label class="tl-rec-check"><input type="checkbox" id="tl-rec-annot-record"> Include text in recording</label>' +
+                    '<label class="tl-rec-check"><input type="checkbox" id="tl-rec-param-hud-show" checked> Show param values</label>' +
+                    '<label class="tl-rec-check"><input type="checkbox" id="tl-rec-param-hud-record"> Include param values in recording</label>' +
                     '<label class="tl-rec-check"><input type="checkbox" id="tl-rec-reset-sim" checked> Reset simulation on rec start</label>' +
+                '</div>' +
+                '<div class="tl-rec-row" id="tl-hud-layout-row">' +
+                    '<label>HUD pos</label>' +
+                    '<input id="tl-hud-x" class="tl-rec-num" type="number" min="0" max="1" step="0.01" value="0" title="Horizontal position (0=left, 1=right)">' +
+                    '<input id="tl-hud-y" class="tl-rec-num" type="number" min="0" max="1" step="0.01" value="1" title="Vertical position (0=top, 1=bottom)">' +
+                    '<label style="margin-left:6px">px</label>' +
+                    '<input id="tl-hud-fontsize" class="tl-rec-num" type="number" min="8" max="48" step="1" value="11" title="Font size in px">' +
                 '</div>' +
                 '<div class="tl-rec-row">' +
                     '<label>Quality</label>' +
@@ -347,6 +356,12 @@ function buildTimelinePanel() {
     var recLoopCb        = panel.querySelector('#tl-rec-loop');
     var recAnnotCb       = panel.querySelector('#tl-rec-annotations');
     var recAnnotRecordCb = panel.querySelector('#tl-rec-annot-record');
+    var recParamHudShowCb   = panel.querySelector('#tl-rec-param-hud-show');
+    var recParamHudRecordCb = panel.querySelector('#tl-rec-param-hud-record');
+    var hudXInput    = panel.querySelector('#tl-hud-x');
+    var hudYInput    = panel.querySelector('#tl-hud-y');
+    var hudFsInput   = panel.querySelector('#tl-hud-fontsize');
+    var hudLayoutRow = panel.querySelector('#tl-hud-layout-row');
     var recResetSimCb    = panel.querySelector('#tl-rec-reset-sim');
     var recQualitySelect = panel.querySelector('#tl-rec-quality');
     var recModeSelect    = panel.querySelector('#tl-rec-mode');
@@ -1595,9 +1610,13 @@ function buildTimelinePanel() {
             var sel = (tr.path === selectedTrack);
             // Show red border when the row is selected but no individual key is picked (delete-row mode)
             var rowDel = sel && selectedKeys.length === 0;
+            var hudActive = (typeof isParamInHud === 'function') ? isParamInHud(tr.path) : false;
             html += '<button type="button" class="tl-track-item' + (sel ? ' is-sel' : '') + (rowDel ? ' is-sel--row' : '') +
                 '" data-path="' + esc(tr.path) + '">' +
+                '<span class="tl-track-main">' +
                 '<span class="tl-track-path">' + esc(tr.path) + '</span>' +
+                '<span class="tl-track-hud-btn' + (hudActive ? ' is-active' : '') + '" data-hud-path="' + esc(tr.path) + '" title="' + (hudActive ? 'Hide value from' : 'Show value in') + ' HUD">\uD83D\uDC41</span>' +
+                '</span>' +
                 '<span class="tl-track-keycount">' + tr.keys.length + ' key' + (tr.keys.length === 1 ? '' : 's') + '</span>' +
                 '</button>';
         }
@@ -1605,6 +1624,15 @@ function buildTimelinePanel() {
     }
 
     trackListEl.addEventListener('click', function(e) {
+        // HUD toggle — must be tested before the track-select logic
+        var hudBtn = e.target.closest('[data-hud-path]');
+        if (hudBtn) {
+            e.stopPropagation();
+            var path = hudBtn.getAttribute('data-hud-path');
+            if (typeof toggleParamInHud === 'function') toggleParamInHud(path, path);
+            rebuildTrackList();
+            return;
+        }
         var btn = e.target.closest('[data-path]');
         if (!btn) return;
         selectedTrack = btn.getAttribute('data-path');
@@ -3211,6 +3239,16 @@ function buildTimelinePanel() {
         if (recLoopCb)        recLoopCb.checked        = !!s.loop;
         if (recAnnotCb)       recAnnotCb.checked       = !!s.annotations_enabled;
         if (recAnnotRecordCb) recAnnotRecordCb.checked = !!s.annotations_in_recording;
+        if (recParamHudShowCb)   recParamHudShowCb.checked   = !!s.param_hud_enabled;
+        if (recParamHudRecordCb) recParamHudRecordCb.checked = !!s.param_hud_in_recording;
+        // Sync HUD position/size inputs and show/hide layout row
+        if (hudLayoutRow) hudLayoutRow.style.display = (s.param_hud_count > 0) ? '' : 'none';
+        if (typeof getPresentationParamHudState === 'function') {
+            var hs = getPresentationParamHudState();
+            if (hudXInput  && document.activeElement !== hudXInput)  hudXInput.value  = hs.anchorX.toFixed(2);
+            if (hudYInput  && document.activeElement !== hudYInput)  hudYInput.value  = hs.anchorY.toFixed(2);
+            if (hudFsInput && document.activeElement !== hudFsInput) hudFsInput.value = hs.fontSize;
+        }
 
         // Refresh resolution label with live viewport size
         refreshRecResolutionLabel();
@@ -3294,6 +3332,27 @@ function buildTimelinePanel() {
     recAnnotRecordCb.addEventListener('change', function() {
         if (typeof setPresentationAnnotationsIncludedInRecording === 'function') setPresentationAnnotationsIncludedInRecording(recAnnotRecordCb.checked);
     });
+    recParamHudShowCb.addEventListener('change', function() {
+        if (typeof setPresentationParamHudEnabled === 'function') setPresentationParamHudEnabled(recParamHudShowCb.checked);
+    });
+    recParamHudRecordCb.addEventListener('change', function() {
+        if (typeof setPresentationParamHudIncludedInRecording === 'function') setPresentationParamHudIncludedInRecording(recParamHudRecordCb.checked);
+    });
+
+    function applyHudLayout() {
+        if (typeof setParamHudLayout !== 'function') return;
+        var x  = parseFloat(hudXInput.value);
+        var y  = parseFloat(hudYInput.value);
+        var fs = parseFloat(hudFsInput.value);
+        setParamHudLayout({
+            anchorX:  isFinite(x)  ? x  : undefined,
+            anchorY:  isFinite(y)  ? y  : undefined,
+            fontSize: isFinite(fs) ? fs : undefined
+        });
+    }
+    if (hudXInput)    hudXInput.addEventListener('input', applyHudLayout);
+    if (hudYInput)    hudYInput.addEventListener('input', applyHudLayout);
+    if (hudFsInput)   hudFsInput.addEventListener('input', applyHudLayout);
 
     recShotBtn.addEventListener('click', function() {
         if (typeof capturePresentationScreenshot !== 'function') return;

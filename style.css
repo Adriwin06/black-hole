@@ -1801,6 +1801,25 @@ body.tl-resizing, body.tl-resizing * {
     text-align: left;
     transition: background 0.1s, border-color 0.1s;
 }
+.tl-track-main {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    gap: 4px;
+}
+.tl-track-hud-btn {
+    margin-left: auto;
+    flex-shrink: 0;
+    font-size: 10px;
+    opacity: 0.3;
+    cursor: pointer;
+    padding: 1px 3px;
+    border-radius: 3px;
+    transition: opacity 0.15s, background 0.15s;
+    line-height: 1;
+}
+.tl-track-hud-btn:hover { opacity: 0.7; background: rgba(100, 160, 220, 0.18); }
+.tl-track-hud-btn.is-active { opacity: 1; color: #7cc5ff; background: rgba(80, 140, 210, 0.2); }
 .tl-track-item:hover { background: rgba(30, 60, 110, 0.35); }
 .tl-track-item.is-sel {
     background: rgba(30, 60, 120, 0.5);
