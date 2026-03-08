@@ -156,7 +156,8 @@ var presentationCaptureState = {
     compositeCtx: null,
     compositeRaf: 0,
     offlineJob: null,
-    offlineUnavailableReason: ''
+    offlineUnavailableReason: '',
+    rendererResizedForRecording: false
 };
 
 var presentationAnnotationState = {
@@ -1872,6 +1873,14 @@ function cleanupPresentationRecordingState() {
 
     setPresentationRendererOfflineStepping(false);
 
+    if (presentationCaptureState.rendererResizedForRecording) {
+        var restoreApi = getPresentationRendererRuntimeApi();
+        if (restoreApi && typeof restoreApi.restoreWindowSizeAfterRecording === 'function') {
+            restoreApi.restoreWindowSizeAfterRecording();
+        }
+        presentationCaptureState.rendererResizedForRecording = false;
+    }
+
     presentationCaptureState.active = false;
     presentationCaptureState.recorder = null;
     presentationCaptureState.stream = null;
@@ -2430,6 +2439,13 @@ function startPresentationRecording(options) {
     if (recordingMode === 'offline') {
         var width = Math.max(1, presentationCaptureState.captureCanvas.width || 1);
         var height = Math.max(1, presentationCaptureState.captureCanvas.height || 1);
+        if (resolvedResolution.preset !== 'current') {
+            var offlineRuntimeApi = getPresentationRendererRuntimeApi();
+            if (offlineRuntimeApi && typeof offlineRuntimeApi.resizeForOfflineRecording === 'function') {
+                offlineRuntimeApi.resizeForOfflineRecording(width, height);
+                presentationCaptureState.rendererResizedForRecording = true;
+            }
+        }
         var muxApi = getPresentationWebMMuxerApi();
         var codecVariants = [
             { encoder: 'vp09.00.10.08', muxer: 'V_VP9' },

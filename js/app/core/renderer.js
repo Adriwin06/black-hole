@@ -1457,6 +1457,20 @@ if (typeof window !== 'undefined') {
         },
         isContextLost: function() {
             return rendererContextLost;
+        },
+        resizeForOfflineRecording: function(w, h) {
+            if (!renderer) return false;
+            renderer.setPixelRatio(1);
+            renderer.setSize(w, h);
+            var rw = renderer.domElement.width;
+            var rh = renderer.domElement.height;
+            if (bloomPass) bloomPass.resize(rw, rh);
+            if (taaPass) taaPass.resize(rw, rh);
+            return true;
+        },
+        restoreWindowSizeAfterRecording: function() {
+            resizeRendererAndPasses();
+            resetTemporalAAHistory();
         }
     };
 }
