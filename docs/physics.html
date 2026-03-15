@@ -490,7 +490,7 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     <br><br>
     <strong>Current status:</strong> This integrator is <strong>work-in-progress</strong> and is not
     yet exposed in the user interface. All user-facing modes currently use the perturbative Binet
-    approximation (Section 5.1) for photon lensing. The "Realtime Kerr core" mode uses exact
+    approximation (Section 5.1) for photon lensing. The "Kerr disk velocities" mode uses exact
     Kerr angular velocities for disk matter orbits but does not change the photon geodesic solver.
 </div>
 
@@ -972,7 +972,7 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 <!-- ============================================================ -->
 <!-- 12. RELATIVISTIC ABERRATION -->
 <p>
-    For light-travel-time rendering, the full-core Kerr path uses the Schwarzschild null-geodesic
+    For light-travel-time rendering, the Kerr disk-velocity path uses the Schwarzschild null-geodesic
     coordinate-time increment near the black hole (with a smooth far-field blend to path length),
     and only falls back to Euclidean step length when gravitational time dilation is disabled.
 </p>
@@ -2150,12 +2150,12 @@ newR = max(r + k2,  r_min)</code></pre>
     <tr>
         <td>Kerr geodesics (exterior)</td>
         <td>Schwarzschild Binet equation with perturbative frame-drag correction;
-            exact Kerr disk angular velocities in "Realtime Kerr core" mode</td>
+            exact Kerr disk angular velocities in "Kerr disk velocities" mode</td>
         <td>Full Carter-constant geodesics in Boyer-Lindquist coords<sup><a href="#ref-carter">[6]</a></sup></td>
         <td>The photon shadow shape is approximately circular rather than the correct
             D-shaped silhouette. A full Mino-time Kerr geodesic integrator exists in the
             codebase but is <strong>WIP</strong> and not yet exposed in the UI.
-            Disk matter velocities are exact Kerr in the full-core mode.</td>
+            Disk matter velocities are exact Kerr in the disk-velocity mode.</td>
     </tr>
     <tr>
         <td>Disk turbulence</td>
@@ -2244,7 +2244,7 @@ newR = max(r + k2,  r_min)</code></pre>
     <li>Ray-tracing photon geodesics in Kerr spacetime (they used exact Kerr geodesics;
         this simulation uses the Schwarzschild Binet equation with a perturbative
         frame-dragging correction for photon lensing, while using exact Kerr angular
-        velocities for disk matter in "Realtime Kerr core" mode).</li>
+        velocities for disk matter in "Kerr disk velocities" mode).</li>
     <li>Thin accretion disk with blackbody emission and Doppler shifting.</li>
     <li>The movie team deliberately <strong>reduced the Doppler beaming</strong> for artistic reasons,
         exactly as this simulation's "cinematic beaming" mode does.</li>
@@ -2266,7 +2266,7 @@ newR = max(r + k2,  r_min)</code></pre>
         A full Mino-time Kerr geodesic integrator exists in the codebase
         (<code>kerr_init()</code>, <code>integrate_kerr_step()</code> in <code>geodesics.glsl</code>)
         but is <strong>work-in-progress</strong> and not yet exposed in the UI.
-        The "Realtime Kerr core" mode uses exact Kerr angular velocities for disk matter
+        The "Kerr disk velocities" mode uses exact Kerr angular velocities for disk matter
         but still traces photon paths with the perturbative Binet equation.</li>
     <li><strong>Returning radiation is analytical, not ray-traced:</strong> Photons gravitationally
         lensed back onto the accretion disk are not individually tracked (that would require

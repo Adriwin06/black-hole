@@ -348,12 +348,21 @@ function setupGUI() {
         });
     }
 
+    function getOptionLabel(options, value) {
+        for (var label in options) {
+            if (options.hasOwnProperty(label) && options[label] === value) {
+                return label;
+            }
+        }
+        return String(value);
+    }
+
     var updateDependentVisibility = function() {};
 
     function applyKerrMode(mode) {
         // Re-apply quality preset with new mode (preset values depend on kerr_mode)
         applyQualityPresetInternal(p.quality);
-        hint.text('Solver mode: ' + mode.replace(/_/g, ' '));
+        hint.text('Solver mode: ' + getOptionLabel(KERR_MODE_LABELS, mode));
         hint.stop(true, true).fadeIn(120).delay(900).fadeOut(350);
     }
 
@@ -440,7 +449,7 @@ function setupGUI() {
         options: KERR_MODE_LABELS,
         name: 'solver mode',
         onChange: applyKerrMode,
-        help: 'Fast = fastest approximate. Realtime Kerr core = accurate full GR with good performance.'
+        help: 'Fast = Schwarzschild/Binet photon lensing with a perturbative frame-drag term. Kerr disk velocities = same photon lensing, but emitting matter uses exact Kerr orbital speeds.'
     });
 
     addControl(renderFolder, p, 'n_steps', {

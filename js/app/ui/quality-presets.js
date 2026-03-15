@@ -134,6 +134,6 @@ var QUALITY_PRESET_LABELS = {
 };
 
 var KERR_MODE_LABELS = {
-    'Fast (approximate lensing)': 'fast',
-    'Realtime Kerr core': 'realtime_full_kerr_core'
+    'Fast (Binet lensing)': 'fast',
+    'Kerr disk velocities': 'realtime_full_kerr_core'
 };

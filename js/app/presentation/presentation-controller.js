@@ -1,6 +1,6 @@
 // Role: Presentation timeline and recording controller.
-//       Provides presets, keyframe evaluation, scripted events, and
-//       MediaRecorder capture hooks for slideshow-ready sequences.
+//       Provides presets, keyframe evaluation, scripted events, annotations,
+//       and realtime/offline capture hooks for slideshow-ready sequences.
 
 // ─── Presentation Timeline + Capture ─────────────────────────────────────────
 // Timeline system for scripted camera/parameter animations suitable for slides

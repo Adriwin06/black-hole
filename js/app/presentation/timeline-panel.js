@@ -98,7 +98,7 @@ function buildTimelinePanel() {
                 '<select id="tl-preset-select" class="tl-preset-select"></select>' +
                 '<button id="tl-btn-del-preset" class="tl-btn tl-btn--del-preset" type="button" title="Remove this imported preset" style="display:none">&#128465;</button>' +
                 '<span class="tl-transport-sep"></span>' +
-                '<button id="tl-btn-save" class="tl-btn tl-btn--save" type="button" title="Save changes to the loaded file">&#128190;&nbsp;SAVE</button>' +
+                '<button id="tl-btn-save" class="tl-btn tl-btn--save" type="button" title="Download the current draft with the linked filename">&#128190;&nbsp;SAVE</button>' +
                 '<button id="tl-btn-motion" class="tl-btn tl-btn--motion" type="button" title="Insert a predefined motion function">⊕&nbsp;FX</button>' +
                 '<button id="tl-btn-rec" class="tl-btn tl-btn--rec" type="button" title="Recording settings">&#9679;&nbsp;REC</button>' +
                 '<span class="tl-transport-sep"></span>' +
@@ -417,7 +417,7 @@ function buildTimelinePanel() {
     var autoKeySnapshot= null;
     var syncTimer      = null;
     var importedPresets = {};     // { presetName: true } for user-imported presets (removable)
-    var linkedFileName  = null;   // filename linked to this draft for save-in-place
+    var linkedFileName  = null;   // download filename linked to this draft
     var PANEL_HEIGHT_KEY  = 'black-hole.tl-panel.height';
     var PANEL_STATE_KEY   = 'black-hole.tl-panel.state';
     var PANEL_DEFAULT_H   = 320;

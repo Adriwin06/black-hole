@@ -14,9 +14,7 @@ A real-time, GPU-accelerated ray-tracing simulation of a black hole with an accr
 ## Features
 
 ### Physics & Rendering
-- **Schwarzschild & Kerr black holes** — two geodesic integration modes:
-  - *Schwarzschild* Binet ODE (exact for a = 0, fast)
-  - *True Kerr* Carter (1968) separated equations in Mino time — correct D-shaped shadow for spinning holes
+- **Two photon-lensing modes** — fast Binet lensing (exact for a = 0, with a perturbative frame-drag term when spin is enabled) plus a Kerr disk-velocity mode that keeps the same photon solver but uses exact Kerr orbital speeds for emitting matter
 - **Three accretion disk models** — thin disk (Shakura–Sunyaev), thick torus (ADAF/RIAF), and slim disk (super-Eddington)
 - **GRMHD-calibrated accretion** — magnetization (σ), electron temperature ratio (R_high), MAD/SANE magnetic flux, MRI turbulence, and kappa-distribution electrons
 - **Relativistic effects** — gravitational redshift, Doppler shift, relativistic beaming (physical D³ Liouville or cinematic), aberration, time dilation
@@ -27,18 +25,19 @@ A real-time, GPU-accelerated ray-tracing simulation of a black hole with an accr
 
 ### Post-Processing & Quality
 - **Temporal Anti-Aliasing (TAA)** — history accumulation with motion rejection and clip-box clamping for artifact-free still frames
-- **Five quality presets** — from Mobile (28 steps, 0.55× res) to Ultra (1400 Kerr steps, 6× supersampling), plus Cinematic mode for offline rendering
-- **Auto GPU benchmark** — measures frame time on first load and selects the Optimal preset automatically
+- **Six quality presets** — Mobile, Optimal, Medium, High, Ultra, and Cinematic
+- **Auto GPU benchmark** — measures frame time on first load and keeps Optimal on capable systems or falls back to Mobile
 
 ### User Interface
 - **dat.GUI control panel** — resizable right-side panel with collapsible folders for every parameter
 - **Astrophysical presets** — one-click configurations for M87\*, Sgr A\*, Cygnus X-1, GRS 1915+105, and more, each sourced from published observations
-- **Observer controls** — free orbital motion with adjustable inclination, azimuth, distance, and optional automatic circular orbit
+- **Observer controls** — mouse orbit/pan/roll, a bottom-left observer widget with distance dial + motion toggle, and optional automatic circular orbit
 
 ### Presentation & Recording
 - **Presentation Timeline** — bottom-docked dopesheet editor (inspired by Blender / After Effects) for scripted keyframe animations; supports linear, smooth, and smoother easing
-- **Built-in animation presets** — *Full Feature Tour* (186 s), *Orbit Showcase*, *Horizon Dive*, *Hover Blueshift*
-- **WebM video recording** — capture the canvas directly to a `.webm` file via MediaRecorder, rate-controlled by the timeline playback
+- **Built-in interactive scenarios** — *Freefall Dive* and *Hover Approach*
+- **Built-in timeline presets** — *Full Feature Tour* (186 s) and *Orbit Showcase*
+- **WebM video recording** — realtime MediaRecorder capture plus offline WebCodecs/WebM muxing when supported
 - **Offline PNG snapshot** — one-click still export that forces the Cinematic (offline) quality preset before download
 - **High-quality offline rendering** — Cinematic preset with manually boosted supersampling for publication-quality stills and video frames 
 
@@ -68,7 +67,7 @@ Open `http://localhost:8000` in a modern browser (Chrome or Firefox recommended)
 | Shrink the browser window | Fewer pixels to trace |
 | Disable the planet | Removes ray-sphere intersection tests |
 | Disable RK4 | Falls back to Euler integration (faster, less accurate near photon sphere) |
-| Switch to Schwarzschild mode | Binet equation is ~4× cheaper than full Kerr Carter equations |
+| Switch solver mode to Fast | Uses the lightweight Binet photon solver everywhere |
 
 ---
 
@@ -78,7 +77,8 @@ Open `http://localhost:8000` in a modern browser (Chrome or Firefox recommended)
 - **Right drag** — pan
 - **Left + Right drag** — roll
 - **Scroll** — zoom in/out
-- **Controls panel** (right side, ☰) — all simulation parameters
+- **Controls panel** (right side, `CONTROLS ▶`) — all simulation parameters
+- **Observer widget** (bottom-left XYZ indicator) — distance dial, motion toggle, camera reset
 - **Timeline panel** (bottom, ▲ TIMELINE) — animation playback and recording
 
 ### Key GUI parameters
@@ -86,18 +86,18 @@ Open `http://localhost:8000` in a modern browser (Chrome or Firefox recommended)
 | Parameter | Description |
 |-----------|-------------|
 | **a/M** | Dimensionless black hole spin (0 = Schwarzschild, 1 = extremal Kerr) |
-| **Kerr mode** | Switch between Schwarzschild Binet and full Carter Kerr geodesics |
-| **temperature** | Accretion disk peak temperature in Kelvin (4,500 – 30,000 K) |
+| **solver mode** | `Fast (Binet lensing)` or `Kerr disk velocities`; the latter keeps approximate photon lensing but uses exact Kerr orbital speeds for disk matter |
+| **temperature (K)** | Accretion disk peak temperature in Kelvin (4,500 – 30,000 K) |
 | **disk model** | Thin disk, thick torus (ADAF), or slim disk |
-| **doppler shift** | Toggle relativistic color/brightness shifting |
-| **beaming mode** | Physical (D³ Liouville) or cinematic (softened) |
-| **jet model** | Off, simple, or physical (GRMHD-calibrated) |
-| **observer speed** | Orbital velocity around the black hole |
-| **quality** | Mobile / Optimal / Medium / High / Ultra / Cinematic |
+| **doppler shift (color)** | Toggle relativistic red/blue spectral shifting |
+| **physical (D³ Liouville)** | Use physically motivated beaming instead of the softened cinematic curve |
+| **jet enabled / mode** | Toggle jets and choose simple or physical GRMHD-calibrated shading |
+| **observer motion** | Toggle automatic circular orbit around the black hole |
+| **quality preset** | Mobile / Optimal / Medium / High / Ultra / Cinematic |
 
 ### Quality preset levels
 
-| Preset | Steps (std / Kerr) | Supersampling | Description |
+| Preset | Steps (fast / Kerr-disk) | Supersampling | Description |
 |--------|-------------------|---------------|-------------|
 | Mobile | 28 / 120 | 1× | 0.55× resolution + TAA; fastest |
 | Optimal | 100 / 400 | 1× | 0.8× res + TAA; recommended default |
@@ -106,7 +106,7 @@ Open `http://localhost:8000` in a modern browser (Chrome or Firefox recommended)
 | Ultra | 600 / 1400 | 4× / 6× | Maximum fidelity |
 | Cinematic | 600 / 1400 | 6x / 12x | Offline rendering quality |
 
-### Astrophysical presets
+### Built-in black hole presets
 
 | Preset | Object | Notes |
 |--------|--------|-------|
@@ -115,6 +115,8 @@ Open `http://localhost:8000` in a modern browser (Chrome or Firefox recommended)
 | Sgr A\* | Milky Way centre | a/M ≈ 0.50, ADAF torus; EHT image (2022) |
 | Cygnus X-1 | X-ray binary | a/M ≈ 0.99, thin disk (continuum-fitting spin) |
 | GRS 1915+105 | Microquasar | Near-extremal spin, slim disk |
+| Gargantua (Interstellar visuals) | Film-inspired | Warm thin disk, boosted glow, softened relativistic effects |
+| Schwarzschild | Textbook case | Spin disabled, clean circular shadow |
 
 ---
 
@@ -122,7 +124,7 @@ Open `http://localhost:8000` in a modern browser (Chrome or Firefox recommended)
 
 1. Each screen pixel casts a ray from the camera into the scene.
 2. The ray direction is transformed for **relativistic aberration** if the observer is moving.
-3. The ray is integrated using either the **Schwarzschild Binet equation** (Euler / RK4) or the **Kerr Carter equations** in Mino time, depending on the selected mode.
+3. Photon paths are traced with the **Schwarzschild Binet equation** (Euler / RK4). The optional `Kerr disk velocities` mode keeps the same photon solver but upgrades emitting matter to exact Kerr orbital speeds around spinning holes.
 4. At each step, intersections with the accretion disk, GRMHD medium, jets, and planet are tested and composited using Beer–Lambert transmittance.
 5. **Doppler shift, gravitational redshift, and beaming** are applied to each emission source.
 6. The background sky (Milky Way panorama + star field) is rendered with optional Doppler color shifting.
@@ -143,7 +145,7 @@ shaders/raytracer/
 │   ├── defines.glsl              # Constants, macros, uniforms, rendering params
 │   └── math.glsl                 # Math utilities, coordinate transforms, FBM noise
 ├── physics/                       # Physics models
-│   ├── geodesics.glsl            # Schwarzschild Binet + Kerr Carter (Mino time)
+│   ├── geodesics.glsl            # Schwarzschild Binet solver + WIP Kerr Mino-time helpers
 │   ├── accretion.glsl            # Thin disk, ADAF torus, slim disk, GRMHD turbulence
 │   ├── jet.glsl                  # Jet models: simple parabolic + physical GRMHD
 │   ├── planet.glsl               # Planet ray-sphere intersection
@@ -168,15 +170,13 @@ js/app/
 ├── graphics/                       # Graphics effects
 │   └── bloom.js                    # Multi-pass mip-chain Gaussian bloom
 ├── presentation/                   # Presentation & recording system
-│   ├── presentation-controller.js  # Keyframe timeline engine, MediaRecorder hooks
+│   ├── presentation-controller.js  # Keyframe timeline engine, annotations, recording pipeline
 │   ├── presentation-gui.js         # ANIMATIONS panel UI (preset selector, status)
 │   ├── timeline-panel.js           # Bottom dopesheet panel (transport, key inspector)
 │   └── presets/                    # Built-in animation sequences (JSON)
 │       ├── manifest.json
 │       ├── full-feature-tour.json
-│       ├── orbit-showcase.json
-│       ├── horizon-dive.json
-│       └── hover-blueshift.json
+│       └── orbit-showcase.json
 └── ui/                             # User interface
     ├── presets.js                  # Astrophysical black hole preset library
     ├── quality-presets.js          # Rendering quality preset library
@@ -193,7 +193,7 @@ js-libs/                            # Third-party libraries (three.js, dat.GUI, 
 docs/
 └── physics.html                    # Comprehensive physics documentation
 └── presentation-editor.md          # Guide to using the presentation timeline editor
-└── presentation-json.md
+└── presentation-json.md            # Timeline JSON schema & advanced event guide
 ```
 
 ---
@@ -204,15 +204,16 @@ Additions over the [upstream oseiskar/black-hole](https://github.com/oseiskar/bl
 
 | Feature | Details |
 |---------|---------|
-| True Kerr geodesics | Carter (1968) separated ODEs in Mino time — correct D-shaped shadow |
+| WIP Kerr geodesics | Carter (1968) Mino-time integrator exists in GLSL but is not yet exposed in the UI |
 | GRMHD accretion model | σ, R_high, MAD flux, MRI turbulence, κ-distribution electrons |
 | Presentation Timeline | Keyframe dopesheet editor with transport controls and easing curves |
-| WebM recording | MediaRecorder capture synced to timeline playback |
+| WebM recording | Realtime MediaRecorder capture plus offline WebCodecs/WebMMuxer export |
 | Offline PNG snapshot | One-click still image export using the Cinematic offline preset |
-| Built-in animation presets | Full Feature Tour, Orbit Showcase, Horizon Dive, Hover Blueshift |
-| Astrophysical BH presets | M87\*, Sgr A\*, Cygnus X-1, GRS 1915+105 from published data |
+| Interactive observer scenarios | Freefall Dive and Hover Approach |
+| Built-in timeline presets | Full Feature Tour and Orbit Showcase |
+| Astrophysical BH presets | M87\*, Sgr A\*, Cygnus X-1, GRS 1915+105, Gargantua, Schwarzschild |
 | Temporal Anti-Aliasing | Motion-rejection TAA for artifact-free high-quality frames |
-| Five quality tiers | Mobile through Ultra with per-mode step counts and supersampling |
+| Six quality tiers | Mobile, Optimal, Medium, High, Ultra, Cinematic |
 | Three tone-mappers | ACES Filmic, AGX, Scientific (inferno colormap) |
 | Three accretion models | Thin disk, thick torus (ADAF), slim disk (super-Eddington) |
 | Physical GRMHD jet | Spine/sheath, reconfinement shocks, Blandford–Znajek power scaling |

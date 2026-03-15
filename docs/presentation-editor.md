@@ -13,9 +13,9 @@ The interface has three separate sliding panels:
 
 | Button | Location | Panel contents |
 |---|---|---|
-| `◀ ANIMATIONS` | left screen edge | Freefall Dive, Hover Approach, **Presentation Timeline** (playback, recording) |
+| `◀ ANIMATIONS` | left screen edge | Freefall Dive, Hover Approach, **Presentation Timeline** preset picker + status |
 | `▶ CONTROLS` | right screen edge | Physics / rendering controls (dat.GUI) |
-| `▲ TIMELINE` | bottom of screen | **Dopesheet editor** — tracks, keyframes, key inspector |
+| `▲ TIMELINE` | bottom of screen | **Dopesheet editor** — tracks, keyframes, annotations, transport, and the REC modal |
 
 Click an edge button to open its panel. The `▲ TIMELINE` panel also opens automatically when you select **New Preset** in the Animations panel.
 
@@ -37,7 +37,7 @@ Click an edge button to open its panel. The `▲ TIMELINE` panel also opens auto
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│ ▶  ⏸  ■   0.00 / 12.00  [────scrubber────]  Preset ▾  AUTO KEY  + TRACK  ↑ IMPORT  ↓ EXPORT  × │  ← transport bar
+│ ▶  ⏸  ■   0.00 / 12.00  [────scrubber────]  Preset ▾  SAVE  ⊕ FX  ● REC  AUTO KEY  + TRACK  ✎ TEXT  ↑ IMPORT  ↓ EXPORT  × │  ← transport bar
 ├────────────────┬───────────────────────────────┬─────────────────────┤
 │  TRACKS        │  dopesheet lanes               │  KEY INSPECTOR      │
 │  observer.di…  │  ──●──────────●──────────      │  Path               │
@@ -52,17 +52,20 @@ Click an edge button to open its panel. The `▲ TIMELINE` panel also opens auto
 - `▶ ⏸ ■` — Play / Pause / Stop
 - **Time / Duration fields** — two editable number inputs showing `current / total`. Click either field and type a value to seek or change the timeline duration.
 - Preset dropdown — load a saved preset or `— new empty —` to start fresh
+- `SAVE` — download the current draft using its linked filename
 - `⊕ FX` — open the **Motion Functions** panel (see section 5)
+- `● REC` — open the recording / screenshot modal
 - `AUTO KEY` — capture changed controls as keyframes at the current time
 - `+ TRACK` — add a new blank track using the path typed in the Key Inspector
+- `✎ TEXT` — add or edit an annotation event at the current time
 - `↑ IMPORT` — import a `.json` timeline file from disk
 - `↓ EXPORT` — download the current draft as a `.json` file
 - `×` — close the timeline panel
 
 **Dopesheet columns:**
-- **Track list** (left) — click a row to select that track
-- **Lanes** (center) — click a keyframe dot to select it; **Ctrl+click** to add/remove from a multi-selection; **double-click** a keyframe dot to select all keyframes across all tracks that share the same time; click the ruler to seek
-- **Key Inspector** (right) — edit selected keyframe and commit changes. When multiple keyframes are selected, the inspector shows a summary count.
+- **Track list** (left) — parameter tracks plus annotation channels; click a row to select that lane
+- **Lanes** (center) — keyframe dots and annotation bars; **Ctrl+click** to add/remove from a multi-selection; **double-click** a keyframe dot to select all keyframes across all tracks that share the same time; click the ruler to seek
+- **Inspector** (right) — switches between the Key Inspector and the Text Event inspector depending on what you selected
 
 ## 4. Fast workflow (recommended)
 
@@ -87,6 +90,7 @@ Click `⊕ FX` in the transport bar to open the **Motion Functions** panel. It f
 
 | Type | What it animates | Tracks created |
 |---|---|---|
+| **Intro: sky reveal** | Starts close to the hole and widens the view into the sky / full scene | Camera transform tracks |
 | **Orbit around BH** | Camera circles the black hole at constant radius and elevation | `camera.position.x/y/z`, `camera.quaternion.x/y/z/w` |
 | **Zoom in / out** | Observer distance change | `observer.distance` |
 | **Exposure fade** | Exposure ramp | `look.exposure` |
@@ -136,13 +140,15 @@ Click a **track row** in the left column to inspect that track.
 Click a **keyframe dot** in the dopesheet to select that specific key.  
 **Ctrl+click** additional dots to build a multi-selection across one or many tracks.
 
+Use `✎ TEXT` in the transport bar to create an annotation event at the current time. Selecting an annotation bar switches the right column into the **Text Event** inspector, where you can edit title, body, color, width, fade-in, placement, and duration/end-marker behavior.
+
 ## 8. Interpolation rules
 
 - Number values interpolate smoothly between keys.
 - Boolean/string values are stepped (switch at the key time, no interpolation).
 
 Practical tip:
-- For mode switches like `accretion_mode`, `kerr_mode`, `jet.mode` use events (`set`) in the JSON rather than numeric tracks. Edit events via **JSON import/export** (see section 9).
+- For mode switches like `accretion_mode`, `kerr_mode`, `jet.mode` use events (`set`) in the JSON rather than numeric tracks. Text annotations are editable in the UI; other discrete events are easiest to author via **JSON import/export** (see section 13).
 
 ## 9. Keyboard shortcuts
 
@@ -153,6 +159,7 @@ The timeline panel responds to keyboard shortcuts when it is focused:
 | `Space` | Play / Pause |
 | `Delete` or `Backspace` | Delete all selected keyframes |
 | `Ctrl+A` | Select all keyframes on the active track; with `Shift` held (`Ctrl+Shift+A`), select all keyframes across all tracks |
+| `Shift+A` | Select all keyframes at the current playhead time across tracks |
 | Double-click keyframe | Select all keyframes across all tracks at that same time |
 | `Ctrl+C` | Copy selected keyframes to clipboard |
 | `Ctrl+V` | Paste copied keyframes at the current playhead time |
@@ -187,26 +194,32 @@ Reopening the panel restores everything exactly as you left it. State persists f
 
 Use the transport bar buttons to move between the UI editor and raw JSON:
 
+- `SAVE` — re-download the current draft with its linked filename
 - `↑ IMPORT` — opens a file picker; loads a `.json` timeline file into the editor
 - `↓ EXPORT` — downloads the current draft as `<name>.json`
 
-Use exported JSON to hand-edit events, annotations, and other fields not directly exposed in the dopesheet UI. See `docs/presentation-json.md` for the full schema.
+Use exported JSON to hand-edit mode-switch events, compile flags, annotation channels, manual annotation box placement, and other advanced fields not fully exposed in the dopesheet UI. See `docs/presentation-json.md` for the full schema.
 
 ## 14. Playback and recording
 
-Playback controls and recording settings live in the **Animations panel** (`◀ ANIMATIONS`), not in the Timeline panel.
+Playback controls and recording settings live in the **Timeline panel** (`▲ TIMELINE`), not in the Animations panel.
 
-Open `◀ ANIMATIONS` → expand **PRESENTATION TIMELINE** to access:
-- Preset selection and loop toggle
-- Scrubber bar and Play / Pause / Stop
+Open `▲ TIMELINE` → click `● REC` to access:
+- Loop toggle
+- Annotation and parameter-HUD visibility toggles
+- Whether overlays are included in recordings
+- Reset-on-record-start toggle
 - Recording quality, mode, resolution, FPS, bitrate
-- Start Rec / Stop Rec
-- `PNG SNAPSHOT` button: captures a still image by forcing the Offline/Cinematic quality preset and downloading a `.png`
+- `PNG SNAPSHOT`, `START REC`, and `STOP REC`
+
+The `◀ ANIMATIONS` panel only loads built-in presentation presets and shows current status.
 
 ## 15. Save as a reusable preset
 
 `New Preset` / `— new empty —` is a runtime editing mode.  
 To make a preset that persists after a page reload:
+
+`SAVE` only downloads the current draft with its linked filename; it does not write back into the repository automatically.
 
 1. Click `↓ EXPORT` in the transport bar.
 2. Place the downloaded file in `js/app/presentation/presets/`.
