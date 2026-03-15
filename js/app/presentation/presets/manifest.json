@@ -6,13 +6,5 @@
   {
     "name": "Orbit Showcase",
     "file": "js/app/presentation/presets/orbit-showcase.json"
-  },
-  {
-    "name": "Horizon Dive",
-    "file": "js/app/presentation/presets/horizon-dive.json"
-  },
-  {
-    "name": "Hover Blueshift",
-    "file": "js/app/presentation/presets/hover-blueshift.json"
   }
 ]
