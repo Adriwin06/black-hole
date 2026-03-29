@@ -321,7 +321,8 @@
     d&sup2;<em>u</em>/d&phi;&sup2; = &minus;<em>u</em> + 1.5 <em>u</em>&sup2;
 </div>
 <p>
-    This is <strong>exactly the equation</strong> implemented in the shader's <code>geodesic_accel()</code> function.
+    This is the <strong>exact Schwarzschild core</strong> implemented in the shader's
+    <code>geodesic_accel()</code> function when the optional spin perturbation is disabled.
     The first term (&minus;<em>u</em>) corresponds to the Newtonian inverse-square gravity, while the
     second term (1.5<em>u</em>&sup2;) is the purely relativistic correction responsible for light bending,
     the existence of the photon sphere, and the black hole shadow.
@@ -802,15 +803,13 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     <sup><a href="#ref-cunningham">[45]</a></sup>.
 </p>
 <p>
-    This self-irradiation effectively increases both the observed local flux and the corresponding 
-    black-body temperature. The effect scales strongly with the black hole's spin <em>a</em>. For a 
-    maximally spinning Kerr black hole, the disk extends much further down the gravitational well, 
-    causing well over 100% flux enhancement right at the innermost edge. The simulation models this 
-    effect empirically by applying a flux enhancement factor that peaks at the ISCO as a function 
-    of the spin, and decays rapidly outward proportionately to <em>r</em><sup>&minus;3.5</sup>. 
-    By the Stefan-Boltzmann law, the effective disk temperature is subsequently raised by the 
-    fourth root of this enhancement factor, locally brightening the core while maintaining 
-    thermodynamic equilibrium.
+    In this renderer, returning radiation is represented by a <strong>heuristic, Cunningham-inspired
+    inner-disk enhancement</strong>, not by recursive ray tracing or a calibrated transfer-function
+    evaluation. The boost is made stronger for higher spin and is forced to decay rapidly outward
+    as <em>r</em><sup>&minus;3.5</sup>, so the visual effect remains concentrated near the ISCO. By the
+    Stefan-Boltzmann law, the effective display temperature is then raised by the fourth root of
+    this enhancement factor. This produces a plausible extra brightening of the inner disk, but it
+    should be read as a visualization proxy rather than a quantitative returning-radiation result.
 </p>
 
 <!-- ============================================================ -->
@@ -875,40 +874,28 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     are handled separately (see Section 11).
 </p>
 
-<h3>Orbital vs. static gravitational redshift</h3>
+<h3>Implementation note</h3>
 <p>
-    The formula above applies to a <strong>static emitter</strong>.
-    For matter orbiting in a thin accretion disk on <strong>Keplerian circular orbits</strong>,
-    the combined gravitational + kinematic time dilation gives a different factor:
+    The renderer applies the <strong>static Schwarzschild redshift factor</strong>
+    &radic;[(1 &minus; 1/<em>r<sub>e</sub></em>) / (1 &minus; 1/<em>r<sub>o</sub></em>)]
+    to the source temperature first, then applies a separate special-relativistic transfer factor
+    for moving emitters:
 </p>
 <div class="eq">
-    <em>g</em><sub>orbital</sub>(<em>r</em>) = &radic;[(1 &minus; 3/(2<em>r</em>)) / (1 &minus; 1/<em>r<sub>o</sub></em>)]
+    <em>f</em><sub>transfer</sub> = &gamma;(1 + <b>v</b> &middot; <b>n̂</b>)
 </div>
 <p>
-    where the numerator 1 &minus; 3/(2<em>r</em>) combines the gravitational redshift with the
-    kinematic time dilation of circular Keplerian motion (identical to the observer time
-    dilation formula in <a href="#sec-observer">Section 13</a>).
+    This factorization keeps the static gravitational piece and the local kinematic piece separate,
+    so the transverse time-dilation part encoded in &gamma; is not counted twice. It is still a
+    <strong>local-frame approximation</strong>, not a full invariant GR transfer calculation built from
+    emitter tetrads and constants of motion, so the thin disk is most faithful in the
+    non-spinning Schwarzschild limit and becomes progressively more approximate in plunging,
+    volumetric, and Kerr-inspired modes.
 </p>
-<p>
-    The simulation uses two separate functions:
-</p>
-<ul>
-    <li><code>gravitational_shift()</code> &mdash; <strong>orbital</strong> Schwarzschild circular-orbit factor
-        used for the thin-disk baseline. It is exact for stable circular Schwarzschild orbits, but becomes
-        an approximation once emission is extended into the plunging region or the Kerr-inspired
-        disk-velocity mode is enabled.</li>
-    <li><code>gravitational_shift_static()</code> &mdash; <strong>static</strong> formula
-        &radic;(|1&minus;1/<em>r<sub>e</sub></em>|/|1&minus;1/<em>r<sub>o</sub></em>|)
-        for non-Keplerian sources: the thick torus (sub-Keplerian ADAF), slim disk (plunging region),
-        and relativistic jets.</li>
-</ul>
 <div class="comparison">
-    <strong>Accuracy:</strong> The orbital redshift formula is exact for stable circular Schwarzschild orbits,
-    and the static formula is exact for stationary Schwarzschild emitters.
-    In the renderer, using orbital redshift for the thin disk and a static Schwarzschild factor for
-    volumetric sources is a practical approximation combined with separate SR Doppler factors for the
-    emitter motion. The baseline non-spinning thin disk is therefore the most faithful case;
-    torus, jet, plunging-region, and Kerr-inspired modes are approximate.
+    <strong>Accuracy:</strong> The static Schwarzschild redshift law is exact for stationary emitters.
+    Combined with the separate SR Doppler factor it gives a consistent local approximation for moving
+    emitters in this renderer, but it is not a full GR redshift treatment for arbitrary source motion.
 </div>
 
 <!-- ============================================================ -->
@@ -918,8 +905,8 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 <h2 id="sec-doppler">10. Relativistic Doppler Effect</h2>
 
 <p>
-    Moving matter in the accretion disk introduces a Doppler shift. The full relativistic Doppler
-    formula combines gravitational and kinematic effects
+    Moving matter in the accretion disk introduces a Doppler shift. The local
+    special-relativistic Doppler factor used for emitter or observer motion is
     <sup><a href="#ref-rindler">[17]</a></sup>:
 </p>
 <div class="eq">
@@ -930,13 +917,17 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     velocity, and <b>n̂</b> is the photon direction at the emission point.
 </p>
 <p>
-    In the simulation, the combined gravitational + kinematic transfer factor is:
+    In the simulation, the kinematic transfer factor along a ray is:
 </p>
 <div class="eq">
     <em>f</em><sub>transfer</sub> = 1/<em>D</em><sub>observer</sub> &middot; 1/<em>D</em><sub>emitter</sub>
     = &gamma;<sub>obs</sub>(1 + <b>v</b><sub>obs</sub> &middot; <b>n̂</b>)
     &middot; &gamma;<sub>emit</sub>(1 + <b>v</b><sub>emit</sub> &middot; <b>n̂</b>)
 </div>
+<p>
+    The static gravitational redshift factor from <a href="#sec-grav-redshift">Section 9</a>
+    is applied separately.
+</p>
 <p>
     This factor is applied to the disk temperature: <em>T</em><sub>obs</sub> = <em>T</em><sub>emit</sub> /
     <em>f</em><sub>transfer</sub>. A blueshift (<em>f</em> &lt; 1) raises the observed temperature (approaching
@@ -1227,11 +1218,9 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 
 <p>
     For the accretion disk, the gravitational shift between emission and observer positions is
-    already handled by the dedicated redshift helpers. In particular,
-    <code>gravitational_shift()</code> uses the thin-disk orbital factor
-    &radic;[(1 &minus; 3/(2<em>r</em><sub>emit</sub>)) / (1 &minus; 1/<em>r</em><sub>obs</sub>)]
-    while <code>gravitational_shift_static()</code> uses the static Schwarzschild factor.
-    No double-application occurs.
+    already handled by the dedicated redshift helper. The shader uses the
+    static Schwarzschild factor first and then applies the separate SR transfer factor for the
+    emitter motion, which keeps gravitational and kinematic pieces separated in the implementation.
 </p>
 
 <p>
@@ -1274,10 +1263,16 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
         gravitational and relativistic Doppler temperature shift.</li>
 </ul>
 
-<h3>Physical-style (GRMHD-inspired) jet</h3>
+<h3>Detailed / GRMHD-inspired jet</h3>
 <p>
     A more detailed <strong>analytic</strong> jet model incorporating qualitative trends from GRMHD
     simulations and jet-imaging literature:
+</p>
+<p>
+    Its emissivity and beaming are synchrotron-motivated, but the displayed RGB colour is still
+    produced through an <strong>effective-temperature proxy</strong> and the same black-body lookup texture
+    used elsewhere in the renderer. The geometry and brightness trends are therefore inspired by
+    synchrotron jet models, but the simulation is not evaluating a literal frequency-resolved jet spectrum.
 </p>
 
 <h4>Spine/sheath structure</h4>
@@ -1408,7 +1403,8 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 <h3 id="sec-grmhd-synchrotron">16.2 Thermal Synchrotron Emission</h3>
 
 <p>
-    In astronomically observed black holes, the dominant radiation mechanism is
+    In low-luminosity systems such as <strong>M87*</strong> and <strong>Sgr&nbsp;A*</strong>, the observed
+    radio / millimeter emission is often modeled as
     <strong>thermal synchrotron emission</strong> from hot, magnetized, optically thin plasma:
 </p>
 <div class="eq">
@@ -2107,9 +2103,9 @@ newR = max(r + k2,  r_min)</code></pre>
     </tr>
     <tr>
         <td>Gravitational redshift</td>
-        <td>Exact Schwarzschild transfer factors in the static / baseline thin-disk cases</td>
+        <td>Exact Schwarzschild transfer law for static sources; moving emitters use a static-plus-SR local approximation</td>
         <td>Confirmed experimentally (Pound-Rebka, GPS)</td>
-        <td><strong>Exact in its Schwarzschild scope</strong>; approximate once spin or plunging emission is introduced</td>
+        <td><strong>Exact for static Schwarzschild sources</strong>; approximate once source motion, plunging flow, or spin-inspired modes are introduced</td>
     </tr>
     <tr>
         <td>Gravitational blueshift (background sky)</td>
@@ -2145,7 +2141,7 @@ newR = max(r + k2,  r_min)</code></pre>
         <td>Thin disk temperature profile</td>
         <td>T &propto; r<sup>−3/4</sup>(1−&radic;(r<sub>in</sub>/r))<sup>1/4</sup></td>
         <td>Shakura-Sunyaev / Novikov-Thorne<sup><a href="#ref-ss73">[10]</a></sup></td>
-        <td><strong>Correct model</strong></td>
+        <td><strong>Correct zero-torque thin-disk proxy</strong>; not the full spin-dependent Novikov-Thorne correction</td>
     </tr>
     <tr>
         <td>Disk left-right asymmetry</td>
@@ -2245,9 +2241,9 @@ newR = max(r + k2,  r_min)</code></pre>
         <td>Self-illumination / reflection</td>
         <td>Analytical returning radiation flux enhancement</td>
         <td>Disk photons returning to disk after lensing</td>
-        <td>True ray-traced reflections are omitted for performance. Replaced with an analytical flux
-            enhancement based on Cunningham (1976), which correctly captures the enhanced inner-disk
-            emission without the cost of recursive raytracing.</td>
+        <td>True ray-traced reflections are omitted for performance. Replaced with a heuristic,
+            Cunningham-inspired inner-disk flux enhancement that mimics the qualitative brightening
+            without attempting a quantitative returning-radiation calculation.</td>
     </tr>
 </table>
 
@@ -2312,10 +2308,9 @@ newR = max(r + k2,  r_min)</code></pre>
         but still traces photon paths with the perturbative Binet equation.</li>
     <li><strong>Returning radiation is analytical, not ray-traced:</strong> Photons gravitationally
         lensed back onto the accretion disk are not individually tracked (that would require
-        recursive ray tracing). Instead, an analytical flux enhancement model based on
-        Cunningham (1976) is applied (see <a href="#sec-self-irradiation">Section 7.4</a>),
-        correctly capturing the enhanced inner-disk emission without the cost of recursive
-        raytracing.</li>
+        recursive ray tracing). Instead, a heuristic Cunningham-inspired flux enhancement model is
+        applied (see <a href="#sec-self-irradiation">Section 7.4</a>). It is intended to reproduce
+        the qualitative brightening of the inner disk, not to serve as a quantitative returning-radiation solver.</li>
     <li><strong>Disk is not self-consistent:</strong> The disk temperature, density, and velocity profiles are
         prescribed analytically rather than evolved from MHD equations.</li>
     <li><strong>No polarization:</strong> The simulation does not track photon polarization, which is

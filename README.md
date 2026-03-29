@@ -9,7 +9,7 @@ A real-time, GPU-accelerated browser visualization of a black hole with an accre
 
 > This is a substantially extended fork of [oseiskar/black-hole](https://github.com/oseiskar/black-hole). See [What's new](#whats-new-in-this-fork) for a summary of additions.
 
-> Scientific scope: Schwarzschild photon geodesics follow the exact Binet equation, but rendered fidelity still depends on the integrator, step budget, and adaptive stepping. Spin, accretion, jet, and GRMHD-related options use a mix of analytic, semi-analytic, and artistically tuned approximations; see [docs/physics.html](docs/physics.html) for what is exact and what is approximate.
+> Scientific scope: Schwarzschild photon geodesics follow the exact Binet equation, but rendered fidelity still depends on the integrator, step budget, and adaptive stepping. Spin, accretion, jet, and GRMHD-related options use a mix of analytic, semi-analytic, and heuristic approximations; returning radiation is not ray-traced, and jet colours use an effective-temperature proxy rather than a frequency-resolved synchrotron spectrum. See [docs/physics.html](docs/physics.html) for what is exact and what is approximate.
 
 ---
 
@@ -225,7 +225,7 @@ Additions over the [upstream oseiskar/black-hole](https://github.com/oseiskar/bl
 
 ## License
 
-See [COPYRIGHT.md](COPYRIGHT.md) for full license and copyright information.
+The source code for this fork is MIT-licensed, but some bundled third-party libraries and assets use separate terms. See [COPYRIGHT.md](COPYRIGHT.md) for the full breakdown, especially the Milky Way panorama asset.
 
 Originally based on [oseiskar/black-hole](https://github.com/oseiskar/black-hole) (MIT).  
 Fork maintained and substantially extended by [Adriwin](https://github.com/Adriwin06).

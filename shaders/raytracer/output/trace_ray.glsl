@@ -344,7 +344,10 @@ vec4 trace_ray(vec3 ray) {
                     float beta_g = grmhd_plasma_beta(r, 0.0, disk_h_g);
                     // Add t and angle parameters needed by the updated function signature
                     float Te_corr = 0.97 + grmhd_electron_temp_ratio(beta_g) * 0.03;  // 3% R_high correction (thin disk is efficient)
-                    float temperature = grmhd_electron_temperature(gas_temp_g, r, 0.0, disk_h_g, turb_t, angle) * Te_corr * gravitational_shift(r);
+                    // Apply only the static Schwarzschild factor here; the
+                    // separate transfer_factor below already carries the
+                    // emitter gamma and line-of-sight Doppler contribution.
+                    float temperature = grmhd_electron_temperature(gas_temp_g, r, 0.0, disk_h_g, turb_t, angle) * Te_corr * gravitational_shift_static(r);
                     
                     // GRMHD turbulence: MRI density fluctuations with log-normal
                     // PDF + spiral arms (Sorathia+ 2012, Hawley+ 2013)
@@ -373,7 +376,7 @@ vec4 trace_ray(vec3 ray) {
                         * (1.0 + 0.7*inner_glow);
                     {{/grmhd_enabled}}
                     {{^grmhd_enabled}}
-                    float temperature = accretion_temperature(r) * gravitational_shift(r);
+                    float temperature = accretion_temperature(r) * gravitational_shift_static(r);
                     float turbulence = accretion_emissivity(r, angle, turb_t);
                     float inner_glow = exp(-8.0 * (r - ACCRETION_MIN_R));
                     float accretion_intensity = ACCRETION_BRIGHTNESS * accretion_flux_profile(r) *
@@ -750,7 +753,8 @@ vec4 trace_ray(vec3 ray) {
                     {{/jet_simple}}
 
                     {{#jet_physical}}
-                    // Physical mode: more detailed GRMHD-inspired emission
+                    // Detailed mode: more elaborate GRMHD-inspired emissivity,
+                    // still coloured via an effective-temperature proxy.
                     float r_jet_p = max(length(pos), 1.001);
                     float z_abs = abs(pos.z * sign_z);
                     float g_shift_j = gravitational_shift_static(r_jet_p);

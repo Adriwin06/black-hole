@@ -3,6 +3,8 @@
 
 # Copyright and license info
 
+This repository is not "all MIT" as a bundle. The source code of the fork is MIT-licensed, while some bundled third-party libraries and assets remain under their own licenses.
+
  * [dat.GUI](https://github.com/dataarts/dat.gui) (`js-libs/dat.gui.min.js`) licensed under the [Apache License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0)
  * Other JavaScript libraries in `js-libs/` are licensed under the [MIT license](https://tldrlegal.com/license/mit-license)
    - [jQuery](https://jquery.org)
@@ -11,8 +13,8 @@
    - [mustache.js](https://github.com/janl/mustache.js)
    - [webm-muxer](https://github.com/Vanilagy/webm-muxer)
    - [ShaderLoader.js](https://github.com/codecruzer/webgl-shader-loader-js) (`js-libs/ShaderLoader.min.js`)
- * The Milky Way image `img/milkyway.jpg` is from [Stellarium](https://www.stellarium.org/wiki/index.php/Textures) and "based on Nick Risinger's [Photopic Sky Survey](https://skysurvey.org/) image under [CC-BY-NC 2.0](https://creativecommons.org/licenses/by-nc/2.0/)."
- * All other files in this repository, https://github.com/adriwin06/black-hole, are hereby licensed under the MIT license:
+ * The Milky Way image `img/milkyway.jpg` is from [Stellarium](https://www.stellarium.org/wiki/index.php/Textures) and "based on Nick Risinger's [Photopic Sky Survey](https://skysurvey.org/) image under [CC-BY-NC 2.0](https://creativecommons.org/licenses/by-nc/2.0/)." It is therefore not covered by the repository's MIT code license.
+ * All other first-party source files in this repository, https://github.com/adriwin06/black-hole, are hereby licensed under the MIT license:
 
         Copyright (c) 2015 Otto Seiskari
         Copyright (c) 2026 Adriwin

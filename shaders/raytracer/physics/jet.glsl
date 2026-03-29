@@ -67,7 +67,8 @@ vec3 jet_velocity(vec3 p, float sign_z) {
 //  4. Jet-corona connection: bright base from hot corona above disk
 //  5. Counter-jet disk occultation
 //  6. GRMHD-inspired emissivity: j ∝ ρ² B² (synchrotron-motivated)
-//  7. Synchrotron power-law spectrum (not blackbody approximation)
+//  7. Effective-temperature RGB proxy layered over synchrotron-motivated
+//     emissivity (not a frequency-resolved synchrotron spectrum)
 
 // --- Jet geometry: magnetic funnel wall ---
 // In GRMHD simulations the jet boundary follows field lines that thread
@@ -244,11 +245,10 @@ vec3 jet_velocity(vec3 p, float sign_z) {
     return v_z + v_phi;
 }
 
-// --- Synchrotron power-law color ---
-// True synchrotron spectrum: F_ν ∝ ν^(-α) with α ≈ 0.6-0.8
-// Mapping to RGB: more flux at low frequencies → reddish at base,
-// blue-shifted at high Γ. Approximate with variable-T blackbody
-// where effective T encodes the spectral hardness.
+// --- Synchrotron-inspired color proxy ---
+// Real jet spectra are non-thermal. For interactive RGB rendering we map the
+// analytic emissivity model through an effective-temperature colour proxy so
+// the jet can be shaded with the same blackbody lookup texture used elsewhere.
 float jet_effective_temperature(float z, float r3d, float sigma) {
     // Base is hotter (corona: ~10^9 K effective → maps to UV/X-ray)
     // Far jet is cooler (synchrotron aging: electrons lose energy)

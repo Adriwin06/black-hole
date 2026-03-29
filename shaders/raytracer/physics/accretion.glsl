@@ -59,18 +59,18 @@ float accretion_emissivity(float radius, float angle, float t) {
 }
 
 // --- Disk Self-Irradiation (Returning Radiation) ---
-// Radiation emitted from the inner disk is strongly lensed by the black hole's
-// gravity, causing a significant fraction of it to strike the disk again.
-// Based on Cunningham (1976), this returning radiation enhances the
-// local flux and temperature, peaking near the ISCO and scaling with spin.
+// Heuristic Cunningham-inspired inner-disk brightening. This is NOT a
+// ray-traced returning-radiation calculation or a tabulated Cunningham transfer
+// function; it is a spin-scaled enhancement localized near the ISCO so the
+// renderer can mimic the qualitative extra heating of strongly lensed inner
+// disk emission.
 float accretion_returning_radiation_enhancement(float radius) {
 {{#disk_self_irradiation_enabled}}
     float r_norm = max(radius / ACCRETION_MIN_R, 1.0001);
-    // Closer ISCO (higher spin) means the potential well is deeper, bending more light back.
-    // For a=0 (Schwarzschild), ~20% enhancement. For a=0.99 (Extreme Kerr), > 100% enhancement.
+    // Higher spin moves the ISCO inward, so we allow a stronger heuristic boost.
     float spin_a = bh_rotation_enabled * bh_spin;
     float peak_enhancement = 0.2 + 1.2 * abs(spin_a);
-    // The returning radiation flux decays rapidly outward as ~ r^-3.5
+    // Rapid outward decay keeps the effect concentrated near the inner disk.
     float enhancement = peak_enhancement * pow(1.0 / r_norm, 3.5);
     return 1.0 + enhancement;
 {{/disk_self_irradiation_enabled}}
@@ -101,7 +101,7 @@ float accretion_temperature(float radius) {
     return t_base * pow(accretion_returning_radiation_enhancement(radius), 0.25);
 }
 
-// Observer metric factor shared by both shift functions.
+// Observer metric factor shared by the Schwarzschild redshift helpers.
 // Uses the static Schwarzschild factor because the observer's own
 // kinematic Doppler is applied separately via cam_vel aberration.
 float _observer_metric_factor() {
@@ -109,24 +109,10 @@ float _observer_metric_factor() {
     return max(abs(1.0 - 1.0 / r_obs), 0.001);
 }
 
-float gravitational_shift(float emission_radius) {
-    // Combined gravitational + orbital redshift for matter on a circular
-    // Keplerian orbit in Schwarzschild geometry.  The emitter redshift is:
-    //   g_emit = sqrt(1 - 3M/r) = sqrt(1 - 3/(2r))   (r_s = 1, M = 0.5)
-    // This accounts for BOTH the gravitational time dilation AND the
-    // transverse Doppler effect of the orbiting disk material.
-    // Below the photon sphere (r < 1.5 r_s) the quantity goes negative
-    // (no stable circular orbits) — clamp with a small positive floor.
-    float r_emit = max(emission_radius, 1.0001);
-    float emission_term = max(1.0 - 1.5 / r_emit, 0.0001);
-    return sqrt(emission_term / _observer_metric_factor());
-}
-
 float gravitational_shift_static(float emission_radius) {
-    // Gravitational redshift only — for emitters that are NOT on circular
-    // Keplerian orbits (ADAF torus, slim-disk plunging region, jets).
-    // Uses the static Schwarzschild metric component sqrt(|1 - r_s/r|).
-    // The emitter's kinematic Doppler is computed separately in trace_ray.
+    // Static Schwarzschild redshift only. Moving-source kinematic Doppler
+    // (including transverse time dilation via gamma) is applied separately in
+    // trace_ray(), which avoids double counting the emitter gamma factor.
     float r_emit = max(emission_radius, 1.0001);
     float emission_term = max(abs(1.0 - 1.0 / r_emit), 0.0001);
     return sqrt(emission_term / _observer_metric_factor());
@@ -521,9 +507,11 @@ float planet_irradiation_temperature() {
     float t1 = accretion_temperature(r1);
     float t2 = accretion_temperature(r2);
     float t3 = accretion_temperature(r3);
-    t1 *= gravitational_shift(r1);
-    t2 *= gravitational_shift(r2);
-    t3 *= gravitational_shift(r3);
+    // Use the static Schwarzschild factor here. The detailed, angle-dependent
+    // disk orbital Doppler seen by the planet is not resolved in this helper.
+    t1 *= gravitational_shift_static(r1);
+    t2 *= gravitational_shift_static(r2);
+    t3 *= gravitational_shift_static(r3);
     return (w1*t1 + w2*t2 + w3*t3) / wsum;
     {{/accretion_thin_disk}}
 

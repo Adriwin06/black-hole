@@ -625,7 +625,7 @@ function setupGUI() {
             observer.turbulenceTimeOffset = -observer.time;
             shader.needsUpdate = true;
         },
-        help: 'Thin disk: Novikov-Thorne (quasars/XRBs). Thick torus: ADAF/RIAF (M87*/Sgr A*). Slim disk: super-Eddington.'
+        help: 'Thin disk: zero-torque Shakura-Sunyaev / Novikov-Thorne-style proxy (quasars/XRBs). Thick torus: ADAF/RIAF (M87*/Sgr A*). Slim disk: super-Eddington.'
     });
     var diskSelfIrradiationCtrl = addControl(diskFolder, p, 'disk_self_irradiation', {
         name: 'self-irradiation',
@@ -633,7 +633,7 @@ function setupGUI() {
         onChange: function() {
             updateShader();
         },
-        help: 'Disk returning radiation: photons emitted near the ISCO bend back and reheat the inner disk (Cunningham 1976). Effect peaks near the event horizon and scales with black hole spin.'
+        help: 'Heuristic Cunningham-inspired inner-disk brightening. Increases local flux near the ISCO with a spin-scaled falloff; this is not recursive ray-traced returning radiation.'
     });
     var diskTempCtrl = addControl(diskFolder, p, 'disk_temperature', {
         min: DISK_TEMPERATURE_MIN,
@@ -740,7 +740,7 @@ function setupGUI() {
         name: 'R_high',
         trackBlackHolePreset: true,
         onChange: updateUniformsLive,
-        help: 'Electron-to-ion temperature ratio parameter. R_high=1: electrons as hot as ions (emission everywhere). R_high=160: cool electrons in disk body (emission near jet wall/polar regions). Key EHT parameter controlling image morphology.'
+        help: 'Ion-to-electron temperature-ratio control used in the Ti:Te prescription. R_high=1: electrons nearly as hot as ions (emission everywhere). R_high=160: cool electrons in the disk body (emission near the jet wall/polar regions). Key EHT-style morphology control.'
     });
     var grmhdBetaCtrl = addControl(diskFolder, p.grmhd, 'magnetic_beta', {
         min: 0.01,
@@ -831,7 +831,7 @@ function setupGUI() {
             updateDependentVisibility();
             updateShader();
         },
-        help: 'Simple: smooth analytic jet. Physical: more detailed GRMHD-inspired jet model with spine/sheath, reconfinement knots, corona base, and disk occultation.'
+        help: 'Simple: smooth analytic jet. Physical: more detailed GRMHD-inspired jet model with spine/sheath, reconfinement knots, corona base, and disk occultation; RGB colour still uses an effective-temperature proxy rather than a literal synchrotron spectrum.'
     });
     var jetAngleCtrl = addControl(jetFolder, p.jet, 'half_angle', {
         min: 1.0,
