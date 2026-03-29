@@ -74,8 +74,7 @@ function setupBloom() {
         '    vec4 orig = texture2D(tDiffuse, vUv);',
         '    float r = bloomRadius;',
         '    // Power-law PSF weights: w_i = 1/(1+i)^p with p ≈ 1.5.',
-        '    // This approximates the r^(-2) to r^(-3) radial falloff of a',
-        '    // gravitationally lensed point-spread function, giving wider',
+        '    // This approximates a broad optical/glow-style PSF, giving wider',
         '    // mip levels relatively more weight than a geometric series.',
         '    float p = 1.2 + 0.8 * r;',  // r slider now controls PSF steepness
         '    float w0 = 1.0;',

@@ -18,7 +18,7 @@ A real-time, GPU-accelerated browser visualization of a black hole with an accre
 ### Physics & Rendering
 - **Two photon-lensing modes** — fast Schwarzschild Binet lensing (exact for a = 0, with a perturbative frame-drag term when spin is enabled) plus a Kerr-inspired disk-velocity mode that keeps the same approximate photon solver but uses Kerr equatorial angular velocity to drive disk matter
 - **Three accretion disk models** — thin disk (Shakura–Sunyaev), thick torus (ADAF/RIAF), and slim disk (super-Eddington)
-- **GRMHD-inspired accretion controls** — magnetization (σ), electron temperature ratio (R_high), MAD/SANE magnetic flux, MRI-inspired turbulence, and kappa-distribution electron parameters
+- **GRMHD-inspired accretion controls** — magnetization (σ), `R_high` electron-heating / Ti:Te prescription controls, MAD/SANE magnetic flux, MRI-inspired turbulence, and kappa-distribution electron parameters
 - **Relativistic effects** — gravitational redshift, Doppler shift, relativistic beaming (physical D³ Liouville or cinematic), aberration, time dilation
 - **Relativistic jets** — simple analytic jet or a more detailed GRMHD-inspired jet model with spine/sheath structure, reconfinement shocks, jet-corona connection, and Blandford–Znajek-inspired power scaling
 - **Black-body spectrum** — temperature-dependent disk coloring with precomputed Planck lookup

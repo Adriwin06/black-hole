@@ -766,9 +766,9 @@ function init(glslSource, textures) {
 //
 // The Binet equation d²u/dφ² = -u + (3/2)u² is valid for all r including
 // inside the horizon.  Rays traced backward from an interior observer:
-//   - Rays with impact parameter b < b_crit escape outward through the horizon
-//     and show the external universe (background stars, accretion disk).
-//   - Rays with b >= b_crit fall to the singularity → rendered black.
+//   - Some connect to the exterior universe and show the background sky /
+//     accretion flow.
+//   - The rest terminate at the singularity → rendered black.
 // This naturally produces the shrinking "window to the universe" effect as
 // the observer approaches the singularity.
 // ─────────────────────────────────────────────────────────────────────────────

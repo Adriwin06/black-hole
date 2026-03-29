@@ -1,16 +1,13 @@
 // Role: Background sky rendering — Milky Way galaxy texture with relativistic
-//       Doppler color shift (temperature lookup + blackbody remap) and H-alpha
-//       emission handling for moving observer modes.
+//       Doppler / blueshift color remap (temperature lookup + blackbody remap)
+//       and H-alpha emission handling.
 
 vec4 galaxy_color(vec2 tex_coord, float doppler_factor) {
 
     vec4 base_color = texture2D(galaxy_texture, tex_coord);
     vec4 color = base_color;
-    {{^observerMotion}}
-    return color;
-    {{/observerMotion}}
+    if (abs(doppler_factor - 1.0) < 1e-4) return color;
 
-    {{#observerMotion}}
     vec4 ret = vec4(0.0,0.0,0.0,0.0);
     float red = max(0.0, color.r - color.g);
 
@@ -40,5 +37,4 @@ vec4 galaxy_color(vec2 tex_coord, float doppler_factor) {
     ret = mix(base_color, ret, GALAXY_DOPPLER_STRENGTH);
     ret.rgb = min(ret.rgb, base_color.rgb * GALAXY_MAX_BOOST + vec3(0.03));
     return ret;
-    {{/observerMotion}}
 }

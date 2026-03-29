@@ -82,8 +82,8 @@ void integrate_geodesic_step(inout float u, inout float du, float step,
 // Θ̃(c) = η(1−c²) + a²c²(1−c²) − ξ²c²   [c = cosθ]
 // Constants: ξ = L_z/E,  η = Q/E²  (with E normalised to 1).
 //
-// These ODEs are polynomials — cheap to evaluate per step and
-// produce the exact Kerr shadow (D-shaped for a > 0).
+// These ODEs are polynomials — cheap to evaluate per step and,
+// in principle, encode the exact separated Kerr null-geodesic system.
 
 // Mino-time radial acceleration:
 //   d²r/dσ² = R'(r)/2 = 2rP − (r − M)K,  M = 0.5
@@ -149,7 +149,7 @@ void kerr_init(vec3 pos, vec3 dir, float a,
     float p_theta   = r * r * theta_dot;         // p_θ = r²θ̇
     eta = p_theta*p_theta + xi*xi*c2/sth2 - a2*c2;
 
-    // Project momenta onto constraint surface for exact energy conservation
+    // Project momenta onto the constraint surface at initialization
     float P = r*r + a2 - a*xi;
     float K = (xi - a)*(xi - a) + eta;
     float Delta = r*r - r + a2;

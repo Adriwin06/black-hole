@@ -821,7 +821,7 @@ function setupGUI() {
             updateDependentVisibility();
             updateShader();
         },
-        help: 'Bipolar relativistic jets along the spin axis (Blandford-Znajek mechanism).'
+        help: 'Bipolar analytic jets aligned with the spin axis. The detailed mode adds GRMHD-inspired structure and Blandford-Znajek-like power scaling.'
     });
     var jetModeCtrl = addControl(jetFolder, p.jet, 'mode', {
         name: 'jet model',

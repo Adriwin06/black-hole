@@ -176,8 +176,8 @@
         <li><a href="#sec-integration">Numerical Integration (Leapfrog &amp; RK4)</a></li>
         <li><a href="#sec-kerr">Kerr Black Hole &amp; Frame Dragging</a>
             <ol>
-                <li><a href="#sec-kerr">Perturbative approximation (interior / fallback)</a></li>
-                <li><a href="#sec-kerr">True Kerr geodesics (Mino-time formulation)</a></li>
+                <li><a href="#sec-kerr-perturbative">Perturbative approximation (interior / fallback)</a></li>
+                <li><a href="#sec-kerr-mino">True Kerr geodesics (Mino-time formulation)</a></li>
             </ol>
         </li>
         <li><a href="#sec-isco">ISCO: Innermost Stable Circular Orbit</a></li>
@@ -429,7 +429,7 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     coordinate integration, which is computationally expensive for real-time rendering.
 </p>
 
-<h3>5.1. Perturbative approximation (interior / fallback)</h3>
+<h3 id="sec-kerr-perturbative">5.1. Perturbative approximation (interior / fallback)</h3>
 <p>
     For the interior rendering mode and as a fallback when spin is negligible, the simulation uses
     a perturbative <strong>frame-dragging correction</strong> added to the Schwarzschild Binet equation:
@@ -448,7 +448,7 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     This captures qualitative frame-dragging effects but cannot reproduce the exact Kerr shadow boundary.
 </p>
 
-<h3>5.2. True Kerr geodesics (Mino-time formulation)</h3>
+<h3 id="sec-kerr-mino">5.2. True Kerr geodesics (Mino-time formulation)</h3>
 <p>
     The codebase also contains an <strong>experimental Kerr geodesic integrator</strong> based on the
     separability discovered by <strong>Carter (1968)</strong>
@@ -560,7 +560,7 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 </p>
 
 <!-- 7.1 Thin Disk -->
-<h3 id="sec-thin-disk">7.1. Thin Disk (Novikov–Thorne / Shakura–Sunyaev)</h3>
+<h3 id="sec-thin-disk">7.1. Thin Disk (Shakura–Sunyaev-Type Profile with Kerr ISCO Inner Edge)</h3>
 
 <p>
     This is the default mode, modeling a geometrically thin, optically thick accretion disk
@@ -570,9 +570,11 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 
 <h4>Temperature profile</h4>
 <p>
-    The surface temperature follows the <strong>Shakura &amp; Sunyaev (1973)</strong>
-    <sup><a href="#ref-ss73">[10]</a></sup> and <strong>Novikov &amp; Thorne (1973)</strong>
-    <sup><a href="#ref-nt73">[11]</a></sup> model:
+    The surface temperature follows the familiar <strong>zero-torque thin-disk proxy</strong>
+    used in the <strong>Shakura &amp; Sunyaev (1973)</strong>
+    <sup><a href="#ref-ss73">[10]</a></sup> treatment and in the Newtonian-limit form often used
+    as a visual stand-in for <strong>Novikov &amp; Thorne (1973)</strong>
+    <sup><a href="#ref-nt73">[11]</a></sup>:
 </p>
 <div class="eq">
     <em>T</em>(<em>r</em>) = <em>T</em><sub>0</sub> &middot; <em>x</em><sup>&minus;3/4</sup>
@@ -580,7 +582,9 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 </div>
 <p>
     where <em>x</em> = <em>r</em>/<em>r</em><sub>in</sub> and <em>r</em><sub>in</sub> is the ISCO radius.
-    This profile arises from the balance between:
+    In this renderer, the <strong>inner edge</strong> tracks the Kerr ISCO, but the
+    <strong>flux profile itself is not the full spin-dependent Novikov-Thorne/Page-Thorne relativistic correction</strong>.
+    It is the simpler Shakura-Sunyaev-style zero-torque profile:
 </p>
 <ul>
     <li>Gravitational energy release (viscous dissipation) &propto; <em>r</em><sup>&minus;3</sup></li>
@@ -596,7 +600,8 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     <em>F</em>(<em>r</em>) &propto; (1/<em>x</em>&sup3;) &middot; (1 &minus; &radic;(1/<em>x</em>))
 </div>
 <p>
-    This peaks at roughly <em>r</em> &approx; 1.36 <em>r</em><sub>in</sub> for the Novikov-Thorne model.
+    This simple zero-torque profile peaks at
+    <em>r</em> = (49/36) <em>r</em><sub>in</sub> &approx; 1.36 <em>r</em><sub>in</sub>.
     The code applies a normalization factor of 18.0 for visual brightness scaling.
 </p>
 
@@ -793,7 +798,8 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     <strong>returning radiation</strong>. Light emitted from the inner regions of the accretion disk 
     (near the ISCO) does not always escape to infinity. Because of the strong gravitational lensing 
     near the black hole, a significant fraction of the emitted flux is bent back and strikes the disk 
-    again, depositing its energy back into the plasma (Cunningham, 1976).
+    again, depositing its energy back into the plasma
+    <sup><a href="#ref-cunningham">[45]</a></sup>.
 </p>
 <p>
     This self-irradiation effectively increases both the observed local flux and the corresponding 
@@ -860,9 +866,13 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 </div>
 <p>
     This factor is applied as a multiplicative shift to the effective temperature:
-    <em>T</em><sub>obs</sub> = <em>T</em><sub>emit</sub> &middot; <em>g</em>. Since the Planck function
-    <em>B<sub>&nu;</sub></em>(<em>DT</em>) = <em>D</em>&sup3; <em>B<sub>&nu;/D</sub></em>(<em>T</em>),
-    shifting the temperature correctly accounts for both the frequency shift and the intensity change.
+    <em>T</em><sub>obs</sub> = <em>T</em><sub>emit</sub> &middot; <em>g</em>.
+    For a full Planck spectrum, the identity
+    <em>B<sub>&nu;</sub></em>(<em>DT</em>) = <em>D</em>&sup3; <em>B<sub>&nu;/D</sub></em>(<em>T</em>)
+    means a temperature rescaling would encode both frequency shift and specific-intensity scaling.
+    In this renderer, however, the lookup texture stores <strong>chromaticity</strong> rather than
+    absolute Planck radiance, so the hue shift and the explicit <em>D</em>&sup3; brightness factor
+    are handled separately (see Section 11).
 </p>
 
 <h3>Orbital vs. static gravitational redshift</h3>
@@ -993,11 +1003,6 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 
 <!-- ============================================================ -->
 <!-- 12. RELATIVISTIC ABERRATION -->
-<p>
-    For light-travel-time rendering, the Kerr disk-velocity path uses the Schwarzschild null-geodesic
-    coordinate-time increment near the black hole (with a smooth far-field blend to path length),
-    and only falls back to Euclidean step length when gravitational time dilation is disabled.
-</p>
 <!-- ============================================================ -->
 
 <h2 id="sec-aberration">12. Relativistic Aberration</h2>
@@ -1342,8 +1347,9 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 <p>
     The receding (counter) jet is partially blocked by the optically thick accretion disk near the
     equatorial plane. The simulation models this as exponential absorption through the disk midplane,
-    consistent with observational evidence that only one jet is typically visible in AGN
-    <sup><a href="#ref-bz77">[25]</a></sup>.
+    as an extra visualization term. In real AGN, one-sided jet appearance is often dominated by
+    relativistic Doppler boosting and external absorption; disk occultation is only one possible
+    contributor and should not be treated here as an observationally established primary cause.
 </p>
 
 <!-- ============================================================ -->
@@ -1361,12 +1367,12 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 </p>
 
 <div class="note">
-    <strong>What is GRMHD?</strong> GRMHD simulations solve the coupled Einstein + MHD equations
-    self-consistently on a computational grid, evolving the plasma density, velocity, pressure,
-    and magnetic field in curved spacetime. They are the gold standard for modeling black hole
-    accretion and jet launching. This simulation uses semi-analytic fitting functions calibrated
-    to GRMHD results — not the full numerical evolution — to achieve real-time performance
-    while retaining the essential physics.
+    <strong>What is GRMHD?</strong> In black-hole accretion work, GRMHD simulations usually evolve the
+    relativistic magnetofluid equations on a curved spacetime background (most often a fixed Kerr metric),
+    tracking the plasma density, velocity, pressure, and magnetic field near the hole. They are the
+    gold standard for modeling accretion-flow morphology and jet launching. This simulation uses
+    semi-analytic fitting functions inspired by GRMHD results — not the full numerical evolution —
+    to achieve real-time performance while retaining the essential qualitative trends.
 </div>
 
 <h3 id="sec-grmhd-two-temp">16.1 Two-Temperature Plasma (R<sub>high</sub> Prescription)</h3>
@@ -1389,8 +1395,8 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     and <em>R</em><sub>low</sub> = 1. This creates:
 </p>
 <ul>
-    <li><strong>Low &beta; (jet funnel, corona):</strong> <em>R</em> &asymp; 1, so <em>T<sub>e</sub></em> &asymp; <em>T<sub>i</sub></em>/2 — electrons are hot, emission is bright.</li>
-    <li><strong>High &beta; (disk midplane):</strong> <em>R</em> &asymp; <em>R</em><sub>high</sub>, so <em>T<sub>e</sub></em> &Lt; <em>T<sub>i</sub></em> — electrons are cool, dim.</li>
+    <li><strong>Low &beta; (jet funnel, corona):</strong> <em>R</em> &asymp; 1, so <em>T<sub>e</sub></em> &asymp; <em>T<sub>i</sub></em> — electrons remain relatively hot and emission is bright.</li>
+    <li><strong>High &beta; (disk midplane):</strong> <em>R</em> &asymp; <em>R</em><sub>high</sub>, so <em>T<sub>e</sub></em> &asymp; <em>T<sub>i</sub></em>/<em>R</em><sub>high</sub> — electrons are cooler and emission is suppressed.</li>
 </ul>
 <p>
     When <em>R</em><sub>high</sub> = 1, emission comes from everywhere. When <em>R</em><sub>high</sub> = 160,
@@ -1732,9 +1738,10 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 <p>
     Once the observer crosses the event horizon (<em>r</em> &lt; <em>r<sub>s</sub></em>), the standard
     exterior ray-tracing logic — march until the ray escapes to infinity or hits the horizon —
-    breaks down. Inside the horizon <em>all</em> timelike and null worldlines must decrease in <em>r</em>
-    (the radial coordinate becomes timelike), yet some photon geodesics launched from an interior
-    observer can still reach the exterior universe before the observer hits the singularity.
+    breaks down. Inside the horizon <em>all</em> future-directed timelike and null worldlines must
+    decrease in <em>r</em> (the radial coordinate becomes timelike), yet some
+    <strong>past-directed</strong> photon geodesics through an interior observer can still originate
+    in the exterior universe before the observer hits the singularity.
     The simulation uses an <strong>analytical pre-classification</strong> based on the
     Binet conserved energy to decide each ray's fate <em>before</em> entering the integration loop.
 </p>
@@ -1774,7 +1781,7 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 <h3 id="sec-escape-class">20.2. Escape vs. Capture Classification</h3>
 
 <p>
-    For each ray launched from the interior observer (at <em>u</em><sub>obs</sub> &gt; 1,
+    For each ray traced <strong>backward</strong> from the interior observer (at <em>u</em><sub>obs</sub> &gt; 1,
     i.e., <em>r</em><sub>obs</sub> &lt; <em>r<sub>s</sub></em>), the shader computes the
     initial d<em>u</em>/d&phi; from the ray's tangent vector and classifies it
     <strong>analytically before any integration</strong>:
@@ -1799,9 +1806,9 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     </tr>
     <tr>
         <td>d<em>u</em>/d&phi; &lt; 0 and <em>E</em><sub>Binet</sub> &gt; 4/27</td>
-        <td><strong>Escapes</strong></td>
-        <td>Ray has enough energy to clear the photon sphere barrier and reach the external universe.
-            This ray shows the distorted image of the outside sky.</td>
+        <td><strong>Originates outside</strong></td>
+        <td>The backward-traced ray has enough energy to clear the photon-sphere barrier and connect
+            to the external universe. This ray therefore shows the distorted image of the outside sky.</td>
     </tr>
 </table>
 
@@ -1920,14 +1927,15 @@ newR = max(r + k2,  r_min)</code></pre>
 
 <div class="note">
     <strong>Proper time to singularity:</strong> Integrating the equation of motion gives the
-    well-known result that an observer falling from the horizon reaches the singularity in
-    a finite proper time <sup><a href="#ref-mtw">[1]</a></sup>:
+    finite proper time from the horizon to the singularity for the specific infall model used here
+    (radial free-fall from rest at infinity) <sup><a href="#ref-mtw">[1]</a></sup>:
     <div class="eq">
-        &Delta;&tau; = (&pi;/2) <em>r<sub>s</sub></em> = (&pi;/2) &middot; 1 &approx; 1.571
+        &Delta;&tau; = &int;<sub>0</sub><sup><em>r<sub>s</sub></em></sup> &radic;(<em>r</em>/<em>r<sub>s</sub></em>) d<em>r</em>
+        = (2/3) <em>r<sub>s</sub></em> = (2/3) &middot; 1 &approx; 0.667
     </div>
-    This is experienced as a very short time — about 11 microseconds for a stellar-mass
-    black hole (10 <em>M</em><sub>☉</sub>), or about 17 hours for a supermassive black hole
-    like M87* (6.5 &times; 10<sup>9</sup> <em>M</em><sub>☉</sub>).
+    This is experienced as a very short time — about 66 microseconds for a 10
+    <em>M</em><sub>☉</sub> black hole, or about 12 hours for M87*
+    (6.5 &times; 10<sup>9</sup> <em>M</em><sub>☉</sub>).
 </div>
 
 <h3 id="sec-dive-frame">21.2. Locally Inertial Dive Frame</h3>
@@ -2318,8 +2326,9 @@ newR = max(r + k2,  r_min)</code></pre>
         interactions. The simulation also injects time-dependent variations and fractal Brownian motion (fBm)
         noise mapped seamlessly across spatial phases to produce organic, evolving plasma filament structures.
         Without the GRMHD-inspired mode enabled, the turbulence texture is a simpler procedural noise model.</li>
-    <li><strong>GRMHD is a visual adaptation, not frequency-resolved:</strong> Real GRMHD operates
-        at radio frequencies (~230 GHz) with ion temperatures of ~10<sup>12</sup> K.
+    <li><strong>GRMHD is a visual adaptation, not frequency-resolved:</strong> The cited GRMHD+GRRT
+        comparisons are typically evaluated at millimeter/radio observing bands (for example
+        ~230 GHz), with plasma temperatures far above visible-light blackbody values.
         This renderer adapts the spatial morphology (R<sub>high</sub> crescent, MRI spirals,
         &beta;-dependent structure) for visible-light blackbody emission at ~5000 K. The
         synchrotron emissivity correction is a dimensionless modulation factor calibrated
@@ -2327,8 +2336,8 @@ newR = max(r + k2,  r_min)</code></pre>
         transfer calculation.</li>
     <li><strong>Background spectrum:</strong> The Milky Way background Doppler shift uses an approximate
         temperature-matching scheme rather than per-pixel spectral data.</li>
-    <li><strong>Planet lighting model:</strong> The planet uses a point-source lighting model with an
-        unphysical ambient component.</li>
+    <li><strong>Planet lighting model:</strong> The planet uses simplified point-source illumination
+        and texture shading rather than a full physical reflectance / reradiation model.</li>
     <li><strong>No gravitational waves:</strong> The spacetime is static (or stationary for Kerr);
         there is no dynamical spacetime evolution.</li>
     <li><strong>Single black hole:</strong> No binary or multi-body spacetimes.</li>
@@ -2633,6 +2642,13 @@ newR = max(r + k2,  r_min)</code></pre>
         <em>The Astrophysical Journal</em>, 822(1), 34.
         <a href="https://doi.org/10.3847/0004-637X/822/1/34">doi:10.3847/0004-637X/822/1/34</a>.
         — Comprehensive synchrotron emission/absorption coefficients for thermal and non-thermal distributions.
+    </li>
+    <li id="ref-cunningham">
+        Cunningham, C. T. (1976).
+        "The effects of redshifts and focusing on the spectrum of an accretion disk around a Kerr black hole."
+        <em>The Astrophysical Journal</em>, 208, 534–549.
+        <a href="https://ui.adsabs.harvard.edu/abs/1976ApJ...208..534C">ADS</a>.
+        — Classic returning-radiation treatment for black-hole accretion disks.
     </li>
 </ol>
 

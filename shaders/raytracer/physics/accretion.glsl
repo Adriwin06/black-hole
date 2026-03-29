@@ -263,14 +263,15 @@ float grmhd_plasma_beta(float cyl_r, float z, float disk_h) {
 }
 
 // --- Two-temperature electron temperature (EHT R_high prescription) ---
-// The electron-to-ion temperature ratio depends on the local plasma β:
+// The physical prescription is usually written for R = T_i / T_e:
 //   R(β) = R_high × β² / (1 + β²) + R_low / (1 + β²)
 // where R_low = 1 (electrons ≈ ions at equipartition when β → 0).
 // This naturally creates:
-//   • Hot electrons in the jet funnel (low β → R ≈ 1 → T_e ≈ T_i/2)
-//   • Cool electrons in the disk body (high β → R ≈ R_high → T_e << T_i)
+//   • Hot electrons in the jet funnel (low β → R ≈ 1 → T_e ≈ T_i)
+//   • Cool electrons in the disk body (high β → R ≈ R_high → T_e ≈ T_i/R_high)
 // When R_high is high, emission becomes concentrated near the jet wall
 // and polar regions, producing the crescent morphology seen in EHT images.
+// The helper below returns a renderer-side weight 1/(1+R), not the literal T_e/T_i ratio.
 float grmhd_electron_temp_ratio(float beta) {
     float R = grmhd_r_high * beta * beta / (1.0 + beta * beta)
             + 1.0 / (1.0 + beta * beta);
@@ -312,7 +313,7 @@ float grmhd_electron_temperature(float gas_temp, float cyl_r, float z, float dis
 float grmhd_r_high_emissivity(float cyl_r, float z, float disk_h) {
     float beta = grmhd_plasma_beta(cyl_r, z, disk_h);
     float Te_ratio = grmhd_electron_temp_ratio(beta);
-    // Te_ratio ranges from ~0.5 (β→0) to ~1/(1+R_high) (β→∞)
+    // Renderer weight ranges from ~0.5 (β→0) to ~1/(1+R_high) (β→∞)
     // Normalize so low-β regions get factor ≈ 1.0
     return sqrt(Te_ratio * 2.0);
 }
