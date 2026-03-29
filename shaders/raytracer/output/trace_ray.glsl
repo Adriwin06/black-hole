@@ -91,10 +91,9 @@ vec4 trace_ray(vec3 ray) {
     vec3 old_pos = pos;
 
     // ── Kerr state variables ──
-    // When kerr_full_geodesic is active and spin > 0. true Carter (1968)
-    // Mino-time integration is used, producing the correct D-shaped
-    // shadow for spinning black holes.  Otherwise the Binet approximation
-    // with frame-drag term is used — exact for Schwarzschild.
+    // Experimental true Kerr geodesics exist in the codebase but are not
+    // exposed publicly. User-facing spin modes still trace photons with the
+    // Schwarzschild Binet solver plus perturbative frame dragging.
     float kerr_a_phys = kerr_spin_a();
     {{#kerr_full_geodesic}}
     bool use_kerr = (abs(kerr_a_phys) > 0.001 && interior_mode < 0.5);
@@ -391,16 +390,17 @@ vec4 trace_ray(vec3 ray) {
                     {{#kerr_fast_mode}}
                     accretion_v = vec3(-isec.y, isec.x, 0.0) / (r * sqrt(2.0*(r-1.0)));
                     {{/kerr_fast_mode}}
-                    {{#kerr_full_velocity}}
+                    {{#kerr_inspired_velocity}}
                     float rg_r = max(2.0*r, 1.0002); // convert r_s units to M units
-                    float a_M = bh_rotation_enabled * bh_spin;
-                    float omega_M = 1.0 / (pow(rg_r, 1.5) + a_M);
+                    float a_M = abs(bh_rotation_enabled * bh_spin);
+                    float spin_dir = (bh_rotation_enabled > 0.5 && bh_spin < 0.0) ? -1.0 : 1.0;
+                    float omega_M = spin_dir / (pow(rg_r, 1.5) + a_M);
                     float v_phi = clamp(rg_r * omega_M, -0.995, 0.995);
                     vec2 xy = vec2(isec.x, isec.y);
                     float cyl_r = max(length(xy), 1e-4);
                     vec3 e_phi = vec3(-xy.y/cyl_r, xy.x/cyl_r, 0.0);
                     accretion_v = e_phi * v_phi;
-                    {{/kerr_full_velocity}}
+                    {{/kerr_inspired_velocity}}
 
                     gamma = 1.0/sqrt(max(1.0-dot(accretion_v,accretion_v), 0.0001));
                     float doppler_factor = gamma*(1.0+dot(ray/ray_l,accretion_v));
@@ -517,14 +517,15 @@ vec4 trace_ray(vec3 ray) {
                 float v_sub_t = clamp(0.5 * v_kep_t, 0.0, 0.95);
                 accretion_v_t = vec3(-pos.y, pos.x, 0.0) / cyl_r_t * v_sub_t;
                 {{/kerr_fast_mode}}
-                {{#kerr_full_velocity}}
+                {{#kerr_inspired_velocity}}
                 float rg_cyl_t = max(2.0 * cyl_r_t, 1.0002);
-                float a_M_t = bh_rotation_enabled * bh_spin;
-                float omega_sub_t = 0.5 / (pow(rg_cyl_t, 1.5) + a_M_t);
+                float a_M_t = abs(bh_rotation_enabled * bh_spin);
+                float spin_dir_t = (bh_rotation_enabled > 0.5 && bh_spin < 0.0) ? -1.0 : 1.0;
+                float omega_sub_t = 0.5 * spin_dir_t / (pow(rg_cyl_t, 1.5) + a_M_t);
                 float v_phi_t = clamp(rg_cyl_t * omega_sub_t, -0.95, 0.95);
                 vec3 e_phi_t = vec3(-pos.y, pos.x, 0.0) / cyl_r_t;
                 accretion_v_t = e_phi_t * v_phi_t;
-                {{/kerr_full_velocity}}
+                {{/kerr_inspired_velocity}}
 
                 gamma = 1.0/sqrt(max(1.0-dot(accretion_v_t,accretion_v_t), 0.0001));
                 float doppler_factor_t = gamma*(1.0+dot(ray/ray_l,accretion_v_t));
@@ -633,14 +634,15 @@ vec4 trace_ray(vec3 ray) {
                 float v_kep_s = 1.0 / sqrt(2.0 * max(cyl_r_s - 1.0, 0.01));
                 accretion_v_s = vec3(-pos.y, pos.x, 0.0) / cyl_r_s * clamp(v_kep_s, 0.0, 0.95);
                 {{/kerr_fast_mode}}
-                {{#kerr_full_velocity}}
+                {{#kerr_inspired_velocity}}
                 float rg_cyl_s = max(2.0 * cyl_r_s, 1.0002);
-                float a_M_s = bh_rotation_enabled * bh_spin;
-                float omega_s = 1.0 / (pow(rg_cyl_s, 1.5) + a_M_s);
+                float a_M_s = abs(bh_rotation_enabled * bh_spin);
+                float spin_dir_s = (bh_rotation_enabled > 0.5 && bh_spin < 0.0) ? -1.0 : 1.0;
+                float omega_s = spin_dir_s / (pow(rg_cyl_s, 1.5) + a_M_s);
                 float v_phi_s = clamp(rg_cyl_s * omega_s, -0.95, 0.95);
                 vec3 e_phi_s = vec3(-pos.y, pos.x, 0.0) / cyl_r_s;
                 accretion_v_s = e_phi_s * v_phi_s;
-                {{/kerr_full_velocity}}
+                {{/kerr_inspired_velocity}}
 
                 gamma = 1.0/sqrt(max(1.0-dot(accretion_v_s,accretion_v_s), 0.0001));
                 float doppler_factor_s = gamma*(1.0+dot(ray/ray_l,accretion_v_s));
@@ -812,13 +814,13 @@ vec4 trace_ray(vec3 ray) {
             break;
         }
         {{/kerr_fast_mode}}
-        {{#kerr_full_core}}
-        // Realtime Kerr: capture at horizon or singularity
+        {{#kerr_inspired_mode}}
+        // Kerr-inspired mode: same Binet photon solver, same interior capture
         if (interior_mode > 0.5 && u >= 20.0) {
             shadow_capture = true;
             break;
         }
-        {{/kerr_full_core}}
+        {{/kerr_inspired_mode}}
         {{#kerr_full_geodesic}}
         // Full Kerr geodesic fallback (Binet): interior capture
         if (interior_mode > 0.5 && u >= 20.0) {

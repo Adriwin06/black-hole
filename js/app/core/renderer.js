@@ -527,8 +527,10 @@ function init(glslSource, textures) {
     };
     shaderUniforms = uniforms;
 
-    // Calculate ISCO radius using Bardeen-Press-Teukolsky formula
-    // chi is dimensionless spin parameter (-1 to 1)
+    // Calculate ISCO radius using the Bardeen-Press-Teukolsky formula.
+    // chi is the spin magnitude |a/M| in [0, 1]; the helper keeps the branch
+    // explicit so the code can evaluate either the co-rotating or retrograde
+    // ISCO when needed.
     // Returns ISCO in units of Schwarzschild radius (r_s = 1)
     function calculateISCO(chi, isPrograde) {
         var chi2 = chi * chi;
@@ -554,10 +556,16 @@ function init(glslSource, textures) {
         uniforms.planet_radius.value = shader.parameters.planet.radius;
         uniforms.disk_temperature.value = shader.parameters.disk_temperature;
 
-        // Calculate ISCO based on spin (prograde disk assumed)
+        // The sign of a/M flips the black-hole spin direction in the renderer.
+        // The current UI does not expose an independent retrograde-disk toggle,
+        // so the disk model stays on the co-rotating branch and only uses |a/M|
+        // for its ISCO radius.
         var spin = shader.parameters.black_hole.spin;
         var spinEnabled = shader.parameters.black_hole.spin_enabled;
-        uniforms.accretion_inner_r.value = spinEnabled ? calculateISCO(spin, true) : 3.0;
+        var spinMagnitude = Math.abs(spin);
+        uniforms.accretion_inner_r.value = spinEnabled
+            ? calculateISCO(spinMagnitude, true)
+            : 3.0;
 
         uniforms.bh_spin.value = shader.parameters.black_hole.spin;
         uniforms.bh_spin_strength.value = shader.parameters.black_hole.spin_strength;

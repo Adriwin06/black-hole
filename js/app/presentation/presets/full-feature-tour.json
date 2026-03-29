@@ -212,7 +212,7 @@
       "t": 0.0,
       "action": "set",
       "path": "kerr_mode",
-      "value": "realtime_full_kerr_core"
+      "value": "kerr_inspired_disk_velocity"
     },
     {
       "t": 0.0,
@@ -641,7 +641,7 @@
       "action": "annotation",
       "note": {
         "title": "Fast Solver",
-        "text": "Switch to the fast Kerr approximation for performance-oriented rendering with reduced edge fidelity.",
+        "text": "Switch to the fast Schwarzschild/Binet lensing path for performance-oriented rendering with simplified spin effects.",
         "anchor": {
           "mode": "world",
           "target": "black_hole"
@@ -655,7 +655,7 @@
       "t": 36.0,
       "action": "set",
       "path": "kerr_mode",
-      "value": "realtime_full_kerr_core"
+      "value": "kerr_inspired_disk_velocity"
     },
     {
       "t": 36.03,
@@ -665,8 +665,8 @@
       "t": 36.3,
       "action": "annotation",
       "note": {
-        "title": "Realtime Full Kerr Core",
-        "text": "Return to the higher-fidelity solver for stronger consistency in strong-lensing and near-horizon views.",
+        "title": "Kerr-Inspired Disk Velocities",
+        "text": "Return to the mode that keeps approximate Binet lensing but uses Kerr-inspired orbital velocities for emitting disk material.",
         "anchor": {
           "mode": "world",
           "target": "black_hole"

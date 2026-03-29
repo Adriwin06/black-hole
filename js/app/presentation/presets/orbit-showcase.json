@@ -137,7 +137,7 @@
     { "t": 0, "action": "set", "path": "observer.motion", "value": true },
     { "t": 0, "action": "set", "path": "observer.distance", "value": 13.5 },
     { "t": 0, "action": "set", "path": "black_hole.spin_enabled", "value": true },
-    { "t": 0, "action": "set", "path": "kerr_mode", "value": "realtime_full_kerr_core" },
+    { "t": 0, "action": "set", "path": "kerr_mode", "value": "kerr_inspired_disk_velocity" },
     { "t": 0, "action": "set", "path": "accretion_disk", "value": true },
     { "t": 0, "action": "set", "path": "accretion_mode", "value": "thin_disk" },
     { "t": 0, "action": "set", "path": "disk_self_irradiation", "value": true },

@@ -102,7 +102,10 @@ function applyQualityPresetValues(parameters, presetName) {
     var preset = QUALITY_PRESETS[presetName];
     if (!preset) return null;
 
-    var isKerr = (parameters.kerr_mode === 'realtime_full_kerr_core');
+    var isKerr = (
+        parameters.kerr_mode === 'kerr_inspired_disk_velocity' ||
+        parameters.kerr_mode === 'realtime_full_kerr_core'
+    );
     var modeValues = isKerr ? preset.kerr : preset.standard;
     if (!modeValues) return null;
 
@@ -135,5 +138,5 @@ var QUALITY_PRESET_LABELS = {
 
 var KERR_MODE_LABELS = {
     'Fast (Binet lensing)': 'fast',
-    'Kerr-inspired disk velocities': 'realtime_full_kerr_core'
+    'Kerr-inspired disk velocities': 'kerr_inspired_disk_velocity'
 };

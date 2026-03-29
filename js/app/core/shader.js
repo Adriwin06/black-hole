@@ -23,7 +23,7 @@ function Shader(mustacheTemplate) {
         rk4_integration: false,
         cinematic_tonemap: true,
         quality: 'high',
-        kerr_mode: 'realtime_full_kerr_core',
+        kerr_mode: 'kerr_inspired_disk_velocity',
         accretion_disk: true,
         accretion_mode: 'thin_disk',
         disk_self_irradiation: true,
@@ -135,10 +135,17 @@ function Shader(mustacheTemplate) {
     };
 
     this.compile = function() {
+        if (that.parameters.kerr_mode === 'realtime_full_kerr_core') {
+            that.parameters.kerr_mode = 'kerr_inspired_disk_velocity';
+        }
+
+        var kerrInspiredMode =
+            (that.parameters.kerr_mode === 'kerr_inspired_disk_velocity');
+
         that.parameters.kerr_fast_mode = (that.parameters.kerr_mode === 'fast');
-        that.parameters.kerr_full_core = (that.parameters.kerr_mode === 'realtime_full_kerr_core');
+        that.parameters.kerr_inspired_mode = kerrInspiredMode;
         that.parameters.kerr_full_geodesic = false; // WIP: full Kerr geodesics, not yet exposed in UI
-        that.parameters.kerr_full_velocity = (that.parameters.kerr_mode === 'realtime_full_kerr_core');
+        that.parameters.kerr_inspired_velocity = kerrInspiredMode;
 
         var accMode = that.parameters.accretion_mode;
         var diskOn = that.parameters.accretion_disk;

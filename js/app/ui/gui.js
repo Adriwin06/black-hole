@@ -378,7 +378,10 @@ function setupGUI() {
             } else {
                 preset = QUALITY_PRESETS[value];
                 if (preset) {
-                    var isKerr = (p.kerr_mode === 'realtime_full_kerr_core');
+                    var isKerr = (
+                        p.kerr_mode === 'kerr_inspired_disk_velocity' ||
+                        p.kerr_mode === 'realtime_full_kerr_core'
+                    );
                     var modeValues = isKerr ? preset.kerr : preset.standard;
                     if (modeValues) {
                         p.quality = value;
@@ -433,7 +436,7 @@ function setupGUI() {
         name: 'preset',
         options: ['Custom', 'Default', 'M87*', 'Sgr A*', 'Cygnus X-1', 'GRS 1915+105', 'Gargantua (Interstellar visuals)', 'Schwarzschild'],
         onChange: function(val) { if (applyBlackHolePreset) applyBlackHolePreset(val); },
-        help: 'Load physically motivated parameters for a real black hole. Overrides all settings below. Select Custom to tweak freely.'
+        help: 'Load a literature-inspired black-hole preset. These are illustrative starting points, not definitive measurements.'
     });
     presetsFolder.open();
     // ─────────────────────────────────────────────────────────────────────────────
@@ -1004,7 +1007,7 @@ function setupGUI() {
         name: 'a/M',
         trackBlackHolePreset: true,
         onChange: updateUniformsLive,
-        help: 'Dimensionless spin. Positive = prograde disk, negative = retrograde.'
+        help: 'Signed Kerr spin. Positive and negative values mirror the spin direction; the current UI does not expose a separate retrograde-disk toggle.'
     });
     var spinStrengthCtrl = addControl(spinFolder, p.black_hole, 'spin_strength', {
         min: 0.0,

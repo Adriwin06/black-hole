@@ -3,13 +3,13 @@
 
 # Black Hole Simulation
 
-A real-time, GPU-accelerated browser visualization of a black hole with an accretion flow, jet models, and relativistic optical effects. Runs entirely in the browser using WebGL and [three.js](http://threejs.org).
+A real-time, GPU-accelerated browser visualization of a black hole with an accretion flow, jet models, and relativistic optical effects. Runs entirely in the browser using WebGL and [three.js](https://threejs.org).
 
 **[Live Demo](https://adriwin06.github.io/black-hole)** — Chrome or Firefox on a dedicated GPU recommended.
 
 > This is a substantially extended fork of [oseiskar/black-hole](https://github.com/oseiskar/black-hole). See [What's new](#whats-new-in-this-fork) for a summary of additions.
 
-> Scientific scope: Schwarzschild photon geodesics are traced with the exact Binet equation. Spin, accretion, jet, and GRMHD-related options use a mix of analytic, semi-analytic, and artistically tuned approximations; see [docs/physics.html](docs/physics.html) for what is exact and what is approximate.
+> Scientific scope: Schwarzschild photon geodesics follow the exact Binet equation, but rendered fidelity still depends on the integrator, step budget, and adaptive stepping. Spin, accretion, jet, and GRMHD-related options use a mix of analytic, semi-analytic, and artistically tuned approximations; see [docs/physics.html](docs/physics.html) for what is exact and what is approximate.
 
 ---
 
@@ -32,7 +32,7 @@ A real-time, GPU-accelerated browser visualization of a black hole with an accre
 
 ### User Interface
 - **dat.GUI control panel** — resizable right-side panel with collapsible folders for every parameter
-- **Astrophysical presets** — one-click starting points inspired by published measurements and commonly cited literature for M87\*, Sgr A\*, Cygnus X-1, GRS 1915+105, and more
+- **Astrophysical presets** — literature-inspired starting points for M87\*, Sgr A\*, Cygnus X-1, GRS 1915+105, and more
 - **Observer controls** — mouse orbit/pan/roll, a bottom-left observer widget with distance dial + motion toggle, and optional automatic circular orbit
 
 ### Presentation & Recording
@@ -87,7 +87,7 @@ Open `http://localhost:8000` in a modern browser (Chrome or Firefox recommended)
 
 | Parameter | Description |
 |-----------|-------------|
-| **a/M** | Dimensionless black hole spin (0 = Schwarzschild, 1 = extremal Kerr) |
+| **a/M** | Signed black hole spin; positive and negative values mirror the spin direction |
 | **solver mode** | `Fast (Binet lensing)` or `Kerr-inspired disk velocities`; the latter keeps approximate photon lensing but uses Kerr angular velocity to drive disk matter |
 | **temperature (K)** | Visualized disk color temperature in Kelvin (4,500 – 30,000 K) |
 | **disk model** | Thin disk, thick torus (ADAF), or slim disk |
@@ -99,7 +99,7 @@ Open `http://localhost:8000` in a modern browser (Chrome or Firefox recommended)
 
 ### Quality preset levels
 
-| Preset | Steps (fast / Kerr-disk) | Supersampling | Description |
+| Preset | Steps (fast / Kerr-inspired) | Supersampling | Description |
 |--------|-------------------|---------------|-------------|
 | Mobile | 28 / 120 | 1× | 0.55× resolution + TAA; fastest |
 | Optimal | 100 / 400 | 1× | 0.8× res + TAA; recommended default |
@@ -113,10 +113,10 @@ Open `http://localhost:8000` in a modern browser (Chrome or Firefox recommended)
 | Preset | Object | Notes |
 |--------|--------|-------|
 | Default | Generic BH | a/M = 0.90, thin disk |
-| M87\* | Virgo A SMBH | a/M ≈ 0.90, thick torus, GRMHD-inspired jet; first EHT image (2019) |
-| Sgr A\* | Milky Way centre | a/M ≈ 0.50, ADAF torus; EHT image (2022) |
-| Cygnus X-1 | X-ray binary | a/M ≈ 0.99, thin disk (continuum-fitting spin) |
-| GRS 1915+105 | Microquasar | Near-extremal spin, slim disk |
+| M87\* | Virgo A SMBH | Illustrative high-spin, MAD-like thick-torus + jet configuration inspired by EHT-era GRMHD studies |
+| Sgr A\* | Milky Way centre | Illustrative moderate-spin ADAF/RIAF-style torus; EHT modeling does not determine a unique spin |
+| Cygnus X-1 | X-ray binary | Near-extremal thin-disk preset inspired by continuum-fitting studies |
+| GRS 1915+105 | Microquasar | Near-extremal slim-disk preset inspired by continuum-fitting and jet observations |
 | Gargantua (Interstellar visuals) | Film-inspired | Warm thin disk, boosted glow, softened relativistic effects |
 | Schwarzschild | Textbook case | Spin disabled, clean circular shadow |
 
@@ -147,13 +147,13 @@ shaders/raytracer/
 │   ├── defines.glsl              # Constants, macros, uniforms, rendering params
 │   └── math.glsl                 # Math utilities, coordinate transforms, FBM noise
 ├── physics/                       # Physics models
-│   ├── geodesics.glsl            # Schwarzschild Binet solver + WIP Kerr Mino-time helpers
+│   ├── geodesics.glsl            # Schwarzschild Binet solver + experimental Kerr Mino-time helpers
 │   ├── accretion.glsl            # Thin disk, ADAF torus, slim disk, GRMHD-inspired turbulence
 │   ├── jet.glsl                  # Jet models: simple parabolic + more detailed GRMHD-inspired mode
 │   ├── planet.glsl               # Planet ray-sphere intersection
 │   └── background.glsl           # Galaxy/star background rendering
 └── output/                        # Rendering pipeline
-    ├── tonemapping.glsl          # ACES Filmic, AGX, scientific tone-mappers
+    ├── tonemapping.glsl          # ACES Filmic, AgX, scientific tone-mappers
     ├── trace_ray.glsl            # Core ray-marching loop with Beer-Lambert composite
     └── main.glsl                 # GLSL main() entry point
 ```
@@ -216,7 +216,7 @@ Additions over the [upstream oseiskar/black-hole](https://github.com/oseiskar/bl
 | Astrophysical BH presets | M87\*, Sgr A\*, Cygnus X-1, GRS 1915+105, Gargantua, Schwarzschild |
 | Temporal Anti-Aliasing | Motion-rejection TAA for artifact-free high-quality frames |
 | Six quality tiers | Mobile, Optimal, Medium, High, Ultra, Cinematic |
-| Three tone-mappers | ACES Filmic, AGX, Scientific (inferno colormap) |
+| Three tone-mappers | ACES Filmic, AgX, Scientific (inferno colormap) |
 | Three accretion models | Thin disk, thick torus (ADAF), slim disk (super-Eddington) |
 | GRMHD-inspired jet model | Spine/sheath, reconfinement shocks, Blandford–Znajek-inspired power scaling |
 | Resizable UI panels | Drag-to-resize controls panel and timeline |

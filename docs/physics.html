@@ -302,7 +302,8 @@
 <p>
     The core of the simulation's gravitational lensing is the <strong>Binet equation</strong> for null geodesics
     in Schwarzschild spacetime. Using the substitution <em>u</em> = 1/<em>r</em>, the orbital equation for photons is
-    <sup><a href="#ref-wiki-schwarz">[4]</a></sup>:
+    <sup><a href="#ref-mtw">[1]</a></sup> <sup><a href="#ref-wald">[3]</a></sup>
+    <sup><a href="#ref-chandrasekhar">[28]</a></sup>:
 </p>
 <div class="eq">
     (d<em>u</em>/d&phi;)&sup2; = <em>r<sub>s</sub></em> <em>u</em>&sup3; &minus; <em>u</em>&sup2; + 1/<em>b</em>&sup2;
@@ -341,11 +342,10 @@
 <div class="comparison">
     <strong>Accuracy:</strong> The underlying orbital equation is <em>exact</em> for photon geodesics in
     Schwarzschild spacetime. Rendered accuracy still depends on the numerical integrator, step budget,
-    and adaptive stepping used by the shader.
-    This approach is identical to the one described in the
-    <a href="https://en.wikipedia.org/wiki/Schwarzschild_geodesics#Bending_of_light_by_gravity">
-    Wikipedia article on Schwarzschild geodesics</a> <sup><a href="#ref-wiki-schwarz">[4]</a></sup>
-    and in Misner, Thorne &amp; Wheeler's <em>Gravitation</em> <sup><a href="#ref-mtw">[1]</a></sup>.
+    and adaptive stepping used by the shader. The implementation follows the standard Schwarzschild
+    null-geodesic treatment in Misner, Thorne &amp; Wheeler <sup><a href="#ref-mtw">[1]</a></sup>,
+    Wald <sup><a href="#ref-wald">[3]</a></sup>, and Chandrasekhar
+    <sup><a href="#ref-chandrasekhar">[28]</a></sup>.
 </div>
 
 <!-- ============================================================ -->
@@ -386,7 +386,7 @@ du += 0.5 * accel(u) * step;   // half-step velocity</code></pre>
 <h3>Runge-Kutta 4th order (RK4)</h3>
 <p>
     When enabled, the simulation uses classical RK4
-    <sup><a href="#ref-wiki-schwarz">[4]</a></sup>, which is fourth-order accurate, O(&Delta;&phi;&sup4;):
+    <sup><a href="#ref-chandrasekhar">[28]</a></sup>, which is fourth-order accurate, O(&Delta;&phi;&sup4;):
 </p>
 <pre><code>k1 = accel(u)
 k2 = accel(u + 0.5*step*du)
@@ -396,9 +396,9 @@ u  += (step/6)*(du_k1 + 2*du_k2 + 2*du_k3 + du_k4)
 du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 <p>
     RK4 is essential for accurate rendering of higher-order lensing images (photons that
-    complete multiple half-orbits around the photon sphere before escaping). The Wikipedia article
-    on Schwarzschild geodesics explicitly describes this approach for numerical photon geodesics
-    <sup><a href="#ref-wiki-schwarz">[4]</a></sup>.
+    complete multiple half-orbits around the photon sphere before escaping). In practice, it reduces
+    integration drift in the strong-lensing regime, although the final image still depends on the
+    available step budget.
 </p>
 
 <h3>Adaptive step sizing</h3>
@@ -482,7 +482,10 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 </p>
 <p>
     The 3D Cartesian position is reconstructed at each step from Boyer-Lindquist coordinates:
-    <em>x</em> = <em>r</em>&thinsp;sin&theta;&thinsp;cos&phi;, etc. Event-horizon capture uses the exact
+    <em>x</em> = &radic;(<em>r</em>&sup2; + <em>a</em>&sup2;)&thinsp;sin&theta;&thinsp;cos&phi;,
+    <em>y</em> = &radic;(<em>r</em>&sup2; + <em>a</em>&sup2;)&thinsp;sin&theta;&thinsp;sin&phi;,
+    <em>z</em> = <em>r</em>&thinsp;cos&theta;.
+    Event-horizon capture uses the exact
     Kerr outer horizon <em>r</em><sub>+</sub> = <em>M</em> + &radic;(<em>M</em>&sup2; &minus; <em>a</em>&sup2;).
 </p>
 
@@ -523,8 +526,12 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 <p>
     with &chi; = <em>a</em>/<em>M</em> the dimensionless spin parameter, and &minus; for prograde,
     + for retrograde orbits. In the code, this is implemented in the <code>calculateISCO()</code>
-    function in <code>js/app/core/renderer.js</code>, converting from gravitational radii (<em>r<sub>g</sub></em> = <em>GM</em>/<em>c</em>&sup2;)
-    to Schwarzschild radii (<em>r<sub>s</sub></em> = 2<em>r<sub>g</sub></em>) with the factor 0.5.
+    function in <code>js/app/core/renderer.js</code>. In the current UI, the sign of
+    <em>a</em>/<em>M</em> is used to mirror the black hole's spin direction, while the disk model
+    stays on the co-rotating branch; a separate retrograde-disk toggle is not exposed.
+    The implementation converts from gravitational radii
+    (<em>r<sub>g</sub></em> = <em>GM</em>/<em>c</em>&sup2;) to Schwarzschild radii
+    (<em>r<sub>s</sub></em> = 2<em>r<sub>g</sub></em>) with the factor 0.5.
 </p>
 
 <table>
@@ -539,7 +546,7 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 <div class="comparison">
     <strong>Accuracy:</strong> The Bardeen-Press-Teukolsky ISCO formula is <em>exact</em> for equatorial circular
     orbits in Kerr spacetime. The simulation's implementation faithfully follows this formula
-    <sup><a href="#ref-isco-wiki">[9]</a></sup>.
+    <sup><a href="#ref-bpt">[8]</a></sup>.
 </div>
 
 <!-- ============================================================ -->
@@ -619,7 +626,9 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     This is the standard Kerr equatorial Keplerian angular velocity
     <sup><a href="#ref-bpt">[8]</a></sup>. The renderer then converts this to a flat-space azimuthal
     speed for Doppler/beaming calculations. That captures the leading spin dependence, but it is not
-    a full local-tetrad Kerr velocity treatment.
+    a full local-tetrad Kerr velocity treatment. With the current UI's sign convention, negative
+    <em>a</em>/<em>M</em> values mirror the spin direction and the co-rotating disk velocity sign;
+    a separate retrograde-disk branch is not exposed.
 </p>
 
 <h4>Limb darkening</h4>
@@ -874,19 +883,22 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     The simulation uses two separate functions:
 </p>
 <ul>
-    <li><code>gravitational_shift()</code> &mdash; <strong>orbital</strong> formula (thin disk only), which
-        accounts for the Keplerian velocity of disk material.</li>
+    <li><code>gravitational_shift()</code> &mdash; <strong>orbital</strong> Schwarzschild circular-orbit factor
+        used for the thin-disk baseline. It is exact for stable circular Schwarzschild orbits, but becomes
+        an approximation once emission is extended into the plunging region or the Kerr-inspired
+        disk-velocity mode is enabled.</li>
     <li><code>gravitational_shift_static()</code> &mdash; <strong>static</strong> formula
         &radic;(|1&minus;1/<em>r<sub>e</sub></em>|/|1&minus;1/<em>r<sub>o</sub></em>|)
         for non-Keplerian sources: the thick torus (sub-Keplerian ADAF), slim disk (plunging region),
         and relativistic jets.</li>
 </ul>
 <div class="comparison">
-    <strong>Accuracy:</strong> The orbital redshift formula is exact for Schwarzschild circular orbits.
-    The static formula is exact for stationary emitters.
+    <strong>Accuracy:</strong> The orbital redshift formula is exact for stable circular Schwarzschild orbits,
+    and the static formula is exact for stationary Schwarzschild emitters.
     In the renderer, using orbital redshift for the thin disk and a static Schwarzschild factor for
     volumetric sources is a practical approximation combined with separate SR Doppler factors for the
-    emitter motion. It is exact for the thin disk, and approximate for torus/jet/plunging material.
+    emitter motion. The baseline non-spinning thin disk is therefore the most faithful case;
+    torus, jet, plunging-region, and Kerr-inspired modes are approximate.
 </div>
 
 <!-- ============================================================ -->
@@ -1055,11 +1067,12 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 </ul>
 
 <div class="comparison">
-    <strong>Implementation note:</strong> These formulae are exact for Schwarzschild spacetime.
+    <strong>Implementation note:</strong> These formulae are exact Schwarzschild relations.
     In the code, the orbit and hover modes advance <code>observer.time</code> using the
     <em>inverse</em> of these factors so the distant scene evolves at the appropriate relative rate
     as seen by the local observer. The dedicated free-fall dive mode handles its own time update
-    separately.
+    separately, and the Kerr-inspired disk-velocity mode does not promote the observer kinematics
+    to a full Kerr treatment.
 </div>
 
 <!-- ============================================================ -->
@@ -1229,6 +1242,8 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     1/(1 + 1/&radic;<em>r</em>) is also exact, derivable from the covariant
     inner product of the photon and observer four-velocities
     <sup><a href="#ref-mtw">[1]</a></sup> <sup><a href="#ref-hamilton-falling">[29]</a></sup>.
+    The rendered background colours remain approximate because the Milky Way texture is remapped
+    through a blackbody proxy rather than a full per-pixel spectrum.
 </div>
 
 <!-- ============================================================ -->
@@ -1728,7 +1743,7 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 
 <p>
     The first-order Binet equation for photons in Schwarzschild spacetime is
-    <sup><a href="#ref-mtw">[1]</a></sup> <sup><a href="#ref-wiki-schwarz">[4]</a></sup>:
+    <sup><a href="#ref-mtw">[1]</a></sup> <sup><a href="#ref-chandrasekhar">[28]</a></sup>:
 </p>
 <div class="eq">
     (d<em>u</em>/d&phi;)&sup2; = <em>u</em>&sup3; &minus; <em>u</em>&sup2; + 1/<em>b</em>&sup2;
@@ -1873,7 +1888,7 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 <p>
     For a massive test particle falling radially from rest at infinity in Schwarzschild spacetime,
     the equation of motion in terms of proper time &tau; is
-    <sup><a href="#ref-mtw">[1]</a></sup> <sup><a href="#ref-wiki-freefall">[32]</a></sup>:
+    <sup><a href="#ref-mtw">[1]</a></sup> <sup><a href="#ref-hamilton-falling">[29]</a></sup>:
 </p>
 <div class="eq">
     d<em>r</em>/d&tau; = &minus;&radic;(<em>r<sub>s</sub></em>/<em>r</em>)
@@ -2060,21 +2075,21 @@ newR = max(r + k2,  r_min)</code></pre>
     </tr>
     <tr>
         <td>Photon geodesics (Schwarzschild)</td>
-        <td>Exact Binet equation</td>
+        <td>Exact Binet equation, numerically integrated in the shader</td>
         <td>Exact analytical solution<sup><a href="#ref-mtw">[1]</a></sup></td>
-        <td><strong>Exact</strong></td>
+        <td><strong>Exact equation</strong>; rendered accuracy depends on the integrator and step budget</td>
     </tr>
     <tr>
         <td>Shadow size &amp; shape (Schwarzschild)</td>
         <td>Emerges from geodesic tracing</td>
         <td>r<sub>shadow</sub> = 3&radic;3/2 &middot; r<sub>s</sub> &approx; 2.598 r<sub>s</sub></td>
-        <td><strong>Exact</strong></td>
+        <td><strong>Exact in the Schwarzschild limit</strong>; rendered edge sharpness is resolution-limited</td>
     </tr>
     <tr>
         <td>Einstein ring(s)</td>
         <td>Naturally produced by ray tracing</td>
         <td>Well-established prediction<sup><a href="#ref-mtw">[1]</a></sup></td>
-        <td><strong>Exact</strong></td>
+        <td><strong>Correct Schwarzschild lensing structure</strong>; higher-order rings are step-limited</td>
     </tr>
     <tr>
         <td>Photon sphere</td>
@@ -2084,27 +2099,27 @@ newR = max(r + k2,  r_min)</code></pre>
     </tr>
     <tr>
         <td>Gravitational redshift</td>
-        <td>Exact Schwarzschild formula</td>
+        <td>Exact Schwarzschild transfer factors in the static / baseline thin-disk cases</td>
         <td>Confirmed experimentally (Pound-Rebka, GPS)</td>
-        <td><strong>Exact</strong></td>
+        <td><strong>Exact in its Schwarzschild scope</strong>; approximate once spin or plunging emission is introduced</td>
     </tr>
     <tr>
         <td>Gravitational blueshift (background sky)</td>
         <td>1/&radic;(1 &minus; r<sub>s</sub>/r) for hovering observer; combined with kinematic Doppler for free-fall</td>
         <td>Exact GR prediction; time-reverse of gravitational redshift</td>
-        <td><strong>Exact</strong></td>
+        <td><strong>Exact transfer law</strong>; rendered sky colours remain spectrum-approximate</td>
     </tr>
     <tr>
         <td>Relativistic Doppler effect</td>
         <td>Full formula with transverse component</td>
         <td>Standard result in SR/GR</td>
-        <td><strong>Exact</strong></td>
+        <td><strong>Exact transfer law</strong>; visible colours are exact only for blackbody-based sources</td>
     </tr>
     <tr>
         <td>Relativistic beaming (D&sup3;)</td>
         <td>Liouville invariant</td>
         <td>Standard result<sup><a href="#ref-rybicki">[20]</a></sup></td>
-        <td><strong>Exact</strong></td>
+        <td><strong>Exact transfer law</strong>; explicit intensity scaling is still paired with approximate source spectra</td>
     </tr>
     <tr>
         <td>Relativistic aberration</td>
@@ -2134,7 +2149,7 @@ newR = max(r + k2,  r_min)</code></pre>
         <td>Circular-orbit time-dilation factor</td>
         <td>d&tau;/d<em>t</em> = &radic;(1 − 3/(2r))</td>
         <td>Exact for Schwarzschild<sup><a href="#ref-mtw">[1]</a></sup></td>
-        <td><strong>Exact relation</strong>; implementation uses its inverse to advance scene time</td>
+        <td><strong>Exact Schwarzschild relation</strong>; implementation uses its inverse to advance scene time</td>
     </tr>
     <tr>
         <td>Interior escape classification</td>
@@ -2147,13 +2162,13 @@ newR = max(r + k2,  r_min)</code></pre>
         <td>Emerges from escape classification</td>
         <td>Hamilton &amp; Lisle (2008)<sup><a href="#ref-hamilton-falling">[29]</a></sup>,
             NASA visualization<sup><a href="#ref-nasa-plunge">[31]</a></sup></td>
-        <td><strong>Exact</strong></td>
+        <td><strong>Exact Schwarzschild escape-cone geometry</strong>; brightness outside the cone includes a heuristic boost</td>
     </tr>
     <tr>
         <td>Radial free-fall trajectory</td>
         <td>dr/d&tau; = &minus;&radic;(1/r), RK2 integration</td>
-        <td>Exact Schwarzschild result<sup><a href="#ref-wiki-freefall">[32]</a></sup></td>
-        <td><strong>Exact equation</strong>, numerically integrated</td>
+        <td>Exact Schwarzschild result<sup><a href="#ref-mtw">[1]</a></sup></td>
+        <td><strong>Exact equation</strong>, numerically integrated with a near-horizon velocity cap for stability</td>
     </tr>
 </table>
 
@@ -2337,7 +2352,6 @@ newR = max(r + k2,  r_min)</code></pre>
     <li id="ref-mtw">
         Misner, C. W., Thorne, K. S., &amp; Wheeler, J. A. (1973).
         <em>Gravitation</em>. W. H. Freeman. ISBN: 0-7167-0344-0.
-        <a href="https://en.wikipedia.org/wiki/Gravitation_(book)">Wikipedia</a>.
         — The standard graduate GR textbook. Chapters 25 and 33 cover Schwarzschild geodesics
         and black hole physics.
     </li>
@@ -2352,14 +2366,13 @@ newR = max(r + k2,  r_min)</code></pre>
         Wald, R. M. (1984).
         <em>General Relativity</em>. University of Chicago Press, pp. 136–146.
         ISBN: 0-226-87033-2.
-        <a href="https://en.wikipedia.org/wiki/Robert_Wald#General_Relativity">Wikipedia</a>.
         — Thorough derivation of geodesics and black hole properties.
     </li>
     <li id="ref-wiki-schwarz">
-        Wikipedia contributors. "Schwarzschild geodesics — Bending of light by gravity."
+        Supplementary online summary: "Schwarzschild geodesics — Bending of light by gravity."
         <a href="https://en.wikipedia.org/wiki/Schwarzschild_geodesics#Bending_of_light_by_gravity">
         Wikipedia</a>.
-        — Derives the Binet equation d²u/dφ² = −u + (3/2)r<sub>s</sub>u² and discusses RK4 integration.
+        — Handy overview of the Binet equation and common numerical-integration approaches.
     </li>
     <li id="ref-kerr">
         Kerr, R. P. (1963).
@@ -2375,7 +2388,7 @@ newR = max(r + k2,  r_min)</code></pre>
         — Introduces the Carter constant, the fourth integral of motion for Kerr geodesics.
     </li>
     <li id="ref-kerr-wiki">
-        Wikipedia contributors. "Kerr metric — Frame dragging."
+        Supplementary online summary: "Kerr metric — Frame dragging."
         <a href="https://en.wikipedia.org/wiki/Kerr_metric#Frame_dragging">Wikipedia</a>.
         — Frame-dragging angular velocity Ω = −g<sub>tφ</sub>/g<sub>φφ</sub>.
     </li>
@@ -2387,7 +2400,7 @@ newR = max(r + k2,  r_min)</code></pre>
         — Source of the ISCO formula for Kerr black holes.
     </li>
     <li id="ref-isco-wiki">
-        Wikipedia contributors. "Innermost stable circular orbit."
+        Supplementary online summary: "Innermost stable circular orbit."
         <a href="https://en.wikipedia.org/wiki/Innermost_stable_circular_orbit">Wikipedia</a>.
     </li>
     <li id="ref-ss73">
@@ -2463,7 +2476,6 @@ newR = max(r + k2,  r_min)</code></pre>
         Rybicki, G. B. &amp; Lightman, A. P. (1979).
         <em>Radiative Processes in Astrophysics</em>. Wiley-Interscience.
         ISBN: 0-471-82759-2.
-        <a href="https://en.wikipedia.org/wiki/Radiative_Processes_in_Astrophysics">Wikipedia</a>.
         — Standard reference for radiative transfer, synchrotron radiation, and Liouville's theorem.
     </li>
     <li id="ref-asada">
@@ -2518,7 +2530,6 @@ newR = max(r + k2,  r_min)</code></pre>
     <li id="ref-chandrasekhar">
         Chandrasekhar, S. (1983).
         <em>The Mathematical Theory of Black Holes</em>. Oxford University Press. ISBN: 0-19-850370-9.
-        <a href="https://en.wikipedia.org/wiki/The_Mathematical_Theory_of_Black_Holes">Wikipedia</a>.
         — Comprehensive treatment of geodesics in Schwarzschild and Kerr spacetimes, including
         the effective potential for photon orbits and the critical impact parameter.
     </li>
@@ -2549,7 +2560,7 @@ newR = max(r + k2,  r_min)</code></pre>
         multiple Einstein ring images from inside the horizon.
     </li>
     <li id="ref-wiki-freefall">
-        Wikipedia contributors. "Schwarzschild geodesics — Radial free fall."
+        Supplementary online summary: "Schwarzschild geodesics — Radial free fall."
         <a href="https://en.wikipedia.org/wiki/Schwarzschild_geodesics#Radial_free_fall">Wikipedia</a>.
         — Derivation of dr/dτ = −√(r<sub>s</sub>/r) for a test mass falling from rest at infinity.
     </li>
