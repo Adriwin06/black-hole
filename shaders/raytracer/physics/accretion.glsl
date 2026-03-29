@@ -231,9 +231,9 @@ float slim_disk_temperature(float cyl_r) {
 
 {{#grmhd_enabled}}
 // ═══════════════════════════════════════════════════════════════════
-// GRMHD-CALIBRATED PHYSICS MODULE
+// GRMHD-INSPIRED PHYSICS MODULE
 // ═══════════════════════════════════════════════════════════════════
-// Semi-analytic models calibrated to GRMHD simulation results from:
+// Semi-analytic models inspired by GRMHD simulation results from:
 //  - Event Horizon Telescope Collaboration et al. (2019, Paper V)
 //  - Mościbrodzka, Falcke & Shiokawa (2016): two-temperature GRMHD
 //  - Narayan, Sądowski et al. (2012): GRMHD accretion flows
@@ -277,7 +277,7 @@ float grmhd_electron_temp_ratio(float beta) {
     return 1.0 / (1.0 + R);
 }
 
-// --- GRMHD-calibrated electron temperature ---
+// --- GRMHD-inspired electron temperature ---
 // For visual rendering the disk model temperature IS the nominal electron
 // temperature (not the GRMHD ion/virial temperature which would be ~10^12 K).
 // Applying the full R_high suppression would tank T_e to infrared (~100 K),
@@ -353,7 +353,7 @@ float grmhd_density(float r, float base_density) {
     return base_density * pow(4.0 / max(r, 1.0), 1.2) * grmhd_density_scale;
 }
 
-// --- MRI turbulence structure (GRMHD-calibrated) ---
+// --- MRI turbulence structure (GRMHD-inspired) ---
 // MRI generates non-axisymmetric fluctuations with predominantly
 // m = 1, 2 azimuthal modes (spiral arms). In MAD state, a dominant
 // m = 1 mode arises from the arrested flux tube.

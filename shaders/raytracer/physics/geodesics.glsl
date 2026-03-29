@@ -1,9 +1,9 @@
 // Role: Kerr metric helpers and photon geodesic integration.
 //       Two integration modes:
 //         1. Schwarzschild Binet equation (u = 1/r) — exact for a = 0.
-//         2. True Kerr geodesics in Mino time — Carter (1968) separated
-//            equations for the full Kerr metric, producing the correct
-//            D-shaped shadow for spinning black holes.
+//         2. Experimental Kerr geodesic helpers in Mino time — Carter (1968)
+//            separated equations for the full Kerr metric. These helpers are
+//            present in the codebase but not exposed in the public UI.
 
 const float KERR_M = 0.5; // r_s = 1 => M = r_s/2
 

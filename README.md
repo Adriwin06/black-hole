@@ -3,22 +3,24 @@
 
 # Black Hole Simulation
 
-A real-time, GPU-accelerated ray-tracing simulation of a black hole with an accretion disk, relativistic jets, and a full suite of general-relativistic optical effects. Runs entirely in the browser using WebGL and [three.js](http://threejs.org).
+A real-time, GPU-accelerated browser visualization of a black hole with an accretion flow, jet models, and relativistic optical effects. Runs entirely in the browser using WebGL and [three.js](http://threejs.org).
 
 **[Live Demo](https://adriwin06.github.io/black-hole)** — Chrome or Firefox on a dedicated GPU recommended.
 
 > This is a substantially extended fork of [oseiskar/black-hole](https://github.com/oseiskar/black-hole). See [What's new](#whats-new-in-this-fork) for a summary of additions.
+
+> Scientific scope: Schwarzschild photon geodesics are traced with the exact Binet equation. Spin, accretion, jet, and GRMHD-related options use a mix of analytic, semi-analytic, and artistically tuned approximations; see [docs/physics.html](docs/physics.html) for what is exact and what is approximate.
 
 ---
 
 ## Features
 
 ### Physics & Rendering
-- **Two photon-lensing modes** — fast Binet lensing (exact for a = 0, with a perturbative frame-drag term when spin is enabled) plus a Kerr disk-velocity mode that keeps the same photon solver but uses exact Kerr orbital speeds for emitting matter
+- **Two photon-lensing modes** — fast Schwarzschild Binet lensing (exact for a = 0, with a perturbative frame-drag term when spin is enabled) plus a Kerr-inspired disk-velocity mode that keeps the same approximate photon solver but uses Kerr equatorial angular velocity to drive disk matter
 - **Three accretion disk models** — thin disk (Shakura–Sunyaev), thick torus (ADAF/RIAF), and slim disk (super-Eddington)
-- **GRMHD-calibrated accretion** — magnetization (σ), electron temperature ratio (R_high), MAD/SANE magnetic flux, MRI turbulence, and kappa-distribution electrons
+- **GRMHD-inspired accretion controls** — magnetization (σ), electron temperature ratio (R_high), MAD/SANE magnetic flux, MRI-inspired turbulence, and kappa-distribution electron parameters
 - **Relativistic effects** — gravitational redshift, Doppler shift, relativistic beaming (physical D³ Liouville or cinematic), aberration, time dilation
-- **Relativistic jets** — simple parabolic or physical GRMHD-calibrated model with spine/sheath structure, reconfinement shocks, jet-corona connection, and Blandford–Znajek power scaling
+- **Relativistic jets** — simple analytic jet or a more detailed GRMHD-inspired jet model with spine/sheath structure, reconfinement shocks, jet-corona connection, and Blandford–Znajek-inspired power scaling
 - **Black-body spectrum** — temperature-dependent disk coloring with precomputed Planck lookup
 - **Multiple tone-mapping modes** — ACES Filmic, AgX, and Scientific (logarithmic inferno colormap)
 - **Multi-pass bloom** — threshold → mip-chain Gaussian blur → weighted composite
@@ -30,7 +32,7 @@ A real-time, GPU-accelerated ray-tracing simulation of a black hole with an accr
 
 ### User Interface
 - **dat.GUI control panel** — resizable right-side panel with collapsible folders for every parameter
-- **Astrophysical presets** — one-click configurations for M87\*, Sgr A\*, Cygnus X-1, GRS 1915+105, and more, each sourced from published observations
+- **Astrophysical presets** — one-click starting points inspired by published measurements and commonly cited literature for M87\*, Sgr A\*, Cygnus X-1, GRS 1915+105, and more
 - **Observer controls** — mouse orbit/pan/roll, a bottom-left observer widget with distance dial + motion toggle, and optional automatic circular orbit
 
 ### Presentation & Recording
@@ -45,7 +47,7 @@ A real-time, GPU-accelerated ray-tracing simulation of a black hole with an accr
 
 ## Physics Documentation
 
-See **[docs/physics.html](docs/physics.html)** for a comprehensive description of every physics model, equation, and approximation used in the simulation, with full academic references and comparison to real observations (EHT, *Interstellar*, Luminet 1979).
+See **[docs/physics.html](docs/physics.html)** for a detailed description of the models, equations, approximations, and implementation scope used in the simulation, with academic references and notes on where the renderer departs from full GRRT/GRMHD treatments.
 
 ---
 
@@ -66,7 +68,7 @@ Open `http://localhost:8000` in a modern browser (Chrome or Firefox recommended)
 | Lower quality preset (GUI → Quality) | Reduces integration steps and supersampling |
 | Shrink the browser window | Fewer pixels to trace |
 | Disable the planet | Removes ray-sphere intersection tests |
-| Disable RK4 | Falls back to Euler integration (faster, less accurate near photon sphere) |
+| Disable RK4 | Falls back to leapfrog / Störmer-Verlet integration (faster, less accurate near the photon sphere) |
 | Switch solver mode to Fast | Uses the lightweight Binet photon solver everywhere |
 
 ---
@@ -86,12 +88,12 @@ Open `http://localhost:8000` in a modern browser (Chrome or Firefox recommended)
 | Parameter | Description |
 |-----------|-------------|
 | **a/M** | Dimensionless black hole spin (0 = Schwarzschild, 1 = extremal Kerr) |
-| **solver mode** | `Fast (Binet lensing)` or `Kerr disk velocities`; the latter keeps approximate photon lensing but uses exact Kerr orbital speeds for disk matter |
-| **temperature (K)** | Accretion disk peak temperature in Kelvin (4,500 – 30,000 K) |
+| **solver mode** | `Fast (Binet lensing)` or `Kerr-inspired disk velocities`; the latter keeps approximate photon lensing but uses Kerr angular velocity to drive disk matter |
+| **temperature (K)** | Visualized disk color temperature in Kelvin (4,500 – 30,000 K) |
 | **disk model** | Thin disk, thick torus (ADAF), or slim disk |
 | **doppler shift (color)** | Toggle relativistic red/blue spectral shifting |
 | **physical (D³ Liouville)** | Use physically motivated beaming instead of the softened cinematic curve |
-| **jet enabled / mode** | Toggle jets and choose simple or physical GRMHD-calibrated shading |
+| **jet enabled / mode** | Toggle jets and choose simple or more detailed GRMHD-inspired shading |
 | **observer motion** | Toggle automatic circular orbit around the black hole |
 | **quality preset** | Mobile / Optimal / Medium / High / Ultra / Cinematic |
 
@@ -111,7 +113,7 @@ Open `http://localhost:8000` in a modern browser (Chrome or Firefox recommended)
 | Preset | Object | Notes |
 |--------|--------|-------|
 | Default | Generic BH | a/M = 0.90, thin disk |
-| M87\* | Virgo A SMBH | a/M ≈ 0.90, thick torus, physical jet; first EHT image (2019) |
+| M87\* | Virgo A SMBH | a/M ≈ 0.90, thick torus, GRMHD-inspired jet; first EHT image (2019) |
 | Sgr A\* | Milky Way centre | a/M ≈ 0.50, ADAF torus; EHT image (2022) |
 | Cygnus X-1 | X-ray binary | a/M ≈ 0.99, thin disk (continuum-fitting spin) |
 | GRS 1915+105 | Microquasar | Near-extremal spin, slim disk |
@@ -124,8 +126,8 @@ Open `http://localhost:8000` in a modern browser (Chrome or Firefox recommended)
 
 1. Each screen pixel casts a ray from the camera into the scene.
 2. The ray direction is transformed for **relativistic aberration** if the observer is moving.
-3. Photon paths are traced with the **Schwarzschild Binet equation** (Euler / RK4). The optional `Kerr disk velocities` mode keeps the same photon solver but upgrades emitting matter to exact Kerr orbital speeds around spinning holes.
-4. At each step, intersections with the accretion disk, GRMHD medium, jets, and planet are tested and composited using Beer–Lambert transmittance.
+3. Photon paths are traced with the **Schwarzschild Binet equation** (leapfrog / RK4). The optional `Kerr-inspired disk velocities` mode keeps the same photon solver but upgrades disk matter to a Kerr-inspired orbital-velocity model.
+4. At each step, intersections with the accretion disk, GRMHD-inspired media, jets, and planet are tested and composited using Beer–Lambert transmittance.
 5. **Doppler shift, gravitational redshift, and beaming** are applied to each emission source.
 6. The background sky (Milky Way panorama + star field) is rendered with optional Doppler color shifting.
 7. The HDR accumulation buffer is bloom-composited and then tone-mapped to sRGB.
@@ -146,8 +148,8 @@ shaders/raytracer/
 │   └── math.glsl                 # Math utilities, coordinate transforms, FBM noise
 ├── physics/                       # Physics models
 │   ├── geodesics.glsl            # Schwarzschild Binet solver + WIP Kerr Mino-time helpers
-│   ├── accretion.glsl            # Thin disk, ADAF torus, slim disk, GRMHD turbulence
-│   ├── jet.glsl                  # Jet models: simple parabolic + physical GRMHD
+│   ├── accretion.glsl            # Thin disk, ADAF torus, slim disk, GRMHD-inspired turbulence
+│   ├── jet.glsl                  # Jet models: simple parabolic + more detailed GRMHD-inspired mode
 │   ├── planet.glsl               # Planet ray-sphere intersection
 │   └── background.glsl           # Galaxy/star background rendering
 └── output/                        # Rendering pipeline
@@ -162,7 +164,7 @@ shaders/raytracer/
 js/app/
 ├── bootstrap.js                    # Entry point: fetches GLSL shards & textures, calls init()
 ├── core/                           # System core
-│   ├── observer.js                 # Observer entity, SR orbital mechanics, time dilation
+│   ├── observer.js                 # Observer state, circular-orbit kinematics, simulation time scaling
 │   ├── shader.js                   # Shader class, compile-time Mustache parameters
 │   └── renderer.js                 # Three.js scene, init, TAA, bloom, render loop
 ├── scene/                          # Scene management
@@ -205,7 +207,7 @@ Additions over the [upstream oseiskar/black-hole](https://github.com/oseiskar/bl
 | Feature | Details |
 |---------|---------|
 | WIP Kerr geodesics | Carter (1968) Mino-time integrator exists in GLSL but is not yet exposed in the UI |
-| GRMHD accretion model | σ, R_high, MAD flux, MRI turbulence, κ-distribution electrons |
+| GRMHD-inspired accretion controls | σ, R_high, MAD flux, MRI-inspired turbulence, κ-distribution electrons |
 | Presentation Timeline | Keyframe dopesheet editor with transport controls and easing curves |
 | WebM recording | Realtime MediaRecorder capture plus offline WebCodecs/WebMMuxer export |
 | Offline PNG snapshot | One-click still image export using the Cinematic offline preset |
@@ -216,7 +218,7 @@ Additions over the [upstream oseiskar/black-hole](https://github.com/oseiskar/bl
 | Six quality tiers | Mobile, Optimal, Medium, High, Ultra, Cinematic |
 | Three tone-mappers | ACES Filmic, AGX, Scientific (inferno colormap) |
 | Three accretion models | Thin disk, thick torus (ADAF), slim disk (super-Eddington) |
-| Physical GRMHD jet | Spine/sheath, reconfinement shocks, Blandford–Znajek power scaling |
+| GRMHD-inspired jet model | Spine/sheath, reconfinement shocks, Blandford–Znajek-inspired power scaling |
 | Resizable UI panels | Drag-to-resize controls panel and timeline |
 
 ---
@@ -228,4 +230,4 @@ See [COPYRIGHT.md](COPYRIGHT.md) for full license and copyright information.
 Originally based on [oseiskar/black-hole](https://github.com/oseiskar/black-hole) (MIT).  
 Fork maintained and substantially extended by [Adriwin](https://github.com/Adriwin06).
 
-**AI Disclaimer**: AI assisted with translating complex general-relativity equations into functional WebGL shaders and with structuring academic references. The original codebase was human-made and well-written. All physics references are open-access and cited in [docs/physics.html](docs/physics.html) so every equation and model can be verified against primary sources.
+**AI Disclaimer**: AI assisted with translating complex general-relativity equations into functional WebGL shaders and with structuring academic references. The original codebase was human-made and well-written. The main physics formulas, approximations, and external references are documented in [docs/physics.html](docs/physics.html).

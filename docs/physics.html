@@ -157,6 +157,12 @@
     and discusses where the simulation is physically accurate and where it departs from reality.
 </p>
 
+<div class="note">
+    <strong>Scope note:</strong> Schwarzschild photon geodesics are modeled from the exact Binet equation.
+    Spinning-hole lensing, accretion-flow emission, jet emission, and the GRMHD-inspired controls
+    are progressively more approximate and are documented as such below.
+</div>
+
 <!-- ============================================================ -->
 <!-- TABLE OF CONTENTS -->
 <!-- ============================================================ -->
@@ -197,12 +203,12 @@
             </ol>
         </li>
         <li><a href="#sec-jets">Relativistic Jets</a></li>
-        <li><a href="#sec-grmhd">GRMHD Realism Mode</a>
+        <li><a href="#sec-grmhd">GRMHD-Inspired Mode</a>
             <ol>
                 <li><a href="#sec-grmhd-two-temp">Two-Temperature Plasma (R<sub>high</sub>)</a></li>
                 <li><a href="#sec-grmhd-synchrotron">Thermal Synchrotron Emission</a></li>
                 <li><a href="#sec-grmhd-mri">MRI Turbulence &amp; MAD State</a></li>
-                <li><a href="#sec-grmhd-fishbone">Fishbone-Moncrief Torus</a></li>
+                <li><a href="#sec-grmhd-fishbone">Fishbone-Moncrief-Inspired Helper</a></li>
                 <li><a href="#sec-grmhd-turbulence-temperature">High-Frequency Chaos &amp; Dynamic Thermal Bands</a></li>
                 <li><a href="#sec-grmhd-nonthermal">Non-Thermal Electrons (κ-distribution)</a></li>
                 <li><a href="#sec-grmhd-isco">Non-Zero ISCO Stress</a></li>
@@ -333,9 +339,9 @@
 </ul>
 
 <div class="comparison">
-    <strong>Accuracy:</strong> This equation is <em>exact</em> for photon geodesics in Schwarzschild spacetime.
-    No approximations are involved — all gravitational lensing effects (Einstein rings, photon sphere
-    winding, shadow formation) follow directly from this equation.
+    <strong>Accuracy:</strong> The underlying orbital equation is <em>exact</em> for photon geodesics in
+    Schwarzschild spacetime. Rendered accuracy still depends on the numerical integrator, step budget,
+    and adaptive stepping used by the shader.
     This approach is identical to the one described in the
     <a href="https://en.wikipedia.org/wiki/Schwarzschild_geodesics#Bending_of_light_by_gravity">
     Wikipedia article on Schwarzschild geodesics</a> <sup><a href="#ref-wiki-schwarz">[4]</a></sup>
@@ -373,8 +379,8 @@ du += 0.5 * accel(u) * step;   // half-step velocity</code></pre>
     meaning <strong>energy is conserved to O(step&sup2;)</strong> over arbitrarily long integrations.
     This prevents the systematic energy drift that afflicts non-symplectic methods like plain Euler,
     and is especially important for photons that wind many times around the photon sphere.
-    The computational cost per step is identical to Euler (two acceleration evaluations), but
-    the accuracy is second-order, O(&Delta;&phi;&sup2;), rather than first-order.
+    The computational cost per step remains low in this implementation (two acceleration evaluations
+    per step), while the accuracy is second-order, O(&Delta;&phi;&sup2;), rather than first-order.
 </p>
 
 <h3>Runge-Kutta 4th order (RK4)</h3>
@@ -444,9 +450,9 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 
 <h3>5.2. True Kerr geodesics (Mino-time formulation)</h3>
 <p>
-    For exterior rendering with non-negligible spin, the simulation integrates the
-    <strong>exact Kerr geodesic equations</strong> using the separability discovered by
-    <strong>Carter (1968)</strong> <sup><a href="#ref-carter">[6]</a></sup>.
+    The codebase also contains an <strong>experimental Kerr geodesic integrator</strong> based on the
+    separability discovered by <strong>Carter (1968)</strong>
+    <sup><a href="#ref-carter">[6]</a></sup>.
     In <strong>Mino time</strong> &sigma; (where d&lambda; = &Sigma; d&sigma;), the geodesic equations
     separate into independent ODEs in <em>r</em> and <em>&theta;</em>:
 </p>
@@ -469,10 +475,10 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 <p>
     These are <strong>polynomial ODEs in <em>r</em> and cos&theta; only</strong> &mdash;
     computationally cheap per step. The constants &xi; and &eta;
-    are computed from the camera ray direction using flat-space expressions (valid
-    for the distant observer) and projecting the initial momenta onto the Kerr
-    constraint surface (d<em>r</em>/d&sigma;)&sup2; = R(<em>r</em>) to ensure exact
-    energy conservation from the start.
+    are currently initialized from the camera ray direction using flat-space expressions
+    and then projected onto the Kerr constraint surface
+    (d<em>r</em>/d&sigma;)&sup2; = R(<em>r</em>). That makes this a promising exact-equation solver,
+    but not a validated user-facing Kerr rendering mode in its current state.
 </p>
 <p>
     The 3D Cartesian position is reconstructed at each step from Boyer-Lindquist coordinates:
@@ -481,17 +487,15 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 </p>
 
 <div class="comparison">
-    <strong>Accuracy:</strong> The Mino-time integration is <em>exact</em> for Kerr null geodesics &mdash;
-    the separated equations follow directly from the Hamiltonian with the Carter constant
-    <sup><a href="#ref-carter">[6]</a></sup> <sup><a href="#ref-chandrasekhar">[28]</a></sup>.
-    When enabled, it would produce the correct <strong>D-shaped shadow boundary</strong>
-    (Bardeen 1973), including the asymmetry between prograde and retrograde photon orbits,
-    the spin-dependent photon sphere structure, and higher-order Kerr lensing features.
+    <strong>Accuracy:</strong> The separated Mino-time equations themselves are the exact Kerr null-geodesic
+    equations <sup><a href="#ref-carter">[6]</a></sup> <sup><a href="#ref-chandrasekhar">[28]</a></sup>.
+    In this repository, however, the feature remains experimental and is not presented as a validated
+    public rendering mode.
     <br><br>
     <strong>Current status:</strong> This integrator is <strong>work-in-progress</strong> and is not
     yet exposed in the user interface. All user-facing modes currently use the perturbative Binet
-    approximation (Section 5.1) for photon lensing. The "Kerr disk velocities" mode uses exact
-    Kerr angular velocities for disk matter orbits but does not change the photon geodesic solver.
+    approximation (Section 5.1) for photon lensing. The "Kerr-inspired disk velocities" mode uses
+    Kerr equatorial angular velocity to drive disk matter but does not change the photon geodesic solver.
 </div>
 
 <!-- ============================================================ -->
@@ -591,18 +595,21 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 
 <h4>Disk velocity</h4>
 <p>
-    Matter in the thin disk follows <strong>Keplerian circular orbits</strong>. In the simulation's units:
+    Matter in the thin disk follows <strong>Keplerian circular orbits</strong>. In the Schwarzschild
+    case, the renderer uses the familiar local orbital speed:
 </p>
 <div class="eq">
     <em>v</em><sub>&phi;</sub> = 1 / &radic;(2(<em>r</em> &minus; 1))
 </div>
 <p>
-    This is derived from the Schwarzschild circular orbit condition. The velocity approaches <em>c</em>
-    as <em>r</em> &rarr; 1.5 (the photon sphere) and goes as 1/&radic;(2<em>r</em>) at large distances,
-    recovering the Newtonian Keplerian limit <em>v</em> &propto; 1/&radic;<em>r</em>.
+    This is the local azimuthal speed relative to a static Schwarzschild frame.
+    It approaches <em>c</em> as <em>r</em> &rarr; 1.5 (the photon sphere) and goes as
+    1/&radic;(2<em>r</em>) at large distances, recovering the Newtonian Keplerian limit
+    <em>v</em> &propto; 1/&radic;<em>r</em>.
 </p>
 <p>
-    In the Kerr (full core) mode, the angular velocity uses the Kerr formula:
+    In the Kerr-inspired disk-velocity mode, the code first uses the standard equatorial Kerr
+    angular velocity:
 </p>
 <div class="eq">
     &Omega; = 1 / (<em>r</em><sub><em>g</em></sub><sup>3/2</sup> + <em>a</em>)
@@ -610,7 +617,9 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 <p>
     where <em>r<sub>g</sub></em> = 2<em>r</em> (converting from <em>r<sub>s</sub></em> to gravitational radii).
     This is the standard Kerr equatorial Keplerian angular velocity
-    <sup><a href="#ref-bpt">[8]</a></sup>.
+    <sup><a href="#ref-bpt">[8]</a></sup>. The renderer then converts this to a flat-space azimuthal
+    speed for Doppler/beaming calculations. That captures the leading spin dependence, but it is not
+    a full local-tetrad Kerr velocity treatment.
 </p>
 
 <h4>Limb darkening</h4>
@@ -814,8 +823,9 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 </ul>
 <p>
     The disk temperature range spans <strong>4,500 K</strong> (reddish-orange, like a cool K-type star)
-    to <strong>30,000 K</strong> (blue-white, like an O-type star), matching the range expected for
-    accretion disks around stellar-mass and supermassive black holes.
+    to <strong>30,000 K</strong> (blue-white, like an O-type star). In this renderer these values should
+    be read as <strong>effective display-side color temperatures</strong>, not as mass-scaled physical
+    inner-disk temperatures; real stellar-mass accretion disks can peak far into the UV/X-ray.
 </p>
 
 <!-- ============================================================ -->
@@ -874,9 +884,9 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 <div class="comparison">
     <strong>Accuracy:</strong> The orbital redshift formula is exact for Schwarzschild circular orbits.
     The static formula is exact for stationary emitters.
-    Using orbital redshift for the thin disk and static redshift for volumetric sources is
-    physically correct &mdash; the torus gas orbits at ~50% of Keplerian velocity (ADAF theory),
-    and jet plasma is not on circular orbits at all.
+    In the renderer, using orbital redshift for the thin disk and a static Schwarzschild factor for
+    volumetric sources is a practical approximation combined with separate SR Doppler factors for the
+    emitter motion. It is exact for the thin disk, and approximate for torus/jet/plunging material.
 </div>
 
 <!-- ============================================================ -->
@@ -1028,8 +1038,7 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 
 <h3>Time dilation</h3>
 <p>
-    The simulation accounts for the combined <strong>gravitational + kinematic time dilation</strong>
-    affecting the observer's proper time relative to coordinate time:
+    The relevant Schwarzschild <strong>proper-time relations</strong> are:
 </p>
 <ul>
     <li><strong>Circular orbit:</strong>
@@ -1046,7 +1055,11 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 </ul>
 
 <div class="comparison">
-    <strong>Accuracy:</strong> Both time dilation formulae are exact for Schwarzschild spacetime.
+    <strong>Implementation note:</strong> These formulae are exact for Schwarzschild spacetime.
+    In the code, the orbit and hover modes advance <code>observer.time</code> using the
+    <em>inverse</em> of these factors so the distant scene evolves at the appropriate relative rate
+    as seen by the local observer. The dedicated free-fall dive mode handles its own time update
+    separately.
 </div>
 
 <!-- ============================================================ -->
@@ -1196,8 +1209,10 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 
 <p>
     For the accretion disk, the gravitational shift between emission and observer positions is
-    already handled by the <code>gravitational_shift()</code> function, which computes
-    &radic;(|1 &minus; 1/<em>r</em><sub>emit</sub>| / |1 &minus; 1/<em>r</em><sub>obs</sub>|).
+    already handled by the dedicated redshift helpers. In particular,
+    <code>gravitational_shift()</code> uses the thin-disk orbital factor
+    &radic;[(1 &minus; 3/(2<em>r</em><sub>emit</sub>)) / (1 &minus; 1/<em>r</em><sub>obs</sub>)]
+    while <code>gravitational_shift_static()</code> uses the static Schwarzschild factor.
     No double-application occurs.
 </p>
 
@@ -1239,9 +1254,10 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
         gravitational and relativistic Doppler temperature shift.</li>
 </ul>
 
-<h3>Physical (GRMHD-calibrated) jet</h3>
+<h3>Physical-style (GRMHD-inspired) jet</h3>
 <p>
-    A more detailed model incorporating results from GRMHD simulations:
+    A more detailed <strong>analytic</strong> jet model incorporating qualitative trends from GRMHD
+    simulations and jet-imaging literature:
 </p>
 
 <h4>Spine/sheath structure</h4>
@@ -1316,17 +1332,17 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 </p>
 
 <!-- ============================================================ -->
-<!-- 16. GRMHD REALISM MODE -->
+<!-- 16. GRMHD-INSPIRED MODE -->
 <!-- ============================================================ -->
 
-<h2 id="sec-grmhd">16. GRMHD Realism Mode</h2>
+<h2 id="sec-grmhd">16. GRMHD-Inspired Mode</h2>
 
 <p>
-    When the <strong>GRMHD realism</strong> toggle is enabled, the simulation replaces the standard
-    analytic accretion and jet models with semi-analytic prescriptions calibrated to
-    General Relativistic Magnetohydrodynamic (GRMHD) simulations. These models reproduce
-    the key observable features seen in Event Horizon Telescope images and state-of-the-art
-    numerical simulations.
+    When the <strong>GRMHD-inspired</strong> toggle is enabled, the simulation augments the baseline
+    analytic accretion and jet models with semi-analytic prescriptions inspired by
+    General Relativistic Magnetohydrodynamic (GRMHD) simulations. The goal is to borrow
+    qualitative morphology and parameter trends from the GRMHD literature, not to replace
+    full GRRT through simulation snapshots.
 </p>
 
 <div class="note">
@@ -1364,7 +1380,7 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 <p>
     When <em>R</em><sub>high</sub> = 1, emission comes from everywhere. When <em>R</em><sub>high</sub> = 160,
     emission concentrates near the jet wall and polar regions, producing the bright crescent morphology
-    observed by the EHT
+    associated with many EHT-motivated image models
     <sup><a href="#ref-eht-v">[37]</a></sup>.
 </p>
 
@@ -1407,8 +1423,9 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     slider both directly modulate this correction, providing responsive control.
 </p>
 <p>
-    <strong>Synchrotron self-absorption</strong> is included for the thick torus (ADAF/RIAF),
-    where the opacity scales with turbulence-modulated density:
+    A <strong>simplified opacity term loosely inspired by synchrotron self-absorption</strong>
+    is included for the thick torus (ADAF/RIAF), where the opacity scales with
+    turbulence-modulated density:
     &alpha;<sub>abs</sub> &prop; <em>j</em><sub>torus</sub> &middot; turbulence<sup>0.5</sup> &middot;
     (0.5 + 0.5 &middot; density_scale).
     For the optically thick thin disk and slim disk, synchrotron absorption is less important
@@ -1420,7 +1437,7 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 <p>
     The <strong>magnetorotational instability</strong> (MRI; Balbus &amp; Hawley 1991
     <sup><a href="#ref-balbus91">[39]</a></sup>) drives turbulence in accretion disks and is the
-    primary mechanism for angular momentum transport. In the GRMHD mode, MRI turbulence is modeled
+    primary mechanism for angular momentum transport. In the GRMHD-inspired mode, MRI turbulence is modeled
     with log-normal density fluctuations:
 </p>
 <div class="eq">
@@ -1462,21 +1479,23 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     <sup><a href="#ref-tchekhovskoy11">[40]</a></sup>.
 </p>
 
-<h3 id="sec-grmhd-fishbone">16.4 Fishbone-Moncrief Equilibrium Torus</h3>
+<h3 id="sec-grmhd-fishbone">16.4 Fishbone-Moncrief-Inspired Helper</h3>
 
 <p>
-    For the thick torus mode, the GRMHD realism option uses the <strong>Fishbone &amp; Moncrief
-    (1976)</strong> equilibrium torus solution
-    <sup><a href="#ref-fm76">[41]</a></sup> as the initial density distribution. This is the
-    standard initial condition for GRMHD simulations:
+    The codebase contains a <strong>pseudo-Newtonian helper inspired by Fishbone &amp; Moncrief
+    (1976)</strong>
+    <sup><a href="#ref-fm76">[41]</a></sup>, the classic equilibrium-torus construction used as
+    an initial condition in GRMHD simulations:
 </p>
 <div class="eq">
     <em>W</em> &minus; <em>W</em><sub>0</sub> = &minus;ln(<em>h</em>)
 </div>
 <p>
     where <em>W</em> is the effective potential (gravitational + centrifugal) and <em>h</em> is the
-    specific enthalpy. The torus has a cusp at the inner edge giving it a self-consistent shape.
-    The simulation uses a pseudo-Newtonian (Paczyński-Wiita) approximation for real-time evaluation.
+    specific enthalpy. In this repository the helper is implemented with a pseudo-Newtonian
+    (Paczyński-Wiita) potential for experimentation, but the <strong>current public thick-torus mode
+    does not directly render the exact Fishbone-Moncrief solution</strong>; it still uses the simpler
+    analytic torus emissivity profile described in Section 7.2.
 </p>
 
 <h3 id="sec-grmhd-turbulence-temperature">16.5 High-Frequency Chaos &amp; Dynamic Thermal Bands</h3>
@@ -1532,15 +1551,15 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     <sup><a href="#ref-noble10">[43]</a></sup>, Penna et al. 2010).
 </p>
 <p>
-    When GRMHD realism is enabled, thin disk emission extends inside the ISCO with a gradual decay
-    (rather than a hard cutoff), and in MAD simulations the plunging stress is even higher due to
-    stronger magnetic fields near the horizon.
+    In this renderer, enabling the GRMHD-inspired controls allows thin-disk emission to extend inside
+    the ISCO with a gradual decay (rather than a hard cutoff), and MAD-like settings increase that
+    contribution further.
 </p>
 
 <h3 id="sec-grmhd-bz">16.8 Blandford-Znajek Jet Power</h3>
 
 <p>
-    The jet luminosity in GRMHD mode is modulated by the <strong>Blandford &amp; Znajek (1977)</strong>
+    The jet luminosity in the GRMHD-inspired mode is modulated by the <strong>Blandford &amp; Znajek (1977)</strong>
     mechanism
     <sup><a href="#ref-bz77">[25]</a></sup>:
 </p>
@@ -1562,11 +1581,11 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 </ul>
 
 <div class="comparison">
-    <strong>EHT comparison:</strong> The M87* preset with GRMHD enabled at R<sub>high</sub> = 80,
-    MAD flux = 0.8 reproduces the essential morphology of the EHT 2019 image: a bright crescent
-    on the approaching side of a thick ring around the black hole shadow, with emission
-    concentrated near the photon ring. The Sgr A* preset with R<sub>high</sub> = 20, SANE-dominated
-    gives the more face-on, symmetric ring seen in EHT 2022.
+    <strong>EHT comparison:</strong> The M87* preset with the GRMHD-inspired mode enabled at R<sub>high</sub> = 80,
+    MAD flux = 0.8 gives a qualitative crescent/ring morphology reminiscent of the EHT 2019 image.
+    The Sgr A* preset with R<sub>high</sub> = 20 and lower MAD flux gives a more symmetric ring-like
+    morphology reminiscent of EHT 2022 model families. These should be understood as visual presets,
+    not observational fits.
 </div>
 
 <!-- ============================================================ -->
@@ -1657,8 +1676,9 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 </p>
 <ul>
     <li><strong>Gravitational lensing:</strong> The planet's image is distorted as light bends around the black hole.</li>
-    <li><strong>Lorentz contraction:</strong> The planet is length-contracted along its direction of motion,
-        implemented by rescaling coordinates along the velocity direction by 1/&gamma;.</li>
+    <li><strong>Moving-body simplification:</strong> The shader applies a Lorentz-contraction-style
+        coordinate squeeze along the direction of motion. This is a simple visual model, not a full
+        Penrose-Terrell treatment of the apparent shape of a moving sphere.</li>
     <li><strong>Light travel time:</strong> The planet's position is evaluated at the retarded time
         (time when the light was actually emitted), not the current coordinate time.</li>
     <li><strong>Doppler-shifted illumination:</strong> The disk's thermal radiation illuminating the planet
@@ -1811,16 +1831,16 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 </p>
 <p>
     For escaping rays viewed from the interior, the simulation also applies a
-    <strong>gravitational blueshift boost</strong> to the background sky luminance:
+    <strong>heuristic interior brightness boost</strong> to the background sky luminance:
 </p>
 <div class="eq">
     <em>f</em><sub>blue</sub> = 1 + 0.5 &middot; &radic;|1/<em>r</em> &minus; 1|,
     &nbsp;&nbsp;capped at 4.0
 </div>
 <p>
-    This models the fact that photons falling into the potential well gain energy (blueshift),
-    which is the time-reverse of the well-known gravitational redshift of outgoing photons
-    <sup><a href="#ref-mtw">[1]</a></sup>.
+    This is a presentation-oriented approximation meant to keep the interior view readable while
+    suggesting the growing blueshift of escaping rays. It is not presented as an exact GR
+    intensity law.
 </p>
 
 <div class="comparison">
@@ -1872,15 +1892,14 @@ rMid = max(r + k1*0.5,  0.01)
 k2   = -sqrt(1/rMid) * dt
 newR = max(r + k2,  r_min)</code></pre>
 <p>
-    The three-velocity of the falling observer in Schwarzschild coordinates is:
+    The renderer uses the locally measured radial speed of the falling observer relative to a
+    static Schwarzschild frame:
 </p>
 <div class="eq">
     <em>v</em>(<em>r</em>) = &radic;(<em>r<sub>s</sub></em>/<em>r</em>) = &radic;(1/<em>r</em>)
 </div>
 <p>
-    This velocity approaches <em>c</em> as <em>r</em> &rarr; <em>r<sub>s</sub></em> and exceeds
-    the coordinate speed of light inside the horizon (a coordinate artifact — the observer's
-    locally measured speed is always subluminal). The simulation caps
+    This local speed approaches <em>c</em> as <em>r</em> &rarr; <em>r<sub>s</sub></em>. The simulation caps
     <em>v</em> at 0.998<em>c</em> to avoid numerical singularities.
 </p>
 
@@ -2112,10 +2131,10 @@ newR = max(r + k2,  r_min)</code></pre>
         <td><strong>Qualitatively correct</strong></td>
     </tr>
     <tr>
-        <td>Observer time dilation (circular orbit)</td>
-        <td>&radic;(1 − 3/(2r))</td>
+        <td>Circular-orbit time-dilation factor</td>
+        <td>d&tau;/d<em>t</em> = &radic;(1 − 3/(2r))</td>
         <td>Exact for Schwarzschild<sup><a href="#ref-mtw">[1]</a></sup></td>
-        <td><strong>Exact</strong></td>
+        <td><strong>Exact relation</strong>; implementation uses its inverse to advance scene time</td>
     </tr>
     <tr>
         <td>Interior escape classification</td>
@@ -2134,7 +2153,7 @@ newR = max(r + k2,  r_min)</code></pre>
         <td>Radial free-fall trajectory</td>
         <td>dr/d&tau; = &minus;&radic;(1/r), RK2 integration</td>
         <td>Exact Schwarzschild result<sup><a href="#ref-wiki-freefall">[32]</a></sup></td>
-        <td><strong>Exact</strong></td>
+        <td><strong>Exact equation</strong>, numerically integrated</td>
     </tr>
 </table>
 
@@ -2150,12 +2169,12 @@ newR = max(r + k2,  r_min)</code></pre>
     <tr>
         <td>Kerr geodesics (exterior)</td>
         <td>Schwarzschild Binet equation with perturbative frame-drag correction;
-            exact Kerr disk angular velocities in "Kerr disk velocities" mode</td>
+            Kerr equatorial angular velocity used for disk matter in "Kerr-inspired disk velocities" mode</td>
         <td>Full Carter-constant geodesics in Boyer-Lindquist coords<sup><a href="#ref-carter">[6]</a></sup></td>
         <td>The photon shadow shape is approximately circular rather than the correct
             D-shaped silhouette. A full Mino-time Kerr geodesic integrator exists in the
             codebase but is <strong>WIP</strong> and not yet exposed in the UI.
-            Disk matter velocities are exact Kerr in the disk-velocity mode.</td>
+            Disk matter motion in the disk-velocity mode is still simplified for SR Doppler/beaming.</td>
     </tr>
     <tr>
         <td>Disk turbulence</td>
@@ -2185,7 +2204,7 @@ newR = max(r + k2,  r_min)</code></pre>
         <td>Jet model</td>
         <td>Parameterized analytic profiles with configurable base width and corona concentration</td>
         <td>GRMHD + radiative transfer<sup><a href="#ref-moscibrodzka">[22]</a></sup></td>
-        <td>The physical jet mode captures the qualitative spine/sheath structure,
+        <td>The more detailed jet mode captures the qualitative spine/sheath structure,
             parabolic collimation, and knot features. Corona emission uses <em>r</em><sup>&minus;3</sup>
             scaling with configurable extent. The emission profiles are
             analytic fits rather than self-consistent solutions.</td>
@@ -2219,9 +2238,9 @@ newR = max(r + k2,  r_min)</code></pre>
 </p>
 <ul>
     <li>A bright ring of emission with a dark central shadow —
-        <strong>the simulation reproduces this faithfully</strong> via the Schwarzschild geodesic solver.</li>
+        <strong>the simulation reproduces this qualitatively</strong> via the Schwarzschild geodesic solver.</li>
     <li>Brightness asymmetry in the ring due to Doppler beaming —
-        <strong>the simulation reproduces this</strong> with proper Doppler shift and beaming.</li>
+        <strong>the simulation reproduces this qualitatively</strong> with Doppler shift and beaming.</li>
     <li>Ring diameter consistent with &sim;5.2 &times; the gravitational radius —
         <strong>the simulation's shadow size matches</strong> (the Schwarzschild shadow is &sim;5.196 <em>r<sub>g</sub></em>).</li>
 </ul>
@@ -2243,8 +2262,8 @@ newR = max(r + k2,  r_min)</code></pre>
 <ul>
     <li>Ray-tracing photon geodesics in Kerr spacetime (they used exact Kerr geodesics;
         this simulation uses the Schwarzschild Binet equation with a perturbative
-        frame-dragging correction for photon lensing, while using exact Kerr angular
-        velocities for disk matter in "Kerr disk velocities" mode).</li>
+        frame-dragging correction for photon lensing, while using Kerr angular velocity
+        to drive disk matter in "Kerr-inspired disk velocities" mode).</li>
     <li>Thin accretion disk with blackbody emission and Doppler shifting.</li>
     <li>The movie team deliberately <strong>reduced the Doppler beaming</strong> for artistic reasons,
         exactly as this simulation's "cinematic beaming" mode does.</li>
@@ -2266,7 +2285,7 @@ newR = max(r + k2,  r_min)</code></pre>
         A full Mino-time Kerr geodesic integrator exists in the codebase
         (<code>kerr_init()</code>, <code>integrate_kerr_step()</code> in <code>geodesics.glsl</code>)
         but is <strong>work-in-progress</strong> and not yet exposed in the UI.
-        The "Kerr disk velocities" mode uses exact Kerr angular velocities for disk matter
+        The "Kerr-inspired disk velocities" mode uses Kerr angular velocity to drive disk matter
         but still traces photon paths with the perturbative Binet equation.</li>
     <li><strong>Returning radiation is analytical, not ray-traced:</strong> Photons gravitationally
         lensed back onto the accretion disk are not individually tracked (that would require
@@ -2278,12 +2297,12 @@ newR = max(r + k2,  r_min)</code></pre>
         prescribed analytically rather than evolved from MHD equations.</li>
     <li><strong>No polarization:</strong> The simulation does not track photon polarization, which is
         important for EHT science (the EHT measured M87*'s linear polarization pattern in 2021).</li>
-    <li><strong>GRMHD-calibrated turbulence:</strong> When GRMHD realism is enabled, the disk
-        and torus use physically calibrated MRI turbulence with log-normal density PDFs
+    <li><strong>GRMHD-inspired turbulence:</strong> When the GRMHD-inspired mode is enabled, the disk
+        and torus use MRI-inspired turbulence with log-normal density PDFs
         (&sigma;<sub>ln</sub> &asymp; 0.4&ndash;1.0), spiral arm structure, and MAD flux tube
         interactions. The simulation also injects time-dependent variations and fractal Brownian motion (fBm)
         noise mapped seamlessly across spatial phases to produce organic, evolving plasma filament structures.
-        Without GRMHD enabled, the turbulence texture is a simpler procedural noise model.</li>
+        Without the GRMHD-inspired mode enabled, the turbulence texture is a simpler procedural noise model.</li>
     <li><strong>GRMHD is a visual adaptation, not frequency-resolved:</strong> Real GRMHD operates
         at radio frequencies (~230 GHz) with ion temperatures of ~10<sup>12</sup> K.
         This renderer adapts the spatial morphology (R<sub>high</sub> crescent, MRI spirals,

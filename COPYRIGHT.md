@@ -3,14 +3,14 @@
 
 # Copyright and license info
 
- * [dat.GUI](http://code.google.com/p/dat-gui) (`js-libs/dat.gui.js`)  licensed under the [Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0)
+ * [dat.GUI](http://code.google.com/p/dat-gui) (`js-libs/dat.gui.min.js`) licensed under the [Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0)
  * Other JavaScript libraries in `js-libs/` are licensed under the [MIT license](https://tldrlegal.com/license/mit-license)
    - [jQuery](https://jquery.org)
    - [three.js](https://threejs.org) + components `Detector.js` and `OrbitControls.js`
    - [stats.js](https://github.com/mrdoob/stats.js)
    - [mustache.js](https://github.com/janl/mustache.js)
    - [webm-muxer](https://github.com/Vanilagy/webm-muxer)
-   - [ShaderLoader.js](https://github.com/codecruzer/webgl-shader-loader-js)
+   - [ShaderLoader.js](https://github.com/codecruzer/webgl-shader-loader-js) (`js-libs/ShaderLoader.min.js`)
  * The Milky Way image `img/milkyway.jpg` is from [Stellarium](http://www.stellarium.org/wiki/index.php/Textures) and "based on Nick Risinger's [Photopic Sky Survey](http://skysurvey.org/) image under [CC-BY-NC 2.0](http://creativecommons.org/licenses/by-nc/2.0/)."
  * All other files in this repository, https://github.com/oseiskar/black-hole, are hereby licensed under the MIT license:
 

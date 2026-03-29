@@ -375,7 +375,8 @@ function setupTemporalAA() {
 
 // ─── Freefall Dive State ──────────────────────────────────────────────────────
 // Tracks the dive animation that plunges the observer through the event horizon
-// into the black hole interior with physically accurate geodesic ray tracing.
+// into the black hole interior using the Schwarzschild geodesic solver plus
+// additional presentation-oriented interior approximations.
 var diveState = {
     active: false,
     paused: false,
@@ -751,7 +752,8 @@ function init(glslSource, textures) {
 // ─── Dive Animation Functions ───────────────────────────────────────────────
 // Physics: Free-fall from rest at infinity in Schwarzschild geometry.
 // Proper-time equation of motion: dr/dτ = -sqrt(r_s/r) = -sqrt(1/r)
-// in units where r_s = 1.  Observer velocity (locally measured three-velocity):
+// in units where r_s = 1. Observer velocity here is the locally measured
+// radial speed relative to a static Schwarzschild frame:
 // v = sqrt(1/r), capped at 0.998 c to avoid numerical divergence at horizon.
 //
 // The Binet equation d²u/dφ² = -u + (3/2)u² is valid for all r including
@@ -908,7 +910,9 @@ function updateDive(dt) {
     // Sync shader distance parameter
     shader.parameters.observer.distance = newR;
 
-    // Advance observer time (proper time of the free-falling observer)
+    // Dive mode advances observer.time using the infaller's local proper-time
+    // evolution, unlike orbit/hover where observer.time is used as distant
+    // scene time for presentation.
     observer.time += dt * effectiveSpeed * shader.parameters.time_scale;
 
     // Trigger shader recompile when crossing the horizon (interior mode transition)
@@ -1119,8 +1123,9 @@ function updateHover(dt) {
 
     shader.parameters.observer.distance = newR;
 
-    // Advance observer time with gravitational time dilation.
-    // For a hovering observer: dτ/dt = √(1 - r_s/r) = √(1 - 1/r)
+    // Hover mode uses the inverse Schwarzschild factor so observer.time tracks
+    // the distant scene time seen by the hovering observer.
+    // Physical relation: dτ/dt = sqrt(1 - r_s/r) = sqrt(1 - 1/r).
     var timeDilation = Math.sqrt(Math.max(1.0 - 1.0 / newR, 0.001));
     observer.time += dt * shader.parameters.time_scale / timeDilation;
 
@@ -1150,7 +1155,7 @@ function updateHoverUI() {
     var properAccel = 0.5 / (r * r * gravFactor);
 
     radiusEl.innerHTML = 'r = ' + r.toFixed(3) + ' r<sub>s</sub>';
-    blueshiftEl.innerHTML = 'z<sub>grav</sub> = ' + blueshift.toFixed(2) + '\u00d7';
+    blueshiftEl.innerHTML = 'D<sub>grav</sub> = ' + blueshift.toFixed(2) + '\u00d7';
     accelEl.innerHTML = 'a = ' + (properAccel < 100 ? properAccel.toFixed(2) : properAccel.toFixed(0)) +
         ' c\u00b2/r<sub>s</sub>';
 

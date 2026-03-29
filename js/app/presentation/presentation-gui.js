@@ -77,12 +77,6 @@ function bindPresentationAnimationSection(panelRoot) {
         // Old editor removed — now handled by the bottom timeline panel
     }
 
-    function hasRealPresetOptions() {
-        if (typeof listPresentationPresets !== 'function') return false;
-        var names = listPresentationPresets();
-        return Array.isArray(names) && names.length > 0;
-    }
-
     function syncFromState() {
         if (typeof getPresentationState !== 'function') return;
         var s = getPresentationState();

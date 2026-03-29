@@ -578,7 +578,8 @@ vec4 trace_ray(vec3 ray) {
                 float angle_s = atan(pos.x, pos.y);
 
                 {{#grmhd_enabled}}
-                // GRMHD slim disk: super-Eddington base model remains physically accurate.
+                    // GRMHD-inspired slim disk: preserve the base super-Eddington
+                    // morphology while adding responsive semi-analytic corrections.
                 // GRMHD adds: mild two-temperature correction (30% R_high) + ISCO magnetic
                 // stress + synchrotron/non-thermal corrections responsive to all parameters.
                 float gas_temp_slim = slim_disk_temperature(cyl_r_s);
@@ -747,7 +748,7 @@ vec4 trace_ray(vec3 ray) {
                     {{/jet_simple}}
 
                     {{#jet_physical}}
-                    // Physical mode: GRMHD-calibrated emission
+                    // Physical mode: more detailed GRMHD-inspired emission
                     float r_jet_p = max(length(pos), 1.001);
                     float z_abs = abs(pos.z * sign_z);
                     float g_shift_j = gravitational_shift_static(r_jet_p);

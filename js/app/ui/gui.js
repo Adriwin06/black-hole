@@ -449,7 +449,7 @@ function setupGUI() {
         options: KERR_MODE_LABELS,
         name: 'solver mode',
         onChange: applyKerrMode,
-        help: 'Fast = Schwarzschild/Binet photon lensing with a perturbative frame-drag term. Kerr disk velocities = same photon lensing, but emitting matter uses exact Kerr orbital speeds.'
+        help: 'Fast = Schwarzschild/Binet photon lensing with a perturbative frame-drag term. Kerr-inspired disk velocities = same photon lensing, but emitting matter uses Kerr angular velocity in a simplified local-speed model.'
     });
 
     addControl(renderFolder, p, 'n_steps', {
@@ -720,15 +720,15 @@ function setupGUI() {
     var torusRows = [torusCenterCtrl, torusHRCtrl, torusFalloffCtrl, torusOpacityCtrl, torusOuterCtrl];
     var slimRows = [slimHRCtrl, slimOpacityCtrl, slimPuffCtrl];
 
-    // ─── GRMHD realism toggle ────────────────────────────
+    // ─── GRMHD-inspired toggle ───────────────────────────
     var grmhdEnabledCtrl = addControl(diskFolder, p.grmhd, 'enabled', {
-        name: 'GRMHD realism',
+        name: 'GRMHD-inspired',
         trackBlackHolePreset: true,
         onChange: function() {
             updateDependentVisibility();
             updateShader();
         },
-        help: 'Enables GRMHD-calibrated physics: two-temperature plasma (R_high prescription), thermal synchrotron emissivity, MRI turbulence, and magnetic field effects. Based on EHT Collaboration (2019) and Mościbrodzka+ (2016) models.'
+        help: 'Enables GRMHD-inspired morphology controls: two-temperature plasma weighting, synchrotron-inspired emissivity corrections, MRI-inspired turbulence, and magnetic-field effects. These are semi-analytic visual models, not full GRMHD evolution.'
     });
     var grmhdRHighCtrl = addControl(diskFolder, p.grmhd, 'r_high', {
         min: 1.0,
@@ -828,7 +828,7 @@ function setupGUI() {
             updateDependentVisibility();
             updateShader();
         },
-        help: 'Simple: smooth parabolic jet. Physical: GRMHD-calibrated model with spine/sheath, reconfinement knots, corona base, disk occultation.'
+        help: 'Simple: smooth analytic jet. Physical: more detailed GRMHD-inspired jet model with spine/sheath, reconfinement knots, corona base, and disk occultation.'
     });
     var jetAngleCtrl = addControl(jetFolder, p.jet, 'half_angle', {
         min: 1.0,
@@ -1303,8 +1303,8 @@ function setupGUI() {
                 '</button>' +
                 '<div class="anim-section-body" id="dive-section-body">' +
                     '<div class="dive-desc">Radial plunge into the black hole interior. ' +
-                    'Rays are traced through the event horizon with the full Schwarzschild ' +
-                    'geodesic equation &mdash; no approximations.</div>' +
+                    'Uses the Schwarzschild geodesic solver through the event horizon, ' +
+                    'with additional rendering simplifications for interior presentation.</div>' +
                     '<button id="dive-start-btn" class="dive-btn dive-btn-start">' +
                         '\u25b6 START DIVE</button>' +
                     '<div class="dive-control-row">' +
@@ -1360,7 +1360,7 @@ function setupGUI() {
                         '<div id="hover-radius" class="hover-metric">' +
                             'r = ' + p.observer.distance.toFixed(2) + ' r<sub>s</sub></div>' +
                         '<div id="hover-blueshift" class="hover-metric">' +
-                            'z<sub>grav</sub> = 1.00\u00d7</div>' +
+                            'D<sub>grav</sub> = 1.00\u00d7</div>' +
                         '<div id="hover-accel" class="hover-metric">' +
                             'a = 0.00 c\u00b2/r<sub>s</sub></div>' +
                         '<div id="hover-status" class="hover-status ready">Ready</div>' +

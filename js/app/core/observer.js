@@ -1,6 +1,7 @@
 // Role: Observer entity — tracks position, velocity, and orientation of the
-//       in-simulation camera/observer. Handles circular orbital motion with
-//       full special-relativistic time dilation. Also exports formatThousands.
+//       in-simulation camera/observer. Handles circular orbital motion and the
+//       simulation-time scaling used for orbit/hover modes. Also exports
+//       formatThousands.
 
 function formatThousands(value) {
     return Math.round(value).toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
@@ -66,12 +67,13 @@ Observer.prototype.move = function(dt) {
 
     if (shader.parameters.gravitational_time_dilation) {
         if (v > 0) {
-            // Circular orbit: combined gravitational + kinematic time dilation
-            // dτ/dt = sqrt(1 - 3M/r) = sqrt(1 - 3/(2r)) for r_s = 1, M = 0.5
+            // Circular orbit: use the inverse Schwarzschild proper-time factor
+            // so observer.time advances like the distant scene time seen by the
+            // orbiting observer. Physical relation: dτ/dt = sqrt(1 - 3M/r).
             dt = dt / Math.sqrt(Math.max(1.0 - 1.5/r, 0.001));
         } else {
-            // Stationary observer: gravitational time dilation only
-            // dτ/dt = sqrt(1 - r_s/r) = sqrt(1 - 1/r)
+            // Static observer: same convention as above, using the inverse
+            // Schwarzschild factor. Physical relation: dτ/dt = sqrt(1 - r_s/r).
             dt = dt / Math.sqrt(Math.max(1.0 - 1.0/r, 0.001));
         }
     }

@@ -1,7 +1,8 @@
 // Role: Relativistic jet emission models. Two modes are provided:
 //       - Simple: smooth parabolic jet with spine/limb synchrotron approximation.
-//       - Physical: GRMHD-calibrated model with magnetization parameter, spine/sheath
-//         structure, reconfinement knots, jet-corona connection, and disk occultation.
+//       - Physical: more detailed GRMHD-inspired model with magnetization
+//         parameter, spine/sheath structure, reconfinement knots,
+//         jet-corona connection, and disk occultation.
 
 {{#jet_enabled}}
 {{#jet_simple}}
@@ -49,7 +50,7 @@ vec3 jet_velocity(vec3 p, float sign_z) {
 
 {{#jet_physical}}
 // ═══════════════════════════════════════════════════════════════════
-// PHYSICAL JET: GRMHD-calibrated model
+// PHYSICAL JET: GRMHD-inspired analytic model
 // ═══════════════════════════════════════════════════════════════════
 // Based on:
 //  - Moscibrodzka et al. 2016: GRMHD+radiative transfer of M87
@@ -65,7 +66,7 @@ vec3 jet_velocity(vec3 p, float sign_z) {
 //  3. Reconfinement shock knots (standing shocks from pressure balance)
 //  4. Jet-corona connection: bright base from hot corona above disk
 //  5. Counter-jet disk occultation
-//  6. GRMHD-calibrated emissivity: j ∝ ρ² B² (synchrotron)
+//  6. GRMHD-inspired emissivity: j ∝ ρ² B² (synchrotron-motivated)
 //  7. Synchrotron power-law spectrum (not blackbody approximation)
 
 // --- Jet geometry: magnetic funnel wall ---
@@ -155,7 +156,7 @@ float magnetization(float z) {
     return sigma_base / (1.0 + 0.15 * z) + 0.5;
 }
 
-// --- GRMHD-calibrated emissivity ---
+// --- GRMHD-inspired emissivity ---
 // Synchrotron emissivity: j_ν ∝ n_e B² sin²α × ν^(-α)
 // In magnetically arrested disk (MAD) simulations, the jet funnel
 // has j ∝ ρ² B² ∝ r^(-p) with p ≈ 2-3 depending on height.
@@ -263,7 +264,7 @@ float jet_effective_temperature(float z, float r3d, float sigma) {
 // ═══════════════════════════════════════════════════════════════════
 // GRMHD JET ENHANCEMENTS
 // ═══════════════════════════════════════════════════════════════════
-// Additional physics for GRMHD-calibrated jet mode:
+// Additional physics for the GRMHD-inspired jet mode:
 //  - Blandford-Znajek power scaling: P_BZ ∝ Φ² Ω_H² f(Ω_H)
 //  - MAD magnetic flux saturation: Φ_BH ~ 50 √(Ṁ r_g² c)
 //  - Current-driven kink instability (CDI) modulation
