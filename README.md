@@ -19,7 +19,7 @@ A real-time, GPU-accelerated browser visualization of a black hole with an accre
 - **Two photon-lensing modes** — fast Schwarzschild Binet lensing (exact for a = 0, with a perturbative frame-drag term when spin is enabled) plus a Kerr-inspired disk-velocity mode that keeps the same approximate photon solver but uses Kerr equatorial angular velocity to drive disk matter
 - **Three accretion disk models** — thin disk (Shakura–Sunyaev), thick torus (ADAF/RIAF), and slim disk (super-Eddington)
 - **GRMHD-inspired accretion controls** — magnetization (σ), `R_high` electron-heating / Ti:Te prescription controls, MAD/SANE magnetic flux, MRI-inspired turbulence, and kappa-distribution electron parameters
-- **Relativistic effects** — gravitational redshift, Doppler shift, relativistic beaming (physical D³ Liouville or cinematic), aberration, time dilation
+- **Relativistic effects** — gravitational redshift, Doppler shift, black-body-path beaming controls (physical D³ Liouville or cinematic), aberration, time dilation
 - **Relativistic jets** — simple analytic jet or a more detailed GRMHD-inspired jet model with spine/sheath structure, reconfinement shocks, jet-corona connection, and Blandford–Znajek-inspired power scaling
 - **Black-body spectrum** — temperature-dependent disk coloring with precomputed Planck lookup
 - **Multiple tone-mapping modes** — ACES Filmic, AgX, and Scientific (logarithmic inferno colormap)
@@ -91,8 +91,8 @@ Open `http://localhost:8000` in a modern browser (Chrome or Firefox recommended)
 | **solver mode** | `Fast (Binet lensing)` or `Kerr-inspired disk velocities`; the latter keeps approximate photon lensing but uses Kerr angular velocity to drive disk matter |
 | **temperature (K)** | Visualized disk color temperature in Kelvin (4,500 – 30,000 K) |
 | **disk model** | Thin disk, thick torus (ADAF), or slim disk |
-| **doppler shift (color)** | Toggle relativistic red/blue spectral shifting |
-| **physical (D³ Liouville)** | Use physically motivated beaming instead of the softened cinematic curve |
+| **doppler shift (color)** | Toggle relativistic red/blue spectral shifting for the black-body transfer path; jets keep their own synchrotron-motivated transfer |
+| **physical (D³ Liouville)** | Use physically motivated beaming for the black-body transfer path instead of the softened cinematic curve |
 | **jet enabled / mode** | Toggle jets and choose simple or more detailed GRMHD-inspired shading |
 | **observer motion** | Toggle automatic circular orbit around the black hole |
 | **quality preset** | Mobile / Optimal / Medium / High / Ultra / Cinematic |
@@ -128,7 +128,7 @@ Open `http://localhost:8000` in a modern browser (Chrome or Firefox recommended)
 2. The ray direction is transformed for **relativistic aberration** if the observer is moving.
 3. Photon paths are traced with the **Schwarzschild Binet equation** (leapfrog / RK4). The optional `Kerr-inspired disk velocities` mode keeps the same photon solver but upgrades disk matter to a Kerr-inspired orbital-velocity model.
 4. At each step, intersections with the accretion disk, GRMHD-inspired media, jets, and planet are tested and composited using Beer–Lambert transmittance.
-5. **Doppler shift, gravitational redshift, and beaming** are applied to each emission source.
+5. **Doppler shift, gravitational redshift, and beaming** are applied with model-appropriate transfer rules; jets use a separate synchrotron-motivated treatment.
 6. The background sky (Milky Way panorama + star field) is rendered with optional Doppler color shifting.
 7. The HDR accumulation buffer is bloom-composited and then tone-mapped to sRGB.
 8. Optionally, TAA accumulates multiple jittered frames before display.
@@ -225,7 +225,7 @@ Additions over the [upstream oseiskar/black-hole](https://github.com/oseiskar/bl
 
 ## License
 
-The source code for this fork is MIT-licensed, but some bundled third-party libraries and assets use separate terms. See [COPYRIGHT.md](COPYRIGHT.md) for the full breakdown, especially the Milky Way panorama asset.
+The source code for this fork is MIT-licensed, but some bundled third-party libraries and assets use separate terms. See [COPYRIGHT.md](COPYRIGHT.md) for the full breakdown, especially the Milky Way panorama asset and the credited favicon icons.
 
 Originally based on [oseiskar/black-hole](https://github.com/oseiskar/black-hole) (MIT).  
 Fork maintained and substantially extended by [Adriwin](https://github.com/Adriwin06).

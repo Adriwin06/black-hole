@@ -14,6 +14,7 @@ This repository is not "all MIT" as a bundle. The source code of the fork is MIT
    - [webm-muxer](https://github.com/Vanilagy/webm-muxer)
    - [ShaderLoader.js](https://github.com/codecruzer/webgl-shader-loader-js) (`js-libs/ShaderLoader.min.js`)
  * The Milky Way image `img/milkyway.jpg` is from [Stellarium](https://www.stellarium.org/wiki/index.php/Textures) and "based on Nick Risinger's [Photopic Sky Survey](https://skysurvey.org/) image under [CC-BY-NC 2.0](https://creativecommons.org/licenses/by-nc/2.0/)." It is therefore not covered by the repository's MIT code license.
+ * The favicon/icon assets `img/icons/black-hole.png`, `img/icons/atom.png`, and `img/icons/atom_alt.png` are credited in the HTML source comments to **Freepik**. They should be treated as separate third-party assets rather than MIT-licensed repository code; keep the Freepik credit when redistributing them. The original upstream download URLs were not preserved in this repository.
  * All other first-party source files in this repository, https://github.com/adriwin06/black-hole, are hereby licensed under the MIT license:
 
         Copyright (c) 2015 Otto Seiskari

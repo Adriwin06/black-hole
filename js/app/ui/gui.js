@@ -1171,7 +1171,7 @@ function setupGUI() {
             updateDependentVisibility();
             updateShader();
         },
-        help: 'Applies relativistic intensity boosting/dimming.'
+        help: 'Applies relativistic intensity boosting/dimming to the black-body transfer path. Jet branches keep their own synchrotron beaming model.'
     });
     var physicalBeamingCtrl = addControl(folder, p, 'physical_beaming', {
         name: 'physical (D³ Liouville)',
@@ -1180,13 +1180,13 @@ function setupGUI() {
             updateDependentVisibility();
             updateShader();
         },
-        help: 'Uses physically motivated Liouville transfer scaling instead of cinematic curve.'
+        help: 'Uses physically motivated Liouville transfer scaling for the black-body transfer path instead of the softened cinematic curve.'
     });
     addControl(folder, p, 'doppler_shift', {
         name: 'doppler shift (color)',
         trackBlackHolePreset: true,
         onChange: updateShader,
-        help: 'Shifts observed spectrum by red/blue shift factors.'
+        help: 'Shifts the black-body transfer path by red/blue shift factors. Physical jet mode keeps its own synchrotron temperature-proxy shift.'
     });
     addControl(folder, p, 'gravitational_time_dilation', {
         name: 'time dilation',

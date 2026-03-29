@@ -8,7 +8,6 @@
 var PRESENTATION_EDITOR_COMMON_PATHS = [
     'observer.distance',
     'observer.orbital_inclination',
-    'observer.azimuth',
     'observer.motion',
     'look.exposure',
     'look.disk_gain',
