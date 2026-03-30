@@ -33,7 +33,7 @@ A real-time, GPU-accelerated browser visualization of a black hole with an accre
 ### User Interface
 - **dat.GUI control panel** — resizable right-side panel with collapsible folders for every parameter
 - **Astrophysical presets** — literature-inspired starting points for M87\*, Sgr A\*, Cygnus X-1, GRS 1915+105, and more
-- **Observer controls** — mouse orbit/pan/roll, a bottom-left observer widget with distance dial + motion toggle, and optional automatic circular orbit
+- **Observer controls** — mouse orbit/pan/roll, a bottom-left observer widget with distance dial + motion toggle, and optional automatic circular orbit in the stable Schwarzschild regime (`r >= 3 r_s`)
 
 ### Presentation & Recording
 - **Presentation Timeline** — bottom-docked dopesheet editor (inspired by Blender / After Effects) for scripted keyframe animations; supports linear, smooth, and smoother easing
@@ -94,7 +94,7 @@ Open `http://localhost:8000` in a modern browser (Chrome or Firefox recommended)
 | **doppler shift (color)** | Toggle relativistic red/blue spectral shifting for the black-body transfer path; jets keep their own synchrotron-motivated transfer |
 | **physical (D³ Liouville)** | Use physically motivated beaming for the black-body transfer path instead of the softened cinematic curve |
 | **jet enabled / mode** | Toggle jets and choose simple or more detailed GRMHD-inspired shading |
-| **observer motion** | Toggle automatic circular orbit around the black hole |
+| **observer motion** | Toggle automatic circular orbit around the black hole; motion is clamped to the stable Schwarzschild regime (`r >= 3 r_s`) |
 | **quality preset** | Mobile / Optimal / Medium / High / Ultra / Cinematic |
 
 ### Quality preset levels

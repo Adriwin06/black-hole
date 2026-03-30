@@ -370,18 +370,17 @@
 <h3>Leapfrog / St&ouml;rmer-Verlet (default)</h3>
 <p>
     When RK4 is disabled, the simulation uses the <strong>Leapfrog</strong> (St&ouml;rmer-Verlet) method,
-    a <strong>symplectic 2nd-order</strong> integrator:
+    a <strong>2nd-order</strong> integrator that is symplectic in its fixed-step form:
 </p>
 <pre><code>du += 0.5 * accel(u) * step;   // half-step velocity
 u  += du * step;                // full-step position
 du += 0.5 * accel(u) * step;   // half-step velocity</code></pre>
 <p>
-    Being symplectic, Leapfrog preserves the Hamiltonian structure of the geodesic equations,
-    meaning <strong>energy is conserved to O(step&sup2;)</strong> over arbitrarily long integrations.
-    This prevents the systematic energy drift that afflicts non-symplectic methods like plain Euler,
-    and is especially important for photons that wind many times around the photon sphere.
-    The computational cost per step remains low in this implementation (two acceleration evaluations
-    per step), while the accuracy is second-order, O(&Delta;&phi;&sup2;), rather than first-order.
+    With a <strong>fixed step</strong>, Leapfrog is symplectic and avoids the secular energy drift that
+    afflicts non-symplectic methods like plain Euler. In this renderer, however, the same update rule
+    is combined with <strong>adaptive step sizing</strong> (see below), so the strict long-time symplectic
+    guarantee does not apply exactly to the implementation. In practice it still gives a low-cost,
+    stable second-order method that performs well for photons winding near the photon sphere.
 </p>
 
 <h3>Runge-Kutta 4th order (RK4)</h3>
@@ -1033,8 +1032,11 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 
 <h3>Circular orbit</h3>
 <p>
-    When orbital motion is enabled, the observer follows a circular Schwarzschild orbit at radius
-    <em>r</em>. The orbital velocity is:
+    When orbital motion is enabled, the observer follows a circular Schwarzschild orbit model at radius
+    <em>r</em>. The public motion controls clamp this mode to <em>r</em> &ge; 3 <em>r<sub>s</sub></em> so it
+    stays in the <strong>stable massive-particle regime</strong>. The analytic relations below extend
+    formally into the unstable band 1.5 <em>r<sub>s</sub></em> &lt; <em>r</em> &lt; 3 <em>r<sub>s</sub></em>,
+    with <em>r</em> = 1.5 <em>r<sub>s</sub></em> corresponding to the photon sphere.
 </p>
 <div class="eq">
     <em>v</em> = 1 / &radic;(2(<em>r</em> &minus; 1))
@@ -1715,7 +1717,9 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     &Omega;<sub>planet</sub> = &minus;<em>v</em> &middot; &radic;(1 &minus; 1/<em>r</em>) / <em>r</em>
 </div>
 <p>
-    so the orbital phase evolution is consistent with Schwarzschild coordinate time.
+    so the orbital phase evolution is consistent with Schwarzschild coordinate time. As with the
+    observer-motion control, the public planet-distance control clamps the orbit to
+    <em>r</em> &ge; 3 <em>r<sub>s</sub></em> so the reference body remains in the stable timelike-orbit regime.
 </p>
 
 <h3>Planet irradiation and beaming</h3>
@@ -1942,10 +1946,10 @@ newR = max(r + k2,  r_min)</code></pre>
 <h3 id="sec-dive-frame">21.2. Locally Inertial Dive Frame</h3>
 
 <p>
-    A free-falling observer carries a <strong>locally inertial reference frame</strong>
-    (a tetrad) constructed from their four-velocity and spatial basis vectors.
-    For a radially infalling observer, the simulation builds this frame using
-    Three.js's <code>makeBasis()</code> from three orthogonal vectors:
+    A real free-falling observer carries a <strong>locally inertial reference frame</strong>
+    (a tetrad). In this simulation, the camera uses a simpler <strong>orthonormal spatial basis</strong>
+    aligned with the infall direction, built with Three.js's <code>makeBasis()</code> from three
+    orthogonal vectors:
 </p>
 <ul>
     <li><strong>Inward</strong> (<em>&ecirc;</em><sub>1</sub>): The direction of infall
@@ -1957,9 +1961,11 @@ newR = max(r + k2,  r_min)</code></pre>
         preferring alignment with the global <em>z</em>-axis.</li>
 </ul>
 <p>
-    This frame is passed to the ray-tracing shader as the observer's orientation matrix.
-    The shader then launches rays in the observer's local sky, using this frame to convert
-    pixel coordinates to 3D ray directions.
+    This basis is passed to the ray-tracing shader as the observer's orientation matrix.
+    The shader then launches rays in the camera sky, using this basis to convert pixel
+    coordinates to 3D ray directions. Combined with the observer velocity used for aberration
+    and Doppler calculations, this gives a coherent dive presentation frame, but it is not
+    a full GR tetrad construction or transport law.
 </p>
 
 <h3 id="sec-interior-rendering">21.3. Interior Rendering Pipeline</h3>
@@ -2265,8 +2271,10 @@ newR = max(r + k2,  r_min)</code></pre>
         <strong>the simulation reproduces this qualitatively</strong> via the Schwarzschild geodesic solver.</li>
     <li>Brightness asymmetry in the ring due to Doppler beaming —
         <strong>the simulation reproduces this qualitatively</strong> with Doppler shift and beaming.</li>
-    <li>Ring diameter consistent with &sim;5.2 &times; the gravitational radius —
-        <strong>the simulation's shadow size matches</strong> (the Schwarzschild shadow is &sim;5.196 <em>r<sub>g</sub></em>).</li>
+    <li>Observed bright-ring diameter consistent with a shadow diameter of order
+        &sim;10.4 &times; the gravitational radius —
+        <strong>the simulation's Schwarzschild shadow size matches</strong>
+        (radius &sim;5.196 <em>r<sub>g</sub></em>, diameter &sim;10.392 <em>r<sub>g</sub></em>).</li>
 </ul>
 <p>
     The EHT results are best matched by GRMHD simulations with the thick torus (ADAF/RIAF) accretion mode,

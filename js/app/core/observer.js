@@ -7,6 +7,22 @@ function formatThousands(value) {
     return Math.round(value).toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 }
 
+// Close stationary views remain available, but circular observer motion is
+// clamped to the stable Schwarzschild-orbit regime for massive observers.
+var OBSERVER_DISTANCE_MIN = 1.5;
+var OBSERVER_ORBIT_MIN = 3.0;
+var OBSERVER_DISTANCE_MAX = 30.0;
+var PLANET_ORBIT_MIN = 3.0;
+
+function clampObserverDistance(distance, motionEnabled) {
+    var minDistance = motionEnabled ? OBSERVER_ORBIT_MIN : OBSERVER_DISTANCE_MIN;
+    return Math.max(minDistance, Math.min(OBSERVER_DISTANCE_MAX, distance));
+}
+
+function clampPlanetOrbitDistance(distance) {
+    return Math.max(PLANET_ORBIT_MIN, distance);
+}
+
 function Observer() {
     this.position = new THREE.Vector3(10,0,0);
     this.velocity = new THREE.Vector3(0,1,0);
@@ -43,7 +59,8 @@ Observer.prototype.move = function(dt) {
     // motion on a pre-defined cirular orbit
     if (shader.parameters.observer.motion) {
 
-        r = shader.parameters.observer.distance;
+        r = clampObserverDistance(shader.parameters.observer.distance, true);
+        shader.parameters.observer.distance = r;
         v =  1.0 / Math.sqrt(2.0*(r-1.0));
         // Convert local velocity to coordinate angular velocity
         // Ω = v·sqrt(1-r_s/r)/r = 1/sqrt(2r³) for circular Schwarzschild orbit

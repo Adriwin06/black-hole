@@ -552,9 +552,15 @@ function init(glslSource, textures) {
     }
 
     updateUniforms = function() {
+        shader.parameters.planet.distance =
+            clampPlanetOrbitDistance(shader.parameters.planet.distance);
         uniforms.planet_distance.value = shader.parameters.planet.distance;
         uniforms.planet_radius.value = shader.parameters.planet.radius;
         uniforms.disk_temperature.value = shader.parameters.disk_temperature;
+        shader.parameters.observer.distance = clampObserverDistance(
+            shader.parameters.observer.distance,
+            shader.parameters.observer.motion
+        );
 
         // The sign of a/M flips the black-hole spin direction in the renderer.
         // The current UI does not expose an independent retrograde-disk toggle,
@@ -739,7 +745,7 @@ function init(glslSource, textures) {
         var zoomBase = 1.08;
         var zoomFactor = dollyDeltaY > 0 ? (1.0 / zoomBase) : zoomBase;
         var newDist = shader.parameters.observer.distance * zoomFactor;
-        newDist = Math.max(1.5, Math.min(30, newDist));
+        newDist = clampObserverDistance(newDist, shader.parameters.observer.motion);
         shader.parameters.observer.distance = newDist;
         updateCamera();
         shader.needsUpdate = true;

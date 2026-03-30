@@ -598,7 +598,7 @@ function setupGUI() {
         e.preventDefault();
         var delta = e.deltaY > 0 ? 1.15 : 0.87; // zoom out / zoom in
         var newDist = p.observer.distance * delta;
-        newDist = Math.max(1.5, Math.min(30, newDist));
+        newDist = clampObserverDistance(newDist, p.observer.motion);
         p.observer.distance = newDist;
         updateCamera();
         shader.needsUpdate = true;
@@ -1097,7 +1097,7 @@ function setupGUI() {
             updateDependentVisibility();
             shader.needsUpdate = true;
         },
-        help: 'Physically-based bloom simulating optical diffraction and lens glow. Bright regions of the accretion disk bleed light into surrounding pixels.'
+        help: 'Screen-space Gaussian bloom approximating lens glow and optical spill. Bright regions of the accretion disk bleed light into surrounding pixels.'
     });
     var bloomStrengthCtrl = addControl(ppFolder, p.bloom, 'strength', {
         min: 0.0,
@@ -1138,11 +1138,11 @@ function setupGUI() {
         }
     });
     var planetDistanceCtrl = addControl(folder, p.planet, 'distance', {
-        min: 1.5,
+        min: PLANET_ORBIT_MIN,
         step: 0.1,
         name: 'distance',
         onChange: updateUniforms,
-        help: 'Orbital radius of the planet.'
+        help: 'Orbital radius of the planet. Public controls clamp this to r >= 3 r_s so the reference body stays in the stable timelike-orbit regime.'
     });
     var planetRadiusCtrl = addControl(folder, p.planet, 'radius', {
         min: 0.01,
@@ -1606,12 +1606,18 @@ function setupGUI() {
             orbitShell.classList.toggle('is-open', !!isOpen);
         }
 
+        function getObserverDistanceMin() {
+            return p.observer.motion ? OBSERVER_ORBIT_MIN : OBSERVER_DISTANCE_MIN;
+        }
+
         function distanceToProgress(distance) {
-            return (distance - 1.5) / (30.0 - 1.5);
+            var minDistance = getObserverDistanceMin();
+            return (distance - minDistance) / (OBSERVER_DISTANCE_MAX - minDistance);
         }
 
         function progressToDistance(progress) {
-            return 1.5 + clamp(progress, 0.0, 1.0) * (30.0 - 1.5);
+            var minDistance = getObserverDistanceMin();
+            return minDistance + clamp(progress, 0.0, 1.0) * (OBSERVER_DISTANCE_MAX - minDistance);
         }
 
         function arcPoint(angleDeg) {
@@ -1701,9 +1707,10 @@ function setupGUI() {
 
         motionBtn.addEventListener('click', function() {
             p.observer.motion = !p.observer.motion;
+            p.observer.distance = clampObserverDistance(p.observer.distance, p.observer.motion);
             updateCamera();
             updateShader();
-            showObserverControlHint(p.observer.motion ? 'Moving observer.' : 'Stationary observer.');
+            showObserverControlHint(p.observer.motion ? 'Stable circular orbit enabled.' : 'Stationary observer.');
             updateObserverWidget();
             setOrbitMenuOpen(true);
         });

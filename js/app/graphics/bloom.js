@@ -1,5 +1,5 @@
 // Role: Bloom post-processing pass — threshold → multi-level mip-chain Gaussian
-//       blur → weighted composite. Simulates optical diffraction / lens glow from
+//       blur → weighted composite. Approximates lens glow / optical spill from
 //       bright emission. Called once during init() to build the pass; the returned
 //       bloomPass object exposes render() and resize() for use in the render loop.
 
