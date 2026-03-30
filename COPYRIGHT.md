@@ -14,7 +14,7 @@ This repository is a mixed-license bundle, not an "all MIT" release package. The
    - [webm-muxer](https://github.com/Vanilagy/webm-muxer)
    - [ShaderLoader.js](https://github.com/codecruzer/webgl-shader-loader-js) (`js-libs/ShaderLoader.min.js`)
  * The hosted page also loads Font Awesome 4.5 CSS from MaxCDN at runtime (`https://maxcdn.bootstrapcdn.com/font-awesome/4.5.0/css/font-awesome.min.css`). It is not bundled in this repository, and its terms are separate from the repository's MIT code license.
- * The Milky Way image `img/milkyway.jpg` is from [Stellarium](https://www.stellarium.org/wiki/index.php/Textures) and "based on Nick Risinger's [Photopic Sky Survey](https://skysurvey.org/) image under [CC-BY-NC 2.0](https://creativecommons.org/licenses/by-nc/2.0/)." It is therefore not covered by the repository's MIT code license and should not be treated as a clean permissive redistribution asset.
+ * The Milky Way image `assets/img/milkyway.jpg` is from [Stellarium](https://www.stellarium.org/wiki/index.php/Textures) and "based on Nick Risinger's [Photopic Sky Survey](https://skysurvey.org/) image under [CC-BY-NC 2.0](https://creativecommons.org/licenses/by-nc/2.0/)." It is therefore not covered by the repository's MIT code license and should not be treated as a clean permissive redistribution asset.
  * If you want to publish or redistribute the whole repository as a clean permissive package, replace the non-MIT / separately licensed assets above with assets whose terms you can verify.
  * All other first-party source files in this repository, https://github.com/adriwin06/black-hole, are hereby licensed under the MIT license:
 

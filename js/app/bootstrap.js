@@ -51,10 +51,10 @@
         });
     }
 
-    loadTexture('galaxy', 'img/milkyway.jpg',   THREE.NearestFilter);
-    loadTexture('spectra', 'img/spectra.png',    THREE.LinearFilter);
-    loadTexture('moon',   'img/beach-ball.png',  THREE.LinearFilter);
-    loadTexture('stars',  'img/stars.png',       THREE.LinearFilter);
+    loadTexture('galaxy', 'assets/img/milkyway.jpg',   THREE.NearestFilter);
+    loadTexture('spectra', 'assets/img/spectra.png',    THREE.LinearFilter);
+    loadTexture('moon',   'assets/img/beach-ball.png',  THREE.LinearFilter);
+    loadTexture('stars',  'assets/img/stars.png',       THREE.LinearFilter);
 
     // ── GLSL shard loading ───────────────────────────────────────────────────────
     // Fetch all shards in parallel then concatenate in declaration order.

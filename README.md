@@ -3,6 +3,8 @@
 
 # Black Hole Simulation
 
+![Banner](assets/gif/banner.gif)
+
 A real-time, GPU-accelerated browser visualization of a black hole with an accretion flow, jet models, and relativistic optical effects. Runs entirely in the browser using WebGL and [three.js](https://threejs.org).
 
 **[Live Demo](https://adriwin06.github.io/black-hole)** — Chrome or Firefox on a dedicated GPU recommended.
