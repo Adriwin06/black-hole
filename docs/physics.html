@@ -435,14 +435,14 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 </p>
 <div class="eq">
     d&sup2;<em>u</em>/d&phi;&sup2; = &minus;<em>u</em> + 1.5<em>u</em>&sup2; + <em>a</em> &middot;
-    <em>s</em> &middot; &sigma; &middot; 0.8 <em>u</em>&sup3;
+    <em>s</em> &middot; <em>k</em><sub>sq</sub> &middot; 0.8 <em>u</em>&sup3;
 </div>
 <p>
     where <em>a</em> is the spin parameter, <em>s</em> is the spin alignment factor
-    (dot product of orbital angular momentum with spin axis, ranging from &minus;1 to +1), and &sigma; is a
-    user-adjustable strength parameter ("shadow squeeze").
+    (dot product of orbital angular momentum with spin axis, ranging from &minus;1 to +1), and
+    <em>k</em><sub>sq</sub> is a user-adjustable heuristic strength parameter ("shadow squeeze").
     A cumulative azimuthal rotation
-    &Delta;&psi; = <em>a</em>&middot;&sigma;&middot;<em>s</em>&middot;&Delta;&phi;&middot;0.85<em>u</em>&sup3;
+    &Delta;&psi; = <em>a</em>&middot;<em>k</em><sub>sq</sub>&middot;<em>s</em>&middot;&Delta;&phi;&middot;0.85<em>u</em>&sup3;
     is applied to the 3D ray position about the spin axis.
     In the public <code>Fast (Binet lensing)</code> mode, the implementation also applies a small
     spin-dependent capture-threshold shift to squeeze the shadow boundary. That extra capture rule

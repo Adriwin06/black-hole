@@ -18,7 +18,7 @@ A real-time, GPU-accelerated browser visualization of a black hole with an accre
 ### Physics & Rendering
 - **Two public spin modes** — `Fast (Binet lensing)` traces photons with the Schwarzschild Binet solver (exact for a = 0) plus perturbative spin heuristics; `Kerr-inspired disk velocities` keeps the same approximate photon solver but uses Kerr equatorial angular velocity to drive disk matter
 - **Three accretion disk models** — thin disk (Shakura–Sunyaev), thick torus (ADAF/RIAF), and slim disk (super-Eddington)
-- **GRMHD-inspired accretion controls** — magnetization (σ), `R_high` electron-heating / Ti:Te prescription controls, MAD/SANE magnetic flux, MRI-inspired turbulence, and kappa-distribution electron parameters
+- **GRMHD-inspired accretion controls** — plasma beta (β), magnetic-field strength, `R_high` electron-heating / Ti:Te prescription controls, MAD/SANE magnetic flux, MRI-inspired turbulence, and kappa-distribution electron parameters
 - **Relativistic effects** — gravitational redshift, Doppler shift, black-body-path beaming controls (physical D³ Liouville or cinematic), aberration, time dilation
 - **Relativistic jets** — simple analytic jet or a more detailed GRMHD-inspired jet model with spine/sheath structure, reconfinement shocks, jet-corona connection, and Blandford–Znajek-inspired power scaling
 - **Black-body spectrum** — temperature-dependent disk coloring with precomputed Planck lookup
@@ -207,7 +207,7 @@ Additions over the [upstream oseiskar/black-hole](https://github.com/oseiskar/bl
 | Feature | Details |
 |---------|---------|
 | WIP Kerr geodesics | Carter (1968) Mino-time integrator exists in GLSL but is not yet exposed in the UI |
-| GRMHD-inspired accretion controls | σ, R_high, MAD flux, MRI-inspired turbulence, κ-distribution electrons |
+| GRMHD-inspired accretion controls | plasma β, B-field strength, R_high, MAD flux, MRI-inspired turbulence, κ-distribution electrons |
 | Presentation Timeline | Keyframe dopesheet editor with transport controls and easing curves |
 | WebM recording | Realtime MediaRecorder capture plus offline WebCodecs/WebMMuxer export |
 | Offline PNG snapshot | One-click still image export using the Cinematic offline preset |
