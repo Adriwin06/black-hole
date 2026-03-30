@@ -387,6 +387,7 @@ var diveState = {
     direction: new THREE.Vector3(1, 0, 0),
     startPosition: new THREE.Vector3(10, 0, 0),
     startVelocity: new THREE.Vector3(0, 1, 0),
+    startRenderSettings: null,
     prevMotionState: true,
     prevDistance: 11.0,
     reachedSingularity: false
@@ -802,6 +803,11 @@ function startDive() {
     diveState.prevDistance = shader.parameters.observer.distance;
     diveState.startPosition = observer.position.clone();
     diveState.startVelocity = observer.velocity.clone();
+    diveState.startRenderSettings = {
+        n_steps: shader.parameters.n_steps,
+        max_revolutions: shader.parameters.max_revolutions,
+        rk4_integration: shader.parameters.rk4_integration
+    };
 
     // Disable orbital motion — dive controls the observer now
     shader.parameters.observer.motion = false;
@@ -841,6 +847,13 @@ function resetDive() {
 
     observer.position.copy(diveState.startPosition);
     observer.velocity.copy(diveState.startVelocity);
+
+    if (diveState.startRenderSettings) {
+        shader.parameters.n_steps = diveState.startRenderSettings.n_steps;
+        shader.parameters.max_revolutions = diveState.startRenderSettings.max_revolutions;
+        shader.parameters.rk4_integration = diveState.startRenderSettings.rk4_integration;
+        diveState.startRenderSettings = null;
+    }
 
     scene.updateShader();
     updateCamera();

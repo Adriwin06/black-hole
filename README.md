@@ -16,7 +16,7 @@ A real-time, GPU-accelerated browser visualization of a black hole with an accre
 ## Features
 
 ### Physics & Rendering
-- **Two photon-lensing modes** — fast Schwarzschild Binet lensing (exact for a = 0, with a perturbative frame-drag term when spin is enabled) plus a Kerr-inspired disk-velocity mode that keeps the same approximate photon solver but uses Kerr equatorial angular velocity to drive disk matter
+- **Two public spin modes** — `Fast (Binet lensing)` traces photons with the Schwarzschild Binet solver (exact for a = 0) plus perturbative spin heuristics; `Kerr-inspired disk velocities` keeps the same approximate photon solver but uses Kerr equatorial angular velocity to drive disk matter
 - **Three accretion disk models** — thin disk (Shakura–Sunyaev), thick torus (ADAF/RIAF), and slim disk (super-Eddington)
 - **GRMHD-inspired accretion controls** — magnetization (σ), `R_high` electron-heating / Ti:Te prescription controls, MAD/SANE magnetic flux, MRI-inspired turbulence, and kappa-distribution electron parameters
 - **Relativistic effects** — gravitational redshift, Doppler shift, black-body-path beaming controls (physical D³ Liouville or cinematic), aberration, time dilation
@@ -59,7 +59,7 @@ Clone or download this repository, then launch a local HTTP server:
 python -m http.server 8000
 ```
 
-Open `http://localhost:8000` in a modern browser (Chrome or Firefox recommended). A dedicated GPU is required for smooth rendering.
+Open `http://localhost:8000` in a modern browser (Chrome or Firefox recommended). A dedicated GPU is recommended for smooth rendering.
 
 ### Performance tips
 
@@ -190,7 +190,7 @@ js/app/
 ```
 index.html                          # Web page entry point
 style.css                           # Styling (panels, timeline, controls)
-three-js-monkey-patch.js            # Three.js r71 compatibility patches
+three-js-monkey-patch.js            # Legacy Three.js compatibility patches
 js-libs/                            # Third-party libraries (three.js, dat.GUI, webm-muxer, …)
 docs/
 └── physics.html                    # Comprehensive physics documentation
@@ -225,7 +225,7 @@ Additions over the [upstream oseiskar/black-hole](https://github.com/oseiskar/bl
 
 ## License
 
-The source code for this fork is MIT-licensed, but some bundled third-party libraries and assets use separate terms. See [COPYRIGHT.md](COPYRIGHT.md) for the full breakdown, especially the Milky Way panorama asset and the credited favicon icons.
+The source code for this fork is MIT-licensed, but the repository as distributed is a mixed-license bundle. Some bundled third-party libraries and assets use separate terms, and the shipped Milky Way panorama is not covered by the MIT code license. See [COPYRIGHT.md](COPYRIGHT.md) for the full breakdown. If you need a clean permissive redistribution, replace the restricted third-party assets first.
 
 Originally based on [oseiskar/black-hole](https://github.com/oseiskar/black-hole) (MIT).  
 Fork maintained and substantially extended by [Adriwin](https://github.com/Adriwin06).

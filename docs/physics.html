@@ -4,8 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Physics of the Black Hole Simulation</title>
-    <link rel="icon" type="image/x-icon" href="../img/icons/atom_alt.png"> 
-    <!-- Favicon icon credited to Freepik; see COPYRIGHT.md -->
+    <link rel="icon" type="image/x-icon" href="../img/icons/atom.svg"> 
     <style>
         :root {
             --bg: #0d1117;
@@ -176,7 +175,7 @@
         <li><a href="#sec-integration">Numerical Integration (Leapfrog &amp; RK4)</a></li>
         <li><a href="#sec-kerr">Kerr Black Hole &amp; Frame Dragging</a>
             <ol>
-                <li><a href="#sec-kerr-perturbative">Perturbative approximation (interior / fallback)</a></li>
+                <li><a href="#sec-kerr-perturbative">Public spin approximation (all exposed modes)</a></li>
                 <li><a href="#sec-kerr-mino">True Kerr geodesics (Mino-time formulation)</a></li>
             </ol>
         </li>
@@ -429,10 +428,10 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     coordinate integration, which is computationally expensive for real-time rendering.
 </p>
 
-<h3 id="sec-kerr-perturbative">5.1. Perturbative approximation (interior / fallback)</h3>
+<h3 id="sec-kerr-perturbative">5.1. Public spin approximation (all exposed modes)</h3>
 <p>
-    For the interior rendering mode and as a fallback when spin is negligible, the simulation uses
-    a perturbative <strong>frame-dragging correction</strong> added to the Schwarzschild Binet equation:
+    For all publicly exposed spin-enabled rendering modes, the simulation keeps the
+    Schwarzschild Binet photon solver and adds a perturbative <strong>frame-dragging correction</strong>:
 </p>
 <div class="eq">
     d&sup2;<em>u</em>/d&phi;&sup2; = &minus;<em>u</em> + 1.5<em>u</em>&sup2; + <em>a</em> &middot;
@@ -444,8 +443,11 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     user-adjustable strength parameter ("shadow squeeze").
     A cumulative azimuthal rotation
     &Delta;&psi; = <em>a</em>&middot;&sigma;&middot;<em>s</em>&middot;&Delta;&phi;&middot;0.85<em>u</em>&sup3;
-    is applied to the 3D  ray position about the spin axis.
-    This captures qualitative frame-dragging effects but cannot reproduce the exact Kerr shadow boundary.
+    is applied to the 3D ray position about the spin axis.
+    In the public <code>Fast (Binet lensing)</code> mode, the implementation also applies a small
+    spin-dependent capture-threshold shift to squeeze the shadow boundary. That extra capture rule
+    is an implementation shortcut / visual heuristic, not an exact Kerr critical-curve result.
+    Together these approximations capture qualitative frame-dragging effects but cannot reproduce the exact Kerr shadow boundary.
 </p>
 
 <h3 id="sec-kerr-mino">5.2. True Kerr geodesics (Mino-time formulation)</h3>
@@ -473,8 +475,10 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     <li>&xi; = <em>L<sub>z</sub></em>/<em>E</em> (angular momentum), &eta; = <em>Q</em>/<em>E</em>&sup2; (Carter constant)</li>
 </ul>
 <p>
-    These are <strong>polynomial ODEs in <em>r</em> and cos&theta; only</strong> &mdash;
-    computationally cheap per step. The constants &xi; and &eta;
+    The radial and polar equations are <strong>polynomial in <em>r</em> and cos&theta;</strong>,
+    while the azimuthal equation remains rational through
+    &Delta; and sin&sup2;&theta;; taken together they are still computationally cheap per step.
+    The constants &xi; and &eta;
     are currently initialized from the camera ray direction using flat-space expressions
     and then projected onto the Kerr constraint surface
     (d<em>r</em>/d&sigma;)&sup2; = R(<em>r</em>). That makes this a promising exact-equation solver,
@@ -496,8 +500,8 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     public rendering mode.
     <br><br>
     <strong>Current status:</strong> This integrator is <strong>work-in-progress</strong> and is not
-    yet exposed in the user interface. All user-facing modes currently use the perturbative Binet
-    approximation (Section 5.1) for photon lensing. The "Kerr-inspired disk velocities" mode uses
+    yet exposed in the user interface. All user-facing modes currently use the same approximate Binet
+    photon solver described in Section 5.1. The "Kerr-inspired disk velocities" mode uses
     Kerr equatorial angular velocity to drive disk matter but does not change the photon geodesic solver.
 </div>
 
@@ -1474,7 +1478,8 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 </p>
 <p>
     Additional MRI-driven features include azimuthal scale-height variations (&plusmn;15%
-    at default turbulence, calibrated to Liska et al. 2022) representing Parker instability
+    at default turbulence, calibrated to Liska et al. 2022
+    <sup><a href="#ref-liska22">[45]</a></sup>) representing Parker instability
     buoyant loops and MRI-induced warps.
 </p>
 <p>
@@ -1553,7 +1558,8 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 <ul>
     <li>&kappa; &rarr; &infin;: purely thermal (Maxwell-Jüttner distribution)</li>
     <li>&kappa; ~ 3.5: significant non-thermal tail (strong reconnection; Ball+ 2018
-        <sup><a href="#ref-ball18">[42]</a></sup>, Werner+ 2018)</li>
+        <sup><a href="#ref-ball18">[42]</a></sup>, Werner et al. 2018
+        <sup><a href="#ref-werner18">[46]</a></sup>)</li>
     <li>&kappa; ~ 8: nearly thermal with slight high-energy excess</li>
 </ul>
 <p>
@@ -1570,7 +1576,8 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     simulations show this is <strong>incorrect</strong>: magnetic stress at the ISCO is significant,
     and the plunging region contributes ~10&ndash;30% of the total disk luminosity
     (Noble et al. 2010
-    <sup><a href="#ref-noble10">[43]</a></sup>, Penna et al. 2010).
+    <sup><a href="#ref-noble10">[43]</a></sup>, Penna et al. 2010
+    <sup><a href="#ref-penna10">[47]</a></sup>).
 </p>
 <p>
     In this renderer, enabling the GRMHD-inspired controls allows thin-disk emission to extend inside
@@ -1597,7 +1604,8 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 </p>
 <ul>
     <li><strong>Current-driven kink instability</strong>: helical <em>m</em> = 1 distortions from
-        the wound-up magnetic field (Bromberg &amp; Tchekhovskoy 2016)</li>
+        the wound-up magnetic field (Bromberg &amp; Tchekhovskoy 2016
+        <sup><a href="#ref-bromberg16">[48]</a></sup>)</li>
     <li><strong>Synchrotron cooling break</strong>: spectral steepening with distance as electrons
         radiate energy → jets become redder at large distances</li>
 </ul>
@@ -2198,7 +2206,8 @@ newR = max(r + k2,  r_min)</code></pre>
     </tr>
     <tr>
         <td>Kerr geodesics (exterior)</td>
-        <td>Schwarzschild Binet equation with perturbative frame-drag correction;
+        <td>Schwarzschild Binet equation with perturbative frame-drag correction and a small
+            spin-dependent capture-threshold heuristic;
             Kerr equatorial angular velocity used for disk matter in "Kerr-inspired disk velocities" mode</td>
         <td>Full Carter-constant geodesics in Boyer-Lindquist coords<sup><a href="#ref-carter">[6]</a></sup></td>
         <td>The photon shadow shape is approximately circular rather than the correct
@@ -2311,9 +2320,10 @@ newR = max(r + k2,  r_min)</code></pre>
 
 <ul>
     <li><strong>Approximate Kerr lensing:</strong> The geodesic integrator uses the Schwarzschild
-        Binet equation with a perturbative frame-drag correction term rather than the full Carter
-        (1968) separated Kerr equations. The shadow shape for a spinning black hole is therefore
-        approximately circular rather than the correct D-shaped asymmetric silhouette.
+        Binet equation with a perturbative frame-drag correction term and a small spin-dependent
+        shadow-squeeze capture heuristic rather than the full Carter (1968) separated Kerr equations.
+        The shadow shape for a spinning black hole is therefore approximately circular rather than
+        the correct D-shaped asymmetric silhouette.
         A full Mino-time Kerr geodesic integrator exists in the codebase
         (<code>kerr_init()</code>, <code>integrate_kerr_step()</code> in <code>geodesics.glsl</code>)
         but is <strong>work-in-progress</strong> and not yet exposed in the UI.
@@ -2657,6 +2667,34 @@ newR = max(r + k2,  r_min)</code></pre>
         <em>The Astrophysical Journal</em>, 208, 534–549.
         <a href="https://ui.adsabs.harvard.edu/abs/1976ApJ...208..534C">ADS</a>.
         — Classic returning-radiation treatment for black-hole accretion disks.
+    </li>
+    <li id="ref-liska22">
+        Liska, M. et al. (2022).
+        "Formation of precessing jets by tilted black hole discs in 3D global GRMHD simulations."
+        <em>Monthly Notices of the Royal Astronomical Society</em>, 512(1), 995–1017.
+        <a href="https://doi.org/10.1093/mnras/stac062">doi:10.1093/mnras/stac062</a>.
+        — Example GRMHD study used here only as qualitative motivation for disk-thickness variability and warps.
+    </li>
+    <li id="ref-werner18">
+        Werner, G. R. et al. (2018).
+        "Non-thermal particle acceleration in 3D relativistic magnetic reconnection in pair plasmas."
+        <em>Monthly Notices of the Royal Astronomical Society</em>, 473(4), 4840–4861.
+        <a href="https://doi.org/10.1093/mnras/stx2530">doi:10.1093/mnras/stx2530</a>.
+        — Supports the use of non-thermal particle tails as qualitative motivation for the κ-distribution control.
+    </li>
+    <li id="ref-penna10">
+        Penna, R. F. et al. (2010).
+        "Simulations of magnetized discs around black holes: effects of black hole spin, disc thickness and magnetic field geometry."
+        <em>Monthly Notices of the Royal Astronomical Society</em>, 408(2), 752–782.
+        <a href="https://doi.org/10.1111/j.1365-2966.2010.17170.x">doi:10.1111/j.1365-2966.2010.17170.x</a>.
+        — GRMHD study showing continued stress and emission inside the ISCO.
+    </li>
+    <li id="ref-bromberg16">
+        Bromberg, O. &amp; Tchekhovskoy, A. (2016).
+        "Relativistic MHD simulations of core-collapse GRB jets: 3D instabilities and magnetic dissipation."
+        <em>Monthly Notices of the Royal Astronomical Society</em>, 456(2), 1739–1760.
+        <a href="https://doi.org/10.1093/mnras/stv2592">doi:10.1093/mnras/stv2592</a>.
+        — Cited here only as qualitative motivation for current-driven kink structure in the jet.
     </li>
 </ol>
 

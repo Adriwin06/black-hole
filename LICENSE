@@ -22,4 +22,5 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 See COPYRIGHT.md for bundled third-party libraries, assets, and attribution
-details.
+details. This MIT license applies to the first-party source code, not to every
+bundled asset in the repository as distributed.

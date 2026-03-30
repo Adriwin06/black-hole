@@ -1,6 +1,7 @@
 // Role: Kerr metric helpers and photon geodesic integration.
-//       Two integration modes:
-//         1. Schwarzschild Binet equation (u = 1/r) — exact for a = 0.
+//       Two integration families:
+//         1. Public Schwarzschild Binet photon solver (u = 1/r) — exact for a = 0,
+//            with perturbative spin heuristics in the exposed modes.
 //         2. Experimental Kerr geodesic helpers in Mino time — Carter (1968)
 //            separated equations for the full Kerr metric. These helpers are
 //            present in the codebase but not exposed in the public UI.
@@ -25,7 +26,8 @@ float kerr_horizon_radius(float a) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// 1. Schwarzschild Binet equation (used when spin ≈ 0 or interior)
+// 1. Public Schwarzschild Binet photon solver (used by all exposed modes;
+//    also reused inside the horizon)
 // ═══════════════════════════════════════════════════════════════════
 
 float geodesic_accel(float u, float spin_alignment) {
@@ -82,8 +84,9 @@ void integrate_geodesic_step(inout float u, inout float du, float step,
 // Θ̃(c) = η(1−c²) + a²c²(1−c²) − ξ²c²   [c = cosθ]
 // Constants: ξ = L_z/E,  η = Q/E²  (with E normalised to 1).
 //
-// These ODEs are polynomials — cheap to evaluate per step and,
-// in principle, encode the exact separated Kerr null-geodesic system.
+// The radial and polar pieces are polynomial; the azimuthal piece is rational
+// through Δ and sin²θ. Taken together they still encode the separated Kerr
+// null-geodesic system cheaply enough for experimentation.
 
 // Mino-time radial acceleration:
 //   d²r/dσ² = R'(r)/2 = 2rP − (r − M)K,  M = 0.5

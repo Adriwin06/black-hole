@@ -3,7 +3,7 @@
 
 # Copyright and license info
 
-This repository is not "all MIT" as a bundle. The source code of the fork is MIT-licensed, while some bundled third-party libraries and assets remain under their own licenses.
+This repository is a mixed-license bundle, not an "all MIT" release package. The source code of the fork is MIT-licensed, while some bundled third-party libraries and assets remain under their own licenses.
 
  * [dat.GUI](https://github.com/dataarts/dat.gui) (`js-libs/dat.gui.min.js`) licensed under the [Apache License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0)
  * Other JavaScript libraries in `js-libs/` are licensed under the [MIT license](https://tldrlegal.com/license/mit-license)
@@ -13,8 +13,8 @@ This repository is not "all MIT" as a bundle. The source code of the fork is MIT
    - [mustache.js](https://github.com/janl/mustache.js)
    - [webm-muxer](https://github.com/Vanilagy/webm-muxer)
    - [ShaderLoader.js](https://github.com/codecruzer/webgl-shader-loader-js) (`js-libs/ShaderLoader.min.js`)
- * The Milky Way image `img/milkyway.jpg` is from [Stellarium](https://www.stellarium.org/wiki/index.php/Textures) and "based on Nick Risinger's [Photopic Sky Survey](https://skysurvey.org/) image under [CC-BY-NC 2.0](https://creativecommons.org/licenses/by-nc/2.0/)." It is therefore not covered by the repository's MIT code license.
- * The favicon/icon assets `img/icons/black-hole.png`, `img/icons/atom.png`, and `img/icons/atom_alt.png` are credited in the HTML source comments to **Freepik**. They should be treated as separate third-party assets rather than MIT-licensed repository code; keep the Freepik credit when redistributing them. The original upstream download URLs were not preserved in this repository.
+ * The Milky Way image `img/milkyway.jpg` is from [Stellarium](https://www.stellarium.org/wiki/index.php/Textures) and "based on Nick Risinger's [Photopic Sky Survey](https://skysurvey.org/) image under [CC-BY-NC 2.0](https://creativecommons.org/licenses/by-nc/2.0/)." It is therefore not covered by the repository's MIT code license and should not be treated as a clean permissive redistribution asset.
+ * If you want to publish or redistribute the whole repository as a clean permissive package, replace the non-MIT / separately licensed assets above with assets whose terms you can verify.
  * All other first-party source files in this repository, https://github.com/adriwin06/black-hole, are hereby licensed under the MIT license:
 
         Copyright (c) 2015 Otto Seiskari

@@ -190,7 +190,8 @@ vec4 trace_ray(vec3 ray) {
         }
 
         } else {
-        // ── Schwarzschild Binet integration (a ≈ 0 or interior) ────────
+        // ── Public Schwarzschild Binet integration (all exposed modes;
+        //    also reused inside the horizon) ────────────────────────────
         step = MAX_REVOLUTIONS * 2.0*M_PI / float(NSTEPS);
 
         // adaptive step size based on rate of change
