@@ -995,12 +995,21 @@ function normalizePresentationTimeline(timeline) {
         'taa.max_camera_delta': true,
         'taa.motion_clip_scale': true
     };
+    function normalizeExcludedTimelinePath(path) {
+        if (typeof path !== 'string') return '';
+        var clean = path.trim();
+        if (clean.indexOf('params.') === 0) clean = clean.substring('params.'.length);
+        if (clean.indexOf('shader.parameters.') === 0) {
+            clean = clean.substring('shader.parameters.'.length);
+        }
+        return clean;
+    }
 
     var tracks = Array.isArray(raw.tracks) ? raw.tracks : [];
     for (var i = 0; i < tracks.length; i++) {
         var track = tracks[i];
         if (!track || typeof track.path !== 'string') continue;
-        if (TIMELINE_EXCLUDED_PATHS[track.path]) continue;
+        if (TIMELINE_EXCLUDED_PATHS[normalizeExcludedTimelinePath(track.path)]) continue;
 
         var keys = Array.isArray(track.keys) ? track.keys : [];
         var normalizedKeys = [];
@@ -1030,6 +1039,11 @@ function normalizePresentationTimeline(timeline) {
     for (var j = 0; j < events.length; j++) {
         var ev = events[j];
         if (!ev || typeof ev.action !== 'string') continue;
+        if (ev.action === 'set' &&
+            typeof ev.path === 'string' &&
+            TIMELINE_EXCLUDED_PATHS[normalizeExcludedTimelinePath(ev.path)]) {
+            continue;
+        }
         var et = parseFloat(ev.t);
         if (!isFinite(et)) continue;
         et = Math.max(0.0, et);

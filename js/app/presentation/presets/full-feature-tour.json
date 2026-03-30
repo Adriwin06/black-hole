@@ -1160,8 +1160,8 @@
       "t": 128.2,
       "action": "annotation",
       "note": {
-        "title": "Tone Mapper: AGX",
-        "text": "Back to AGX for stable saturation and contrast through extreme HDR transitions.",
+        "title": "Tone Mapper: AgX",
+        "text": "Back to AgX for stable saturation and contrast through extreme HDR transitions.",
         "anchor": {
           "mode": "world",
           "target": "black_hole"

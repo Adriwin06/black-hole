@@ -18,15 +18,15 @@ A real-time, GPU-accelerated browser visualization of a black hole with an accre
 ### Physics & Rendering
 - **Two public spin modes** — `Fast (Binet lensing)` traces photons with the Schwarzschild Binet solver (exact for a = 0) plus perturbative spin heuristics; `Kerr-inspired disk velocities` keeps the same approximate photon solver but uses Kerr equatorial angular velocity to drive disk matter
 - **Three accretion disk models** — thin disk (Shakura–Sunyaev), thick torus (ADAF/RIAF), and slim disk (super-Eddington)
-- **GRMHD-inspired accretion controls** — plasma beta (β), magnetic-field strength, `R_high` electron-heating / Ti:Te prescription controls, MAD/SANE magnetic flux, MRI-inspired turbulence, and kappa-distribution electron parameters
-- **Relativistic effects** — gravitational redshift, Doppler shift, black-body-path beaming controls (physical D³ Liouville or cinematic), aberration, time dilation
+- **GRMHD-inspired accretion controls** — plasma beta (β), magnetic-field strength, `R_high` electron-heating / Ti:Te proxy controls, MAD/SANE magnetic flux, MRI-inspired turbulence, and kappa-distribution electron parameters
+- **Relativistic effects** — gravitational redshift, Doppler shift, thermal/background beaming controls (physical D³ Liouville or cinematic), aberration, time dilation
 - **Relativistic jets** — simple analytic jet or a more detailed GRMHD-inspired jet model with spine/sheath structure, reconfinement shocks, jet-corona connection, and Blandford–Znajek-inspired power scaling
 - **Black-body spectrum** — temperature-dependent disk coloring with precomputed Planck lookup
 - **Multiple tone-mapping modes** — ACES Filmic, AgX, and Scientific (logarithmic inferno colormap)
 - **Multi-pass bloom** — threshold → mip-chain Gaussian blur → weighted composite
 
 ### Post-Processing & Quality
-- **Temporal Anti-Aliasing (TAA)** — history accumulation with motion rejection and clip-box clamping for artifact-free still frames
+- **Temporal Anti-Aliasing (TAA)** — history accumulation with motion rejection and clip-box clamping for cleaner still frames
 - **Six quality presets** — Mobile, Optimal, Medium, High, Ultra, and Cinematic
 - **Auto GPU benchmark** — measures frame time on first load and keeps Optimal on capable systems or falls back to Mobile
 
@@ -91,8 +91,8 @@ Open `http://localhost:8000` in a modern browser (Chrome or Firefox recommended)
 | **solver mode** | `Fast (Binet lensing)` or `Kerr-inspired disk velocities`; the latter keeps approximate photon lensing but uses Kerr angular velocity to drive disk matter |
 | **temperature (K)** | Visualized disk color temperature in Kelvin (4,500 – 30,000 K) |
 | **disk model** | Thin disk, thick torus (ADAF), or slim disk |
-| **doppler shift (color)** | Toggle relativistic red/blue spectral shifting for the black-body transfer path; jets keep their own synchrotron-motivated transfer |
-| **physical (D³ Liouville)** | Use physically motivated beaming for the black-body transfer path instead of the softened cinematic curve |
+| **doppler shift (color)** | Toggle relativistic red/blue spectral shifting for black-body-based thermal emitters and the background-sky proxy; jets keep their own synchrotron-motivated transfer |
+| **physical (D³ Liouville)** | Use physically motivated beaming for thermal emitters and the background-sky proxy instead of the softened cinematic curve |
 | **jet enabled / mode** | Toggle jets and choose simple or more detailed GRMHD-inspired shading |
 | **observer motion** | Toggle automatic circular orbit around the black hole; motion is clamped to the stable Schwarzschild regime (`r >= 3 r_s`) |
 | **quality preset** | Mobile / Optimal / Medium / High / Ultra / Cinematic |
@@ -193,8 +193,8 @@ style.css                           # Styling (panels, timeline, controls)
 three-js-monkey-patch.js            # Legacy Three.js compatibility patches
 js-libs/                            # Third-party libraries (three.js, dat.GUI, webm-muxer, …)
 docs/
-└── physics.html                    # Comprehensive physics documentation
-└── presentation-editor.md          # Guide to using the presentation timeline editor
+├── physics.html                    # Comprehensive physics documentation
+├── presentation-editor.md          # Guide to using the presentation timeline editor
 └── presentation-json.md            # Timeline JSON schema & advanced event guide
 ```
 
@@ -214,7 +214,7 @@ Additions over the [upstream oseiskar/black-hole](https://github.com/oseiskar/bl
 | Interactive observer scenarios | Freefall Dive and Hover Approach |
 | Built-in timeline presets | Full Feature Tour and Orbit Showcase |
 | Astrophysical BH presets | M87\*, Sgr A\*, Cygnus X-1, GRS 1915+105, Gargantua, Schwarzschild |
-| Temporal Anti-Aliasing | Motion-rejection TAA for artifact-free high-quality frames |
+| Temporal Anti-Aliasing | Motion-rejection TAA for cleaner high-quality frames |
 | Six quality tiers | Mobile, Optimal, Medium, High, Ultra, Cinematic |
 | Three tone-mappers | ACES Filmic, AgX, Scientific (inferno colormap) |
 | Three accretion models | Thin disk, thick torus (ADAF), slim disk (super-Eddington) |

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Physics of the Black Hole Simulation</title>
-    <link rel="icon" type="image/x-icon" href="../img/icons/atom.svg"> 
+    <link rel="icon" type="image/svg+xml" href="../img/icons/atom.svg"> 
     <style>
         :root {
             --bg: #0d1117;
@@ -444,6 +444,9 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     A cumulative azimuthal rotation
     &Delta;&psi; = <em>a</em>&middot;<em>k</em><sub>sq</sub>&middot;<em>s</em>&middot;&Delta;&phi;&middot;0.85<em>u</em>&sup3;
     is applied to the 3D ray position about the spin axis.
+    This perturbative spin treatment is applied only in the exterior public lensing path; the
+    dedicated interior pipeline falls back to pure Schwarzschild Binet dynamics so its analytical
+    escape classification remains exact.
     In the public <code>Fast (Binet lensing)</code> mode, the implementation also applies a small
     spin-dependent capture-threshold shift to squeeze the shadow boundary. That extra capture rule
     is an implementation shortcut / visual heuristic, not an exact Kerr critical-curve result.
@@ -489,8 +492,9 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     <em>x</em> = &radic;(<em>r</em>&sup2; + <em>a</em>&sup2;)&thinsp;sin&theta;&thinsp;cos&phi;,
     <em>y</em> = &radic;(<em>r</em>&sup2; + <em>a</em>&sup2;)&thinsp;sin&theta;&thinsp;sin&phi;,
     <em>z</em> = <em>r</em>&thinsp;cos&theta;.
-    Event-horizon capture uses the exact
-    Kerr outer horizon <em>r</em><sub>+</sub> = <em>M</em> + &radic;(<em>M</em>&sup2; &minus; <em>a</em>&sup2;).
+    Event-horizon capture uses the analytical
+    Kerr outer horizon <em>r</em><sub>+</sub> = <em>M</em> + &radic;(<em>M</em>&sup2; &minus; <em>a</em>&sup2;)
+    with a small numerical buffer in the current implementation.
 </p>
 
 <div class="comparison">
@@ -939,10 +943,12 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 </p>
 
 <div class="comparison">
-    <strong>Accuracy:</strong> The relativistic Doppler formula is exact. The blue/red asymmetry in the
+    <strong>Accuracy:</strong> The relativistic Doppler formula itself is exact. The blue/red asymmetry in the
     accretion disk is one of the most prominent observational signatures, confirmed theoretically
     by Luminet (1979) <sup><a href="#ref-luminet">[18]</a></sup> and computationally by the
     <em>Interstellar</em> team (James et al. 2015) <sup><a href="#ref-interstellar">[19]</a></sup>.
+    In the renderer, extreme transfer factors are guarded by minimum/maximum clamps for numerical
+    stability, so the implementation should be read as exact only until those guardrails activate.
 </div>
 
 <!-- ============================================================ -->
@@ -953,7 +959,7 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 
 <p>
     Beyond the color/temperature shift, relativistic motion also changes the observed <strong>intensity</strong>
-    of radiation. For the black-body-based transfer path, the simulation offers two beaming modes.
+    of radiation. For thermal emitters and the background-sky proxy, the simulation offers two beaming modes.
     Jets use a separate synchrotron beaming law described in Section 15.
 </p>
 
@@ -977,8 +983,15 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 <p>
     In the current implementation, this explicit intensity factor is applied consistently to
     all thermal emitters that use the black-body lookup (thin disk, thick torus, slim disk,
-    and planet illumination) in physical mode. The jet branches keep their own synchrotron
-    beaming law rather than using the D<sup>3</sup>/cinematic black-body toggle.
+    and planet illumination) and to the background-sky proxy in physical mode. The jet branches
+    keep their own synchrotron beaming law rather than using the D<sup>3</sup>/cinematic black-body toggle.
+</p>
+<p>
+    For numerical stability, several shading paths clamp extreme transfer factors before applying
+    the thermal D<sup>3</sup> correction, and the background-sky boost is capped at a large finite value.
+    In cinematic mode, the background uses the same softened observer-frame beaming curve as the rest
+    of the non-physical path. These are implementation guardrails / presentation choices, not changes
+    to the underlying exact transfer law.
 </p>
 
 <h3>Cinematic beaming</h3>
@@ -1245,7 +1258,8 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     inner product of the photon and observer four-velocities
     <sup><a href="#ref-mtw">[1]</a></sup> <sup><a href="#ref-hamilton-falling">[29]</a></sup>.
     The rendered background colours remain approximate because the Milky Way texture is remapped
-    through a blackbody proxy rather than a full per-pixel spectrum.
+    through a blackbody proxy rather than a full per-pixel spectrum, and the explicit D<sup>3</sup>
+    background boost is capped in extreme cases for numerical stability.
 </div>
 
 <!-- ============================================================ -->
@@ -1403,9 +1417,13 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
     <li><strong>High &beta; (disk midplane):</strong> <em>R</em> &asymp; <em>R</em><sub>high</sub>, so <em>T<sub>e</sub></em> &asymp; <em>T<sub>i</sub></em>/<em>R</em><sub>high</sub> — electrons are cooler and emission is suppressed.</li>
 </ul>
 <p>
-    When <em>R</em><sub>high</sub> = 1, emission comes from everywhere. When <em>R</em><sub>high</sub> = 160,
-    emission concentrates near the jet wall and polar regions, producing the bright crescent morphology
-    associated with many EHT-motivated image models
+    In the current renderer, this full suppression is used most directly in the GRMHD thick-torus
+    branch, where increasing <em>R</em><sub>high</sub> dims the high-&beta; disk body relative to the
+    low-&beta; corona / funnel wall. The thin- and slim-disk branches keep the <em>R</em><sub>high</sub>
+    influence deliberately milder so the visible-light RGB disk does not collapse into an almost
+    invisible corona-only image. As a result, <em>R</em><sub>high</sub> is still physically motivated
+    everywhere, but its strongest morphology effect appears in the torus-like GRMHD mode most closely
+    associated with EHT-style imagery
     <sup><a href="#ref-eht-v">[37]</a></sup>.
 </p>
 
@@ -1676,7 +1694,7 @@ du += (step/6)*(k1 + 2*k2 + 2*k3 + k4)</code></pre>
 
 <h3>AgX (default)</h3>
 <p>
-    Troy Sobotka's AgX formation, designed for superior handling of high-saturation,
+    Troy Sobotka's AgX formulation, designed for superior handling of high-saturation,
     high-luminance colors without the hue shifts of ACES. Includes a "punchy" look transform
     with contrast around middle-gray (0.18) and saturation boost to preserve Doppler hue shifts.
 </p>
@@ -2130,19 +2148,19 @@ newR = max(r + k2,  r_min)</code></pre>
         <td>Gravitational blueshift (background sky)</td>
         <td>1/&radic;(1 &minus; r<sub>s</sub>/r) for hovering observer; combined with kinematic Doppler for free-fall</td>
         <td>Exact GR prediction; time-reverse of gravitational redshift</td>
-        <td><strong>Exact transfer law</strong>; rendered sky colours remain spectrum-approximate</td>
+        <td><strong>Exact transfer law</strong>; rendered sky colours remain spectrum-approximate and the explicit sky D<sup>3</sup> boost is capped in extreme cases</td>
     </tr>
     <tr>
         <td>Relativistic Doppler effect</td>
         <td>Full formula with transverse component</td>
         <td>Standard result in SR/GR</td>
-        <td><strong>Exact transfer law</strong>; visible colours are exact only for blackbody-based sources</td>
+        <td><strong>Exact law</strong>; renderer uses safety clamps in extreme regimes, and visible colours are exact only for blackbody-based sources</td>
     </tr>
     <tr>
         <td>Relativistic beaming (D&sup3;)</td>
         <td>Liouville invariant</td>
         <td>Standard result<sup><a href="#ref-rybicki">[20]</a></sup></td>
-        <td><strong>Exact transfer law</strong>; explicit intensity scaling is still paired with approximate source spectra</td>
+        <td><strong>Exact transfer law</strong>; thermal/background paths use safety clamps at extreme boosts, and explicit intensity scaling is still paired with approximate source spectra</td>
     </tr>
     <tr>
         <td>Relativistic aberration</td>

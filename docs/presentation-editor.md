@@ -74,7 +74,8 @@ This is the easiest way to animate many controls quickly.
 1. Open the Timeline panel (see section 2).
 2. Scrub to your first keyframe time (usually `0.00`).
 3. Click **`AUTO KEY`** in the transport bar.
-   - This stores a **baseline snapshot**.
+   - If you are at `0.00` or starting from an empty draft, the editor asks whether to store a **full initial state** or start in **diff mode**.
+   - Otherwise it stores a **baseline snapshot**.
 4. Change settings in the **Controls panel** (observer distance, accretion mode, jet, GRMHD, look, etc.).
 5. Scrub to the next keyframe time (example `5.00`).
 6. Click **`AUTO KEY`** again.
@@ -105,13 +106,14 @@ Click `⊕ FX` in the transport bar to open the **Motion Functions** panel. It f
 - **Number of orbits** — how many full 360° circles (fractional values allowed, e.g. `0.5` = semicircle)
 - **Direction** — Counter-clockwise (CCW) or Clockwise (CW) as seen from above
 
-The orbit always uses linear easing between keyframes (32 steps/orbit), which ensures perfectly constant angular velocity with no slowdown at intermediate points. Generated quaternions are automatically sign-normalised to prevent the camera from snapping.
+The orbit generator uses linear easing between 32 samples/orbit, which gives a visually near-constant angular velocity with no intentional easing slowdown at intermediate points. Generated quaternions are automatically sign-normalised to prevent the camera from snapping.
 
-Press **APPLY** to write the keyframes into the draft, or press `Escape` / click outside the panel to close it without applying.
+Press **APPLY** in the Motion Functions panel to write the generated keyframes into the draft, or press `Escape` / click outside the panel to close it without applying.
 
 ## 6. What Auto Key does exactly
 
-- First click: captures baseline only.
+- First click at `0.00` or on an empty draft: prompts for **Full initial state** or **Changes only (diff mode)**.
+- First click elsewhere: captures baseline only.
 - Next clicks: compares current controls vs previous baseline snapshot.
 - For each changed value, writes:
   - a key at the previous snapshot time
@@ -179,7 +181,7 @@ Every mutating operation (SET KEY, DELETE KEY, AUTO KEY, + TRACK) pushes a snaps
 
 Every edit (SET KEY, DELETE KEY, AUTO KEY, + TRACK) immediately updates the running timeline.
 
-The old explicit **APPLY** button no longer exists.
+There is no separate global **APPLY** step for normal timeline editing. The only remaining **APPLY** button is inside the Motion Functions panel, where it inserts generated keyframes.
 
 ## 12. Panel state persistence
 
@@ -188,7 +190,7 @@ When you close the timeline panel, its state is saved to session storage automat
 - The current draft (all tracks and keyframes)
 - The selected track and keyframe selection
 
-Reopening the panel restores everything exactly as you left it. State persists for the browser session; it is cleared on page reload.
+Reopening the panel restores everything exactly as you left it. Once saved, that state survives page reloads in the same tab/session. It is cleared when the tab or browser session ends.
 
 ## 13. JSON import / export
 
@@ -217,7 +219,8 @@ The `◀ ANIMATIONS` panel only loads built-in presentation presets and shows cu
 ## 15. Save as a reusable preset
 
 `New Preset` / `— new empty —` is a runtime editing mode.  
-To make a preset that persists after a page reload:
+Closing the panel saves the current draft to session storage, so it can survive a reload in the same tab/session.  
+To make a preset permanently available across fresh sessions and as part of the repository:
 
 `SAVE` only downloads the current draft with its linked filename; it does not write back into the repository automatically.
 

@@ -208,8 +208,8 @@
       "t": 36.2,
       "action": "annotation",
       "note": {
-        "title": "Back To AGX",
-        "text": "AGX restores stable saturation handling as the sequence eases back out from the strongest lensing region.",
+        "title": "Back To AgX",
+        "text": "AgX restores stable saturation handling as the sequence eases back out from the strongest lensing region.",
         "anchor": { "mode": "world", "target": "black_hole" },
         "placement": "auto",
         "color": "#7fc8ff",

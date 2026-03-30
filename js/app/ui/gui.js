@@ -740,7 +740,7 @@ function setupGUI() {
         name: 'R_high',
         trackBlackHolePreset: true,
         onChange: updateUniformsLive,
-        help: 'Ion-to-electron temperature-ratio control used in the Ti:Te prescription. R_high=1: electrons nearly as hot as ions (emission everywhere). R_high=160: cool electrons in the disk body (emission near the jet wall/polar regions). Key EHT-style morphology control.'
+        help: 'Renderer-side Ti:Te / electron-heating proxy. Higher R_high suppresses high-beta disk-body emission most strongly in the GRMHD torus branch, while thin/slim disks keep the effect deliberately milder so the RGB disk remains visible.'
     });
     var grmhdBetaCtrl = addControl(diskFolder, p.grmhd, 'magnetic_beta', {
         min: 0.01,
@@ -1022,11 +1022,11 @@ function setupGUI() {
 
     var lookFolder = gui.addFolder('Look');
     addControl(lookFolder, p.look, 'tonemap_mode', {
-        options: { 'ACES Filmic': 0, 'AGX (Black Hole)': 1, 'Scientific (Log)': 2 },
+        options: { 'ACES Filmic': 0, 'AgX': 1, 'Scientific (Log)': 2 },
         name: 'tonemapper',
         trackBlackHolePreset: true,
         onChange: updateUniformsLive,
-        help: 'ACES: classic cinematic. AGX: better saturation handling for extreme HDR. Scientific: logarithmic false-color like EHT papers.'
+        help: 'ACES: classic cinematic. AgX: better saturation handling for extreme HDR. Scientific: logarithmic false-color like EHT papers.'
     });
     addControl(lookFolder, p.look, 'exposure', {
         min: 0.6,
@@ -1171,7 +1171,7 @@ function setupGUI() {
             updateDependentVisibility();
             updateShader();
         },
-        help: 'Applies relativistic intensity boosting/dimming to the black-body transfer path. Jet branches keep their own synchrotron beaming model.'
+        help: 'Applies relativistic intensity boosting/dimming to thermal emitters and the background-sky proxy. Jet branches keep their own synchrotron beaming model.'
     });
     var physicalBeamingCtrl = addControl(folder, p, 'physical_beaming', {
         name: 'physical (D³ Liouville)',
@@ -1180,13 +1180,13 @@ function setupGUI() {
             updateDependentVisibility();
             updateShader();
         },
-        help: 'Uses physically motivated Liouville transfer scaling for the black-body transfer path instead of the softened cinematic curve.'
+        help: 'Uses physically motivated Liouville transfer scaling for thermal emitters and the background-sky proxy instead of the softened cinematic curve.'
     });
     addControl(folder, p, 'doppler_shift', {
         name: 'doppler shift (color)',
         trackBlackHolePreset: true,
         onChange: updateShader,
-        help: 'Shifts the black-body transfer path by red/blue shift factors. Physical jet mode keeps its own synchrotron temperature-proxy shift.'
+        help: 'Shifts thermal emitters and the background-sky proxy by red/blue shift factors. Physical jet mode keeps its own synchrotron temperature-proxy shift.'
     });
     addControl(folder, p, 'gravitational_time_dilation', {
         name: 'time dilation',

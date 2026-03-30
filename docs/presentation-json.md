@@ -45,7 +45,7 @@ This document explains the JSON format used by the presentation timeline system.
 Notes:
 - If `duration` is missing or invalid, it is inferred from the largest `t` in tracks/events.
 - Negative `t` values are clamped to `0`.
-- Tracks and events are sorted by `t` at load time.
+- Keyframes within tracks and events are sorted by `t` at load time.
 - If `annotationTracks` is omitted, the controller creates a single default channel named `Annotation 1`.
 
 ## 3. Track Format
@@ -67,7 +67,7 @@ Interpolation behavior:
 - Non-number types (bool/string): stepped value (`a.v` until end of segment, then `b.v`).
 
 Important:
-- Quality-owned paths such as `quality`, `n_steps`, `sample_count`, `resolution_scale`, and the TAA tuning fields are ignored on load so timelines cannot silently override the active render preset.
+- Quality-owned paths such as `quality`, `n_steps`, `sample_count`, `resolution_scale`, and the TAA tuning fields are ignored on load in both tracks and `set` events so timelines cannot silently override the active render preset.
 
 ## 4. Event Format
 
