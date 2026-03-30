@@ -233,3 +233,10 @@ Originally based on [oseiskar/black-hole](https://github.com/oseiskar/black-hole
 Fork maintained and substantially extended by [Adriwin](https://github.com/Adriwin06).
 
 **AI Disclaimer**: AI assisted with translating complex general-relativity equations into functional WebGL shaders and with structuring academic references. The original codebase was human-made and well-written. The main physics formulas, approximations, and external references are documented in [docs/physics.html](docs/physics.html).
+
+---
+
+## Demo
+
+[![Demo video](https://img.youtube.com/vi/74kY6jmZDs8/0.jpg)](https://www.youtube.com/watch?v=74kY6jmZDs8)
+
