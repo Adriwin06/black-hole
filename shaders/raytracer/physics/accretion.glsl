@@ -18,8 +18,20 @@ float loopable_turbulence_time(float t) {
     return wrapped;
 }
 
+float disk_rotation_sign() {
+    // Keep the existing prograde default when spin is zero/off, but flip the
+    // co-rotating flow for explicitly negative a/M.
+    return (bh_rotation_enabled > 0.5 && bh_spin < 0.0) ? -1.0 : 1.0;
+}
+
+float equatorial_azimuth(vec2 xy) {
+    // GLSL's two-argument atan is atan(y, x); swapping the arguments reverses
+    // the phase advection direction.
+    return atan(xy.y, xy.x);
+}
+
 float accretion_turbulence(float radius, float angle, float t) {
-    float orbit_phase = angle - 0.45*t / pow(max(radius, 1.001), 1.5);
+    float orbit_phase = angle - disk_rotation_sign() * 0.45*t / pow(max(radius, 1.001), 1.5);
     vec2 orbit_unit = vec2(cos(orbit_phase), sin(orbit_phase));
 
     // Use periodic angular coordinates to avoid seam artifacts at angle wrap.
@@ -278,7 +290,7 @@ float grmhd_electron_temperature(float gas_temp, float cyl_r, float z, float dis
     float temp_mod = 0.75 + 0.5 / (1.0 + 0.15 * beta);
     
     // Smooth time-dependent variation to avoid sharp stripes
-    float orbit_phase = angle - 0.3 * t / pow(max(cyl_r, 1.0), 1.5);
+    float orbit_phase = angle - disk_rotation_sign() * 0.3 * t / pow(max(cyl_r, 1.0), 1.5);
     vec2 orbit_unit = vec2(cos(orbit_phase), sin(orbit_phase));
     float t_noise = fbm(vec2(
         cyl_r * 2.0 + orbit_unit.x * 2.5,
@@ -348,7 +360,7 @@ float grmhd_density(float r, float base_density) {
 float grmhd_mri_turbulence(float r, float angle, float t) {
     float base = accretion_turbulence(r, angle, t);
     float orbital_freq = 1.0 / pow(max(r, 1.5), 1.5);
-    float spiral_phase = angle - orbital_freq * t;
+    float spiral_phase = angle - disk_rotation_sign() * orbital_freq * t;
 
     // MAD spiral arm: dominant m = 1 mode from flux tube interaction
     float mad_spiral = 0.0;
@@ -421,10 +433,10 @@ float grmhd_isco_stress_factor(float r) {
 // (Tchekhovskoy, Narayan & McKinney 2011; Ripperda+ 2022).
 float grmhd_3d_density_turbulence(vec3 p, float t) {
     float cyl_r = length(p.xy);
-    float angle = atan(p.x, p.y);
+    float angle = equatorial_azimuth(p.xy);
 
     // Co-moving orbital advection (Keplerian shear)
-    float orbit_phase = angle - 0.45 * t / pow(max(cyl_r, 1.001), 1.5);
+    float orbit_phase = angle - disk_rotation_sign() * 0.45 * t / pow(max(cyl_r, 1.001), 1.5);
     vec2 orbit_unit = vec2(cos(orbit_phase), sin(orbit_phase));
     float z_sc = p.z * 1.5;
 
@@ -478,7 +490,7 @@ float grmhd_3d_density_turbulence(vec3 p, float t) {
 // Variation is ±15% at default turbulence (calibrated to Liska+ 2022
 // Fig. 5: azimuthal H/R variation ~10-20% around the mean).
 float grmhd_height_modulation(float cyl_r, float angle, float t) {
-    float orbit_phase = angle - 0.45 * t / pow(max(cyl_r, 1.001), 1.5);
+    float orbit_phase = angle - disk_rotation_sign() * 0.45 * t / pow(max(cyl_r, 1.001), 1.5);
     vec2 orbit_unit = vec2(cos(orbit_phase), sin(orbit_phase));
 
     float warp = fbm(vec2(

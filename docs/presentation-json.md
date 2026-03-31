@@ -41,12 +41,23 @@ This document explains the JSON format used by the presentation timeline system.
 - `tracks` (array): keyframed values sampled continuously.
 - `events` (array): discrete actions executed at specific times.
 - `annotationTracks` (array of objects, optional): annotation-lane metadata, usually entries like `{ "label": "Annotation 1" }`.
+- `annotations` (object, optional): annotation-overlay defaults such as `{ "enabled": true, "includeInRecording": false }`.
+- `paramHud` (object, optional): parameter-HUD defaults and saved visible-parameter list.
 
 Notes:
 - If `duration` is missing or invalid, it is inferred from the largest `t` in tracks/events.
 - Negative `t` values are clamped to `0`.
 - Keyframes within tracks and events are sorted by `t` at load time.
 - If `annotationTracks` is omitted, the controller creates a single default channel named `Annotation 1`.
+- If `annotations` / `paramHud` are omitted, the current editor/runtime overlay settings are kept.
+
+`paramHud` supports:
+
+- `enabled` (boolean)
+- `includeInRecording` (boolean)
+- `anchorX` / `anchorY` (number, normalized 0..1)
+- `fontSize` (number, px)
+- `items` (array of `{ "path": "...", "label": "..." }`)
 
 ## 3. Track Format
 

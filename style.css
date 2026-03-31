@@ -1598,6 +1598,67 @@ body.tl-resizing, body.tl-resizing * {
 }
 .tl-rec-row:last-child { border-bottom: none; }
 .tl-rec-row label { flex: 0 0 70px; color: #7090b0; }
+.tl-rec-section {
+    padding: 7px 0 9px;
+    border-bottom: 1px solid #122040;
+}
+.tl-rec-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+.tl-rec-section-title {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    color: #8fb0d2;
+    text-transform: uppercase;
+}
+.tl-rec-section-actions {
+    display: flex;
+    gap: 6px;
+}
+.tl-rec-empty {
+    font-size: 10px;
+    color: #5e7ea2;
+    line-height: 1.4;
+}
+.tl-rec-hud-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.tl-rec-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid #254267;
+    border-radius: 999px;
+    background: rgba(15, 33, 56, 0.9);
+    color: #a9c7e8;
+    font-size: 10px;
+    padding: 3px 8px;
+    cursor: pointer;
+    transition: border-color 0.12s ease, background 0.12s ease, color 0.12s ease;
+}
+.tl-rec-chip:hover {
+    border-color: #3b689c;
+    background: rgba(22, 43, 72, 0.95);
+    color: #d6ecff;
+}
+.tl-rec-chip-label {
+    max-width: 240px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.tl-rec-chip-x {
+    font-size: 12px;
+    line-height: 1;
+    color: #7fa6cc;
+}
 .tl-rec-select {
     flex: 1;
     background: #0a1726;
@@ -1810,16 +1871,21 @@ body.tl-resizing, body.tl-resizing * {
 .tl-track-hud-btn {
     margin-left: auto;
     flex-shrink: 0;
-    font-size: 10px;
-    opacity: 0.3;
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    opacity: 0.55;
     cursor: pointer;
-    padding: 1px 3px;
-    border-radius: 3px;
-    transition: opacity 0.15s, background 0.15s;
+    padding: 2px 5px;
+    border-radius: 999px;
+    border: 1px solid rgba(78, 110, 150, 0.35);
+    background: rgba(10, 22, 38, 0.6);
+    color: #7596bb;
+    transition: opacity 0.15s, background 0.15s, border-color 0.15s, color 0.15s;
     line-height: 1;
 }
-.tl-track-hud-btn:hover { opacity: 0.7; background: rgba(100, 160, 220, 0.18); }
-.tl-track-hud-btn.is-active { opacity: 1; color: #7cc5ff; background: rgba(80, 140, 210, 0.2); }
+.tl-track-hud-btn:hover { opacity: 1; border-color: rgba(100, 160, 220, 0.45); background: rgba(100, 160, 220, 0.14); color: #a4c6ea; }
+.tl-track-hud-btn.is-active { opacity: 1; color: #d4edff; border-color: rgba(92, 156, 224, 0.75); background: rgba(80, 140, 210, 0.34); }
 .tl-track-item:hover { background: rgba(30, 60, 110, 0.35); }
 .tl-track-item.is-sel {
     background: rgba(30, 60, 120, 0.5);

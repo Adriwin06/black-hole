@@ -43,7 +43,7 @@ Click an edge button to open its panel. The `▲ TIMELINE` panel also opens auto
 │  observer.di…  │  ──●──────────●──────────      │  Path               │
 │  look.exposure │  ────●────────●────────        │  Time / Ease        │
 │  …             │                                │  Value              │
-│                │                                │  USE TIME  CAPTURE  │
+│                │                                │  USE TIME  LIVE VALUE │
 │                │                                │  SET KEY  DELETE    │
 └────────────────┴───────────────────────────────┴─────────────────────┘
 ```
@@ -134,13 +134,18 @@ Fields:
 
 Buttons in the inspector:
 - `USE TIME` — fills the Time field from the current playhead position
-- `CAPTURE` — reads the current runtime value for the entered Path
-- `SET KEY` — add or replace the key at this time
+- `LIVE VALUE` — reads the current runtime value for the entered Path
+- `SET KEY` — add or replace the key at this time; if `Value` is blank, the editor uses the current live value automatically
 - `DELETE KEY` — remove the selected key
 
 Click a **track row** in the left column to inspect that track.  
 Click a **keyframe dot** in the dopesheet to select that specific key.  
 **Ctrl+click** additional dots to build a multi-selection across one or many tracks.
+
+Fast manual workflow:
+- Click a track row.
+- Move the playhead.
+- Press `K` to key that track's current live value at the playhead.
 
 Use `✎ TEXT` in the transport bar to create an annotation event at the current time. Selecting an annotation bar switches the right column into the **Text Event** inspector, where you can edit title, body, color, width, fade-in, placement, and duration/end-marker behavior.
 
@@ -165,6 +170,7 @@ The timeline panel responds to keyboard shortcuts when it is focused:
 | Double-click keyframe | Select all keyframes across all tracks at that same time |
 | `Ctrl+C` | Copy selected keyframes to clipboard |
 | `Ctrl+V` | Paste copied keyframes at the current playhead time |
+| `K` | Key the selected track at the current playhead using its live value |
 | `Ctrl+Z` | Undo last edit |
 | `Ctrl+Y` / `Ctrl+Shift+Z` | Redo |
 | `Escape` | Close the Motion Functions panel (if open) |
@@ -189,6 +195,9 @@ When you close the timeline panel, its state is saved to session storage automat
 - The selected preset
 - The current draft (all tracks and keyframes)
 - The selected track and keyframe selection
+- The current playhead position and Auto Key baseline
+- Recording-panel choices such as capture mode, resolution, bitrate, and reset-on-record-start
+- Annotation / parameter-HUD visibility settings and the selected HUD parameter list
 
 Reopening the panel restores everything exactly as you left it. Once saved, that state survives page reloads in the same tab/session. It is cleared when the tab or browser session ends.
 
@@ -209,6 +218,7 @@ Playback controls and recording settings live in the **Timeline panel** (`▲ TI
 Open `▲ TIMELINE` → click `● REC` to access:
 - Loop toggle
 - Annotation and parameter-HUD visibility toggles
+- A visible-parameter list with `ADD SELECTED` / `CLEAR`
 - Whether overlays are included in recordings
 - Reset-on-record-start toggle
 - Recording quality, mode, resolution, FPS, bitrate
@@ -246,7 +256,7 @@ The preset now appears in the Preset dropdown in both the Animations panel and t
 
 **A keyframe does nothing:**
 - The path may be wrong or unsupported.
-- Type the path in the Inspector, click `CAPTURE` to verify it resolves to a value.
+- Type the path in the Inspector, click `LIVE VALUE` to verify it resolves to a value.
 - Check path spelling against `docs/presentation-json.md`.
 
 **Camera rotation was not captured by AUTO KEY:**

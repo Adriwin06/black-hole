@@ -341,7 +341,7 @@ float grmhd_jet_emissivity(vec3 p, float sign_z) {
     float nonthermal = grmhd_nonthermal_boost(grmhd_electron_kappa);
 
     // GRMHD turbulent density structure in the jet
-    float angle_j = atan(p.x, p.y);
+    float angle_j = equatorial_azimuth(p.xy);
     float jet_turb = grmhd_mri_turbulence(r3d, angle_j, loopable_turbulence_time(time));
 
     float j = profile * z_onset * z_decay * z_cutoff * knots

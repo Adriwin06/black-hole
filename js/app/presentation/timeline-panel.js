@@ -164,7 +164,7 @@ function buildTimelinePanel() {
                     '</div>' +
                     '<div class="tl-insp-actions">' +
                         '<button id="tl-insp-use-time" class="tl-mini-btn" type="button">USE TIME</button>' +
-                        '<button id="tl-insp-capture" class="tl-mini-btn" type="button">CAPTURE</button>' +
+                        '<button id="tl-insp-capture" class="tl-mini-btn" type="button" title="Capture the current live value into the inspector">LIVE VALUE</button>' +
                     '</div>' +
                     '<div class="tl-insp-actions">' +
                         '<button id="tl-insp-set" class="tl-mini-btn tl-mini-btn--accent" type="button">SET KEY</button>' +
@@ -279,6 +279,17 @@ function buildTimelinePanel() {
                     '<label style="margin-left:6px">px</label>' +
                     '<input id="tl-hud-fontsize" class="tl-rec-num" type="number" min="8" max="48" step="1" value="11" title="Font size in px">' +
                 '</div>' +
+                '<div class="tl-rec-section">' +
+                    '<div class="tl-rec-section-head">' +
+                        '<span class="tl-rec-section-title">Visible params</span>' +
+                        '<div class="tl-rec-section-actions">' +
+                            '<button id="tl-rec-add-selected" class="tl-mini-btn" type="button">ADD SELECTED</button>' +
+                            '<button id="tl-rec-clear-hud" class="tl-mini-btn" type="button">CLEAR</button>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div id="tl-rec-hud-empty" class="tl-rec-empty">Use the HUD buttons in the track list, or add the selected track here.</div>' +
+                    '<div id="tl-rec-hud-list" class="tl-rec-hud-list"></div>' +
+                '</div>' +
                 '<div class="tl-rec-row">' +
                     '<label>Quality</label>' +
                     '<select id="tl-rec-quality" class="tl-rec-select"></select>' +
@@ -361,6 +372,10 @@ function buildTimelinePanel() {
     var hudYInput    = panel.querySelector('#tl-hud-y');
     var hudFsInput   = panel.querySelector('#tl-hud-fontsize');
     var hudLayoutRow = panel.querySelector('#tl-hud-layout-row');
+    var recHudEmptyEl    = panel.querySelector('#tl-rec-hud-empty');
+    var recHudListEl     = panel.querySelector('#tl-rec-hud-list');
+    var recAddSelectedBtn= panel.querySelector('#tl-rec-add-selected');
+    var recClearHudBtn   = panel.querySelector('#tl-rec-clear-hud');
     var recResetSimCb    = panel.querySelector('#tl-rec-reset-sim');
     var recQualitySelect = panel.querySelector('#tl-rec-quality');
     var recModeSelect    = panel.querySelector('#tl-rec-mode');
@@ -417,6 +432,7 @@ function buildTimelinePanel() {
     var syncTimer      = null;
     var importedPresets = {};     // { presetName: true } for user-imported presets (removable)
     var linkedFileName  = null;   // download filename linked to this draft
+    var restoredRecordingUiState = null;
     var PANEL_HEIGHT_KEY  = 'black-hole.tl-panel.height';
     var PANEL_STATE_KEY   = 'black-hole.tl-panel.state';
     var PANEL_DEFAULT_H   = 320;
@@ -468,19 +484,33 @@ function buildTimelinePanel() {
                     importedData[ipn] = clonePlain(PRESENTATION_PRESETS[ipn]);
                 }
             }
+            var timelineState = null;
+            if (typeof getPresentationTimeline === 'function') {
+                timelineState = getPresentationTimeline();
+            }
             var state = {
                 preset: presetSelect.value || '',
-                draft: draft ? clonePlain(draft) : null,
+                draft: timelineState ? clonePlain(timelineState) : (draft ? clonePlain(draft) : null),
                 selectedTrack: selectedTrack,
                 selectedKeys: selectedKeys.slice(),
                 selectedEventIdx: selectedEventIdx,
                 selectedEventChannel: selectedEventChannel,
                 tlZoom: tlZoom,
                 tlScrollLeft: scrollWrapEl ? scrollWrapEl.scrollLeft : 0,
+                currentTime: currentTime(),
                 wasOpen: panelOpen,
                 importedPresets: importedPresets,
                 importedData: importedData,
-                linkedFileName: linkedFileName
+                linkedFileName: linkedFileName,
+                autoKeySnapshot: autoKeySnapshot ? clonePlain(autoKeySnapshot) : null,
+                recordingUi: {
+                    quality: recQualitySelect ? recQualitySelect.value : '',
+                    mode: recModeSelect ? recModeSelect.value : '',
+                    resolution: recResSelect ? recResSelect.value : '',
+                    fps: recFpsInput ? recFpsInput.value : '',
+                    bitrate: recBitrateInput ? recBitrateInput.value : '',
+                    resetSimulation: recResetSimCb ? !!recResetSimCb.checked : true
+                }
             };
             sessionStorage.setItem(PANEL_STATE_KEY, JSON.stringify(state));
         } catch(e) {}
@@ -491,6 +521,46 @@ function buildTimelinePanel() {
             if (!raw) return null;
             return JSON.parse(raw);
         } catch(e) { return null; }
+    }
+
+    function rememberState() {
+        if (!panelOpen) return;
+        saveState();
+    }
+
+    function normalizeRecordingUiState(raw) {
+        if (!raw || typeof raw !== 'object') return null;
+        var out = {};
+        if (typeof raw.quality === 'string') out.quality = raw.quality;
+        if (typeof raw.mode === 'string') out.mode = raw.mode;
+        if (typeof raw.resolution === 'string') out.resolution = raw.resolution;
+        if (raw.fps !== undefined) out.fps = String(raw.fps);
+        if (raw.bitrate !== undefined) out.bitrate = String(raw.bitrate);
+        if (typeof raw.resetSimulation === 'boolean') {
+            out.resetSimulation = raw.resetSimulation;
+        }
+        return out;
+    }
+
+    function applySavedRecordingUiState() {
+        if (!restoredRecordingUiState) return;
+        if (recQualitySelect && restoredRecordingUiState.quality &&
+            recQualitySelect.querySelector('option[value="' + CSS.escape(restoredRecordingUiState.quality) + '"]')) {
+            recQualitySelect.value = restoredRecordingUiState.quality;
+        }
+        if (recModeSelect && restoredRecordingUiState.mode &&
+            recModeSelect.querySelector('option[value="' + CSS.escape(restoredRecordingUiState.mode) + '"]')) {
+            recModeSelect.value = restoredRecordingUiState.mode;
+        }
+        if (recResSelect && restoredRecordingUiState.resolution &&
+            recResSelect.querySelector('option[value="' + CSS.escape(restoredRecordingUiState.resolution) + '"]')) {
+            recResSelect.value = restoredRecordingUiState.resolution;
+        }
+        if (recFpsInput && restoredRecordingUiState.fps) recFpsInput.value = restoredRecordingUiState.fps;
+        if (recBitrateInput && restoredRecordingUiState.bitrate) recBitrateInput.value = restoredRecordingUiState.bitrate;
+        if (recResetSimCb && typeof restoredRecordingUiState.resetSimulation === 'boolean') {
+            recResetSimCb.checked = restoredRecordingUiState.resetSimulation;
+        }
     }
 
     // ── Panel open/close ──────────────────────────────────────────────────────
@@ -520,6 +590,7 @@ function buildTimelinePanel() {
                     }
                 }
                 if (saved.linkedFileName) linkedFileName = saved.linkedFileName;
+                restoredRecordingUiState = normalizeRecordingUiState(saved.recordingUi);
             }
             populatePresets();
             if (saved) {
@@ -529,12 +600,30 @@ function buildTimelinePanel() {
                 }
                 if (saved.draft) {
                     draft = normalizeTL(saved.draft);
+                    if (typeof setPresentationTimeline === 'function') {
+                        applyingDraft = true;
+                        setPresentationTimeline(clonePlain(draft));
+                        applyingDraft = false;
+                    }
+                    if (saved.autoKeySnapshot && typeof saved.autoKeySnapshot === 'object' &&
+                        typeof saved.autoKeySnapshot.values === 'object') {
+                        autoKeySnapshot = clonePlain(saved.autoKeySnapshot);
+                    }
+                    if (typeof saved.currentTime === 'number' && isFinite(saved.currentTime) &&
+                        typeof seekPresentation === 'function') {
+                        seekPresentation(clamp(saved.currentTime, 0, Math.max(draft.duration || 0, 0.001)));
+                    }
                     rebuildAll();
                 } else {
                     syncFromRuntime();
                 }
+                selectedTrack = '';
+                selectedKeys = [];
+                selectedKeyT = NaN;
+                selectedEventIdx = -1;
                 if (saved.selectedTrack) selectedTrack = saved.selectedTrack;
                 if (saved.selectedKeys && saved.selectedKeys.length) selectedKeys = saved.selectedKeys;
+                if (selectedKeys.length === 1) selectedKeyT = selectedKeys[0].t;
                 if (typeof saved.selectedEventIdx === 'number' && saved.selectedEventIdx >= 0) selectedEventIdx = saved.selectedEventIdx;
                 if (typeof saved.selectedEventChannel === 'number') selectedEventChannel = saved.selectedEventChannel;
                 if (typeof saved.tlZoom === 'number' && saved.tlZoom >= 1.0) {
@@ -545,6 +634,7 @@ function buildTimelinePanel() {
                         scrollWrapEl.scrollLeft = saved.tlScrollLeft;
                     }
                 }
+                rebuildAll();
                 updateDelPresetBtn();
             } else {
                 // No saved state — default to a fresh empty timeline
@@ -567,6 +657,9 @@ function buildTimelinePanel() {
     try { storedH = parseFloat(localStorage.getItem(PANEL_HEIGHT_KEY)); } catch(e) {}
     if (isFinite(storedH)) panel.style.height = clamp(storedH, PANEL_MIN_H, PANEL_MAX_H) + 'px';
     else panel.style.height = PANEL_DEFAULT_H + 'px';
+
+    window.addEventListener('pagehide', saveState);
+    window.addEventListener('beforeunload', saveState);
 
     (function initResize() {
         var dragging = false, startY = 0, startH = 0;
@@ -1447,10 +1540,68 @@ function buildTimelinePanel() {
     function stopSync() { clearInterval(syncTimer); syncTimer = null; }
 
     // ── Timeline data helpers ───────────────────────────────────────────────
+    function normalizeHudItems(items) {
+        var src = Array.isArray(items) ? items : [];
+        var out = [];
+        var seen = {};
+        for (var i = 0; i < src.length; i++) {
+            var item = src[i];
+            if (!item || typeof item !== 'object') continue;
+            var path = (typeof item.path === 'string') ? item.path.trim() : '';
+            if (!path || seen[path]) continue;
+            seen[path] = true;
+            out.push({
+                path: path,
+                label: (typeof item.label === 'string' && item.label.trim()) ? item.label.trim() : path
+            });
+        }
+        return out;
+    }
+
+    function normalizeTimelineAnnotationsConfig(raw) {
+        var annState = (typeof getPresentationAnnotationsState === 'function')
+            ? getPresentationAnnotationsState()
+            : { enabled: true, includeInRecording: false };
+        var out = {
+            enabled: !!annState.enabled,
+            includeInRecording: !!annState.includeInRecording
+        };
+        if (!raw || typeof raw !== 'object') return out;
+        if (raw.enabled !== undefined) out.enabled = !!raw.enabled;
+        if (raw.includeInRecording !== undefined) out.includeInRecording = !!raw.includeInRecording;
+        return out;
+    }
+
+    function normalizeTimelineParamHudConfig(raw) {
+        var hudState = (typeof getPresentationParamHudState === 'function')
+            ? getPresentationParamHudState()
+            : { enabled: true, includeInRecording: false, anchorX: 0, anchorY: 1, fontSize: 11, items: [] };
+        var out = {
+            enabled: !!hudState.enabled,
+            includeInRecording: !!hudState.includeInRecording,
+            anchorX: isFinite(hudState.anchorX) ? clamp(hudState.anchorX, 0, 1) : 0,
+            anchorY: isFinite(hudState.anchorY) ? clamp(hudState.anchorY, 0, 1) : 1,
+            fontSize: isFinite(hudState.fontSize) ? clamp(Math.round(hudState.fontSize), 8, 48) : 11,
+            items: normalizeHudItems(hudState.items)
+        };
+        if (!raw || typeof raw !== 'object') return out;
+        if (raw.enabled !== undefined) out.enabled = !!raw.enabled;
+        if (raw.includeInRecording !== undefined) out.includeInRecording = !!raw.includeInRecording;
+        if (typeof raw.anchorX === 'number' && isFinite(raw.anchorX)) out.anchorX = clamp(raw.anchorX, 0, 1);
+        if (typeof raw.anchorY === 'number' && isFinite(raw.anchorY)) out.anchorY = clamp(raw.anchorY, 0, 1);
+        if (typeof raw.fontSize === 'number' && isFinite(raw.fontSize)) {
+            out.fontSize = clamp(Math.round(raw.fontSize), 8, 48);
+        }
+        out.items = normalizeHudItems(raw.items || out.items);
+        return out;
+    }
+
     function normalizeTL(raw) {
         var src = (raw && typeof raw === 'object') ? clonePlain(raw) : {};
         var out = { name: src.name || 'Untitled', duration: Math.max(0.5, parseTime(src.duration, 12)),
-                    loop: !!src.loop, tracks: [], events: [], annotationTracks: [] };
+                    loop: !!src.loop, tracks: [], events: [], annotationTracks: [],
+                    annotations: normalizeTimelineAnnotationsConfig(src.annotations),
+                    paramHud: normalizeTimelineParamHudConfig(src.paramHud) };
         if (Array.isArray(src.annotationTracks)) {
             for (var ati = 0; ati < src.annotationTracks.length; ati++) {
                 var at = src.annotationTracks[ati];
@@ -1578,6 +1729,7 @@ function buildTimelinePanel() {
             setPresentationTimeline(clonePlain(draft));
             applyingDraft = false;
             setStatus('Timeline applied.', '');
+            rememberState();
         }
     }
 
@@ -1614,7 +1766,7 @@ function buildTimelinePanel() {
                 '" data-path="' + esc(tr.path) + '">' +
                 '<span class="tl-track-main">' +
                 '<span class="tl-track-path">' + esc(tr.path) + '</span>' +
-                '<span class="tl-track-hud-btn' + (hudActive ? ' is-active' : '') + '" data-hud-path="' + esc(tr.path) + '" title="' + (hudActive ? 'Hide value from' : 'Show value in') + ' HUD">\uD83D\uDC41</span>' +
+                '<span class="tl-track-hud-btn' + (hudActive ? ' is-active' : '') + '" data-hud-path="' + esc(tr.path) + '" title="' + (hudActive ? 'Hide value from' : 'Show value in') + ' the recording HUD">HUD</span>' +
                 '</span>' +
                 '<span class="tl-track-keycount">' + tr.keys.length + ' key' + (tr.keys.length === 1 ? '' : 's') + '</span>' +
                 '</button>';
@@ -1630,6 +1782,8 @@ function buildTimelinePanel() {
             var path = hudBtn.getAttribute('data-hud-path');
             if (typeof toggleParamInHud === 'function') toggleParamInHud(path, path);
             rebuildTrackList();
+            syncRecModal();
+            rememberState();
             return;
         }
         var btn = e.target.closest('[data-path]');
@@ -2028,7 +2182,10 @@ function buildTimelinePanel() {
         inspSummary.textContent = 'Track: ' + track.path + ' (' + track.keys.length + ' key' + (track.keys.length === 1 ? '' : 's') + ')  — Del to remove';
         inspPath.value = track.path;
         inspTime.value = currentTime().toFixed(2);
-        inspValue.value = '';
+        if (document.activeElement !== inspValue || !inspValue.value) {
+            var liveVal = captureLivePathValue(track.path);
+            inspValue.value = (typeof liveVal !== 'undefined') ? formatValue(liveVal) : '';
+        }
         inspDel.textContent = 'DELETE TRACK';
         inspDel.title = 'Delete the entire track (all keys)';
     }
@@ -2052,6 +2209,31 @@ function buildTimelinePanel() {
         inspSummary.textContent = track.path + ' @ ' + key.t.toFixed(2) + 's' + deltaText;
     }
 
+    function captureLivePathValue(path) {
+        if (!path || typeof getPresentationPathValue !== 'function') return undefined;
+        return getPresentationPathValue(path);
+    }
+
+    function captureInspectorValue(path) {
+        var v = captureLivePathValue(path);
+        if (typeof v === 'undefined') return false;
+        inspValue.value = formatValue(v);
+        return true;
+    }
+
+    function resolveInspectorKeyValue(path) {
+        var raw = inspValue.value;
+        if (typeof raw === 'string' && raw.trim() === '') {
+            var live = captureLivePathValue(path);
+            if (typeof live !== 'undefined') {
+                inspValue.value = formatValue(live);
+                return { value: live, fromLive: true, valid: true };
+            }
+            return { value: undefined, fromLive: false, valid: false };
+        }
+        return { value: parseValue(raw), fromLive: false, valid: true };
+    }
+
     // Inspector actions
     inspUseTime.addEventListener('click', function() {
         inspTime.value = currentTime().toFixed(2);
@@ -2059,10 +2241,7 @@ function buildTimelinePanel() {
     inspCapture.addEventListener('click', function() {
         var path = (inspPath.value || '').trim();
         if (!path) return;
-        if (typeof getPresentationPathValue === 'function') {
-            var v = getPresentationPathValue(path);
-            if (typeof v !== 'undefined') inspValue.value = formatValue(v);
-        }
+        captureInspectorValue(path);
     });
     function doSetKey() {
         if (!draft) return;
@@ -2070,7 +2249,12 @@ function buildTimelinePanel() {
         if (!path) { setStatus('Path is required.', 'tl-status--warn'); return; }
         var t = parseTime(inspTime.value, currentTime());
         var ease = normalizeEase(inspEase.value);
-        var value = parseValue(inspValue.value);
+        var resolvedValue = resolveInspectorKeyValue(path);
+        if (!resolvedValue.valid) {
+            setStatus('No live value found for this path. Type a value or click LIVE VALUE first.', 'tl-status--warn');
+            return;
+        }
+        var value = resolvedValue.value;
 
         pushUndo();
         var track = getTrackByPath(path);
@@ -2099,7 +2283,7 @@ function buildTimelinePanel() {
         normalizeQuatSigns();
         applyDraft();
         rebuildAll();
-        setStatus('Key set: ' + path + ' @ ' + t.toFixed(2) + 's', '');
+        setStatus((resolvedValue.fromLive ? 'Live value keyed: ' : 'Key set: ') + path + ' @ ' + t.toFixed(2) + 's', '');
     }
     inspSet.addEventListener('click', doSetKey);
     inspTime.addEventListener('keydown', function(e) {
@@ -3223,6 +3407,36 @@ function buildTimelinePanel() {
         refreshRecResolutionLabel();
     }
 
+    function renderRecHudList() {
+        if (!recHudListEl || !recHudEmptyEl) return;
+        var hs = (typeof getPresentationParamHudState === 'function')
+            ? getPresentationParamHudState()
+            : { items: [] };
+        var items = Array.isArray(hs.items) ? hs.items : [];
+        if (recClearHudBtn) recClearHudBtn.disabled = items.length === 0;
+        if (recAddSelectedBtn) {
+            recAddSelectedBtn.disabled = !selectedTrack ||
+                (typeof isParamInHud === 'function' && isParamInHud(selectedTrack));
+        }
+        if (!items.length) {
+            recHudEmptyEl.style.display = '';
+            recHudListEl.innerHTML = '';
+            return;
+        }
+        recHudEmptyEl.style.display = 'none';
+        var html = '';
+        for (var i = 0; i < items.length; i++) {
+            var item = items[i];
+            var label = item.label || item.path || '';
+            html += '<button type="button" class="tl-rec-chip" data-remove-hud-path="' + esc(item.path) + '"' +
+                ' title="Remove ' + esc(item.path) + ' from the HUD">' +
+                '<span class="tl-rec-chip-label">' + esc(label) + '</span>' +
+                '<span class="tl-rec-chip-x">&times;</span>' +
+                '</button>';
+        }
+        recHudListEl.innerHTML = html;
+    }
+
     function syncRecModal() {
         if (!recModal || !recModal.classList.contains('is-open')) {
             if (recBtn) {
@@ -3248,6 +3462,7 @@ function buildTimelinePanel() {
             if (hudYInput  && document.activeElement !== hudYInput)  hudYInput.value  = hs.anchorY.toFixed(2);
             if (hudFsInput && document.activeElement !== hudFsInput) hudFsInput.value = hs.fontSize;
         }
+        renderRecHudList();
 
         // Refresh resolution label with live viewport size
         refreshRecResolutionLabel();
@@ -3303,6 +3518,7 @@ function buildTimelinePanel() {
         populateRecQuality();
         populateRecMode();
         populateRecResolution();
+        applySavedRecordingUiState();
         syncRecModal();
         recModal.classList.add('is-open');
         recBtn.classList.add('is-active');
@@ -3324,19 +3540,54 @@ function buildTimelinePanel() {
 
     recLoopCb.addEventListener('change', function() {
         if (typeof setPresentationLoop === 'function') setPresentationLoop(recLoopCb.checked);
+        rememberState();
     });
     recAnnotCb.addEventListener('change', function() {
         if (typeof setPresentationAnnotationsEnabled === 'function') setPresentationAnnotationsEnabled(recAnnotCb.checked);
+        rememberState();
     });
     recAnnotRecordCb.addEventListener('change', function() {
         if (typeof setPresentationAnnotationsIncludedInRecording === 'function') setPresentationAnnotationsIncludedInRecording(recAnnotRecordCb.checked);
+        rememberState();
     });
     recParamHudShowCb.addEventListener('change', function() {
         if (typeof setPresentationParamHudEnabled === 'function') setPresentationParamHudEnabled(recParamHudShowCb.checked);
+        rememberState();
     });
     recParamHudRecordCb.addEventListener('change', function() {
         if (typeof setPresentationParamHudIncludedInRecording === 'function') setPresentationParamHudIncludedInRecording(recParamHudRecordCb.checked);
+        rememberState();
     });
+
+    if (recHudListEl) {
+        recHudListEl.addEventListener('click', function(e) {
+            var chip = e.target.closest('[data-remove-hud-path]');
+            if (!chip) return;
+            var path = chip.getAttribute('data-remove-hud-path');
+            if (path && typeof removeParamFromHud === 'function') removeParamFromHud(path);
+            syncRecModal();
+            rebuildTrackList();
+            rememberState();
+        });
+    }
+    if (recAddSelectedBtn) {
+        recAddSelectedBtn.addEventListener('click', function() {
+            if (!selectedTrack || typeof addParamToHud !== 'function') return;
+            addParamToHud(selectedTrack, selectedTrack);
+            syncRecModal();
+            rebuildTrackList();
+            rememberState();
+        });
+    }
+    if (recClearHudBtn) {
+        recClearHudBtn.addEventListener('click', function() {
+            if (typeof clearParamHud !== 'function') return;
+            clearParamHud();
+            syncRecModal();
+            rebuildTrackList();
+            rememberState();
+        });
+    }
 
     function applyHudLayout() {
         if (typeof setParamHudLayout !== 'function') return;
@@ -3348,10 +3599,18 @@ function buildTimelinePanel() {
             anchorY:  isFinite(y)  ? y  : undefined,
             fontSize: isFinite(fs) ? fs : undefined
         });
+        syncRecModal();
+        rememberState();
     }
     if (hudXInput)    hudXInput.addEventListener('input', applyHudLayout);
     if (hudYInput)    hudYInput.addEventListener('input', applyHudLayout);
     if (hudFsInput)   hudFsInput.addEventListener('input', applyHudLayout);
+    if (recQualitySelect) recQualitySelect.addEventListener('change', rememberState);
+    if (recModeSelect)    recModeSelect.addEventListener('change', rememberState);
+    if (recResSelect)     recResSelect.addEventListener('change', rememberState);
+    if (recFpsInput)      recFpsInput.addEventListener('input', rememberState);
+    if (recBitrateInput)  recBitrateInput.addEventListener('input', rememberState);
+    if (recResetSimCb)    recResetSimCb.addEventListener('change', rememberState);
 
     recShotBtn.addEventListener('click', function() {
         if (typeof capturePresentationScreenshot !== 'function') return;
@@ -3602,6 +3861,22 @@ function buildTimelinePanel() {
             } else {
                 if (typeof playPresentation === 'function') playPresentation(false);
             }
+            return;
+        }
+
+        // K → key the selected track at the playhead using the current live value
+        if (!e.ctrlKey && !e.metaKey && !e.altKey && e.code === 'KeyK') {
+            var keyPath = selectedTrack || (inspPath.value || '').trim();
+            if (!keyPath) {
+                setStatus('Select a track first, then press K to key its live value.', 'tl-status--warn');
+                e.preventDefault();
+                return;
+            }
+            inspPath.value = keyPath;
+            inspTime.value = currentTime().toFixed(2);
+            captureInspectorValue(keyPath);
+            doSetKey();
+            e.preventDefault();
             return;
         }
 

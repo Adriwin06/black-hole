@@ -191,6 +191,104 @@ function presentationClamp(v, lo, hi) {
     return Math.max(lo, Math.min(hi, v));
 }
 
+function buildCurrentPresentationAnnotationsConfig() {
+    return {
+        enabled: !!presentationAnnotationState.enabled,
+        includeInRecording: !!presentationAnnotationState.includeInRecording
+    };
+}
+
+function normalizePresentationAnnotationsConfig(raw) {
+    var out = buildCurrentPresentationAnnotationsConfig();
+    if (!raw || typeof raw !== 'object') return out;
+    if (raw.enabled !== undefined) out.enabled = !!raw.enabled;
+    if (raw.includeInRecording !== undefined) {
+        out.includeInRecording = !!raw.includeInRecording;
+    }
+    return out;
+}
+
+function normalizePresentationParamHudItems(items, fallback) {
+    var src = Array.isArray(items) ? items : (Array.isArray(fallback) ? fallback : []);
+    var out = [];
+    var seen = {};
+    for (var i = 0; i < src.length; i++) {
+        var item = src[i];
+        if (!item || typeof item !== 'object') continue;
+        var path = (typeof item.path === 'string') ? item.path.trim() : '';
+        if (!path || seen[path]) continue;
+        seen[path] = true;
+        out.push({
+            path: path,
+            label: (typeof item.label === 'string' && item.label.trim()) ? item.label.trim() : path
+        });
+    }
+    return out;
+}
+
+function buildCurrentPresentationParamHudConfig() {
+    return {
+        enabled: !!presentationParamHudState.enabled,
+        includeInRecording: !!presentationParamHudState.includeInRecording,
+        anchorX: presentationParamHudState.anchorX,
+        anchorY: presentationParamHudState.anchorY,
+        fontSize: presentationParamHudState.fontSize,
+        items: normalizePresentationParamHudItems(presentationParamHudState.items)
+    };
+}
+
+function normalizePresentationParamHudConfig(raw) {
+    var defaults = buildCurrentPresentationParamHudConfig();
+    var out = {
+        enabled: defaults.enabled,
+        includeInRecording: defaults.includeInRecording,
+        anchorX: defaults.anchorX,
+        anchorY: defaults.anchorY,
+        fontSize: defaults.fontSize,
+        items: normalizePresentationParamHudItems(defaults.items)
+    };
+    if (!raw || typeof raw !== 'object') return out;
+    if (raw.enabled !== undefined) out.enabled = !!raw.enabled;
+    if (raw.includeInRecording !== undefined) {
+        out.includeInRecording = !!raw.includeInRecording;
+    }
+    if (typeof raw.anchorX === 'number' && isFinite(raw.anchorX)) {
+        out.anchorX = presentationClamp(raw.anchorX, 0, 1);
+    }
+    if (typeof raw.anchorY === 'number' && isFinite(raw.anchorY)) {
+        out.anchorY = presentationClamp(raw.anchorY, 0, 1);
+    }
+    if (typeof raw.fontSize === 'number' && isFinite(raw.fontSize)) {
+        out.fontSize = Math.max(8, Math.min(48, Math.round(raw.fontSize)));
+    }
+    out.items = normalizePresentationParamHudItems(raw.items, defaults.items);
+    return out;
+}
+
+function syncPresentationTimelineUiConfig() {
+    if (!presentationState.timeline) return;
+    presentationState.timeline.loop = !!presentationState.loop;
+    presentationState.timeline.annotations = buildCurrentPresentationAnnotationsConfig();
+    presentationState.timeline.paramHud = buildCurrentPresentationParamHudConfig();
+}
+
+function applyPresentationTimelineUiConfig(timeline) {
+    var annotations = normalizePresentationAnnotationsConfig(timeline && timeline.annotations);
+    var paramHud = normalizePresentationParamHudConfig(timeline && timeline.paramHud);
+
+    presentationAnnotationState.enabled = !!annotations.enabled;
+    presentationAnnotationState.includeInRecording = !!annotations.includeInRecording;
+
+    presentationParamHudState.enabled = !!paramHud.enabled;
+    presentationParamHudState.includeInRecording = !!paramHud.includeInRecording;
+    presentationParamHudState.anchorX = paramHud.anchorX;
+    presentationParamHudState.anchorY = paramHud.anchorY;
+    presentationParamHudState.fontSize = paramHud.fontSize;
+    presentationParamHudState.items = normalizePresentationParamHudItems(paramHud.items);
+
+    updatePresentationOverlay();
+}
+
 function parseColorHex(hex) {
     if (typeof hex !== 'string') return null;
     var m = /^#([0-9a-f]{6})$/i.exec(hex);
@@ -307,12 +405,14 @@ function startAnnotationFade() {
 
 function setPresentationAnnotationsEnabled(enabled) {
     presentationAnnotationState.enabled = !!enabled;
+    syncPresentationTimelineUiConfig();
     updatePresentationOverlay();
     return presentationAnnotationState.enabled;
 }
 
 function setPresentationAnnotationsIncludedInRecording(enabled) {
     presentationAnnotationState.includeInRecording = !!enabled;
+    syncPresentationTimelineUiConfig();
     return presentationAnnotationState.includeInRecording;
 }
 
@@ -328,12 +428,14 @@ function getPresentationAnnotationsState() {
 
 function setPresentationParamHudEnabled(enabled) {
     presentationParamHudState.enabled = !!enabled;
+    syncPresentationTimelineUiConfig();
     updatePresentationOverlay();
     return presentationParamHudState.enabled;
 }
 
 function setPresentationParamHudIncludedInRecording(enabled) {
     presentationParamHudState.includeInRecording = !!enabled;
+    syncPresentationTimelineUiConfig();
     return presentationParamHudState.includeInRecording;
 }
 
@@ -359,6 +461,7 @@ function setParamHudLayout(opts) {
     if (typeof opts.fontSize === 'number' && isFinite(opts.fontSize)) {
         presentationParamHudState.fontSize = Math.max(8, Math.min(48, Math.round(opts.fontSize)));
     }
+    syncPresentationTimelineUiConfig();
     updatePresentationOverlay();
 }
 
@@ -373,6 +476,7 @@ function addParamToHud(path, label) {
     if (!path || typeof path !== 'string') return false;
     if (isParamInHud(path)) return false;
     presentationParamHudState.items.push({ path: path, label: label || path });
+    syncPresentationTimelineUiConfig();
     updatePresentationOverlay();
     return true;
 }
@@ -383,6 +487,7 @@ function removeParamFromHud(path) {
         return item.path !== path;
     });
     if (presentationParamHudState.items.length !== before) {
+        syncPresentationTimelineUiConfig();
         updatePresentationOverlay();
         return true;
     }
@@ -400,6 +505,7 @@ function toggleParamInHud(path, label) {
 
 function clearParamHud() {
     presentationParamHudState.items = [];
+    syncPresentationTimelineUiConfig();
     updatePresentationOverlay();
 }
 
@@ -966,7 +1072,9 @@ function normalizePresentationTimeline(timeline) {
         duration: 0.0,
         tracks: [],
         events: [],
-        annotationTracks: []
+        annotationTracks: [],
+        annotations: normalizePresentationAnnotationsConfig(raw.annotations),
+        paramHud: normalizePresentationParamHudConfig(raw.paramHud)
     };
 
     if (Array.isArray(raw.annotationTracks)) {
@@ -1392,6 +1500,7 @@ function setPresentationTimeline(timeline) {
     if (diveState.active || diveState.reachedSingularity) resetDive();
     if (hoverState.active) resetHover();
     clearPresentationAnnotation();
+    applyPresentationTimelineUiConfig(normalized);
 
     applyPresentationTracks(0.0);
     shader.needsUpdate = true;
@@ -1410,6 +1519,7 @@ function listPresentationPresets() {
 
 function getPresentationTimeline() {
     if (!presentationState.timeline) return null;
+    syncPresentationTimelineUiConfig();
     return clonePresentationData(presentationState.timeline);
 }
 
@@ -1498,6 +1608,7 @@ function stopPresentation() {
 
 function setPresentationLoop(enabled) {
     presentationState.loop = !!enabled;
+    syncPresentationTimelineUiConfig();
     return presentationState.loop;
 }
 

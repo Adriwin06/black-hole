@@ -333,7 +333,7 @@ vec4 trace_ray(vec3 ray) {
                 {{^grmhd_enabled}}
                 if (r > ACCRETION_MIN_R && r < ACCRETION_MIN_R + ACCRETION_WIDTH) {
                 {{/grmhd_enabled}}
-                    float angle = atan(isec.x, isec.y);
+                    float angle = equatorial_azimuth(isec.xy);
 
                     {{#grmhd_enabled}}
                     // GRMHD thin disk: Shakura-Sunyaev base + subtle GRMHD corrections.
@@ -392,13 +392,13 @@ vec4 trace_ray(vec3 ray) {
 
                     vec3 accretion_v;
                     {{#kerr_fast_mode}}
-                    accretion_v = vec3(-isec.y, isec.x, 0.0) / (r * sqrt(2.0*(r-1.0)));
+                    accretion_v = disk_rotation_sign() *
+                        vec3(-isec.y, isec.x, 0.0) / (r * sqrt(2.0*(r-1.0)));
                     {{/kerr_fast_mode}}
                     {{#kerr_inspired_velocity}}
                     float rg_r = max(2.0*r, 1.0002); // convert r_s units to M units
                     float a_M = abs(bh_rotation_enabled * bh_spin);
-                    float spin_dir = (bh_rotation_enabled > 0.5 && bh_spin < 0.0) ? -1.0 : 1.0;
-                    float omega_M = spin_dir / (pow(rg_r, 1.5) + a_M);
+                    float omega_M = disk_rotation_sign() / (pow(rg_r, 1.5) + a_M);
                     float v_phi = clamp(rg_r * omega_M, -0.995, 0.995);
                     vec2 xy = vec2(isec.x, isec.y);
                     float cyl_r = max(length(xy), 1e-4);
@@ -449,7 +449,7 @@ vec4 trace_ray(vec3 ray) {
             // instability.  The torus is geometrically thick, so larger warps
             // are physically expected (Liska+ 2022: H/R variation ~15-30%).
             float _cr_t = max(length(pos.xy), 1e-4);
-            float _a_t = atan(pos.x, pos.y);
+            float _a_t = equatorial_azimuth(pos.xy);
             float _hmod_raw_t = grmhd_height_modulation(_cr_t, _a_t, turb_t);
             // Amplify: base function gives ±15%, double it for ±30% warps
             float _hmod_t = 1.0 + 2.0 * (_hmod_raw_t - 1.0);
@@ -463,7 +463,7 @@ vec4 trace_ray(vec3 ray) {
                 float path_len = length(pos - old_pos);
                 float r3d = max(length(pos), 1.001);
                 float cyl_r_t = max(length(pos.xy), 1e-4);
-                float angle_t = atan(pos.x, pos.y);
+                float angle_t = equatorial_azimuth(pos.xy);
 
                 {{#grmhd_enabled}}
                 // GRMHD two-temperature torus model (EHT-calibrated)
@@ -519,13 +519,13 @@ vec4 trace_ray(vec3 ray) {
                 {{#kerr_fast_mode}}
                 float v_kep_t = 1.0 / sqrt(2.0 * max(cyl_r_t - 1.0, 0.01));
                 float v_sub_t = clamp(0.5 * v_kep_t, 0.0, 0.95);
-                accretion_v_t = vec3(-pos.y, pos.x, 0.0) / cyl_r_t * v_sub_t;
+                accretion_v_t = disk_rotation_sign() *
+                    vec3(-pos.y, pos.x, 0.0) / cyl_r_t * v_sub_t;
                 {{/kerr_fast_mode}}
                 {{#kerr_inspired_velocity}}
                 float rg_cyl_t = max(2.0 * cyl_r_t, 1.0002);
                 float a_M_t = abs(bh_rotation_enabled * bh_spin);
-                float spin_dir_t = (bh_rotation_enabled > 0.5 && bh_spin < 0.0) ? -1.0 : 1.0;
-                float omega_sub_t = 0.5 * spin_dir_t / (pow(rg_cyl_t, 1.5) + a_M_t);
+                float omega_sub_t = 0.5 * disk_rotation_sign() / (pow(rg_cyl_t, 1.5) + a_M_t);
                 float v_phi_t = clamp(rg_cyl_t * omega_sub_t, -0.95, 0.95);
                 vec3 e_phi_t = vec3(-pos.y, pos.x, 0.0) / cyl_r_t;
                 accretion_v_t = e_phi_t * v_phi_t;
@@ -568,7 +568,7 @@ vec4 trace_ray(vec3 ray) {
             {{#grmhd_enabled}}
             // GRMHD: height modulation from MRI + radiation-driven warps
             float _cr_s = max(length(pos.xy), 1e-4);
-            float _a_s = atan(pos.x, pos.y);
+            float _a_s = equatorial_azimuth(pos.xy);
             float _hmod_s = grmhd_height_modulation(_cr_s, _a_s, turb_t);
             vec3 _warp_s = vec3(pos.xy, pos.z / max(_hmod_s, 0.2));
             float slim_j = slim_disk_local_emissivity(_warp_s);
@@ -580,7 +580,7 @@ vec4 trace_ray(vec3 ray) {
                 float path_len_s = length(pos - old_pos);
                 float cyl_r_s = max(length(pos.xy), 1e-4);
                 float r3d_s = max(length(pos), 1.001);
-                float angle_s = atan(pos.x, pos.y);
+                float angle_s = equatorial_azimuth(pos.xy);
 
                 {{#grmhd_enabled}}
                     // GRMHD-inspired slim disk: preserve the base super-Eddington
@@ -636,13 +636,13 @@ vec4 trace_ray(vec3 ray) {
                 vec3 accretion_v_s;
                 {{#kerr_fast_mode}}
                 float v_kep_s = 1.0 / sqrt(2.0 * max(cyl_r_s - 1.0, 0.01));
-                accretion_v_s = vec3(-pos.y, pos.x, 0.0) / cyl_r_s * clamp(v_kep_s, 0.0, 0.95);
+                accretion_v_s = disk_rotation_sign() *
+                    vec3(-pos.y, pos.x, 0.0) / cyl_r_s * clamp(v_kep_s, 0.0, 0.95);
                 {{/kerr_fast_mode}}
                 {{#kerr_inspired_velocity}}
                 float rg_cyl_s = max(2.0 * cyl_r_s, 1.0002);
                 float a_M_s = abs(bh_rotation_enabled * bh_spin);
-                float spin_dir_s = (bh_rotation_enabled > 0.5 && bh_spin < 0.0) ? -1.0 : 1.0;
-                float omega_s = spin_dir_s / (pow(rg_cyl_s, 1.5) + a_M_s);
+                float omega_s = disk_rotation_sign() / (pow(rg_cyl_s, 1.5) + a_M_s);
                 float v_phi_s = clamp(rg_cyl_s * omega_s, -0.95, 0.95);
                 vec3 e_phi_s = vec3(-pos.y, pos.x, 0.0) / cyl_r_s;
                 accretion_v_s = e_phi_s * v_phi_s;
