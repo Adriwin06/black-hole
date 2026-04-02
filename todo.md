@@ -1,3 +1,5 @@
 - Add mass scaling 
 - Add time dilation effects with comparison to a distant observer's clock
 - Add sound effects (gravitational waves, accretion disk noise, jet emissions)
+- Fix hover and dive visuals (almost correct but a little bit broken)
+- Add Quasar visuals
