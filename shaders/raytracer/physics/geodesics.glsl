@@ -33,7 +33,8 @@ float kerr_horizon_radius(float a) {
 float geodesic_accel(float u, float spin_alignment) {
     float schwarzschild_accel = -u + 1.5*u*u;
     float u_drag = min(u, 1.2);
-    float frame_drag_term = bh_rotation_enabled * bh_spin * bh_spin_strength *
+    float frame_drag_term = photon_spin_lensing_scale *
+        bh_rotation_enabled * bh_spin * bh_spin_strength *
         spin_alignment * 0.8 * u_drag*u_drag*u_drag;
     return schwarzschild_accel + frame_drag_term;
 }

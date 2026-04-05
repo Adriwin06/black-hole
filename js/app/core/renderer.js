@@ -411,7 +411,7 @@ var hoverState = {
     startVelocity: new THREE.Vector3(0, 1, 0),
     prevMotionState: true,
     prevDistance: 11.0,
-    minR: 1.005  // Cannot hover at the horizon (infinite proper acceleration)
+    minR: 1.0002  // Cannot hover at the horizon (infinite proper acceleration)
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -482,6 +482,7 @@ function init(glslSource, textures) {
         bh_spin: { type: "f", value: 0.90 },
         bh_spin_strength: { type: "f", value: 1.0 },
         bh_rotation_enabled: { type: "f", value: 1.0 },
+        photon_spin_lensing_scale: { type: "f", value: 1.0 },
         look_exposure: { type: "f", value: 1.0 },
         look_disk_gain: { type: "f", value: 1.0 },
         look_glow: { type: "f", value: 0.0 },
@@ -648,6 +649,20 @@ function init(glslSource, textures) {
         // because the escape classifier assumes u0 > 1.
         var obsR = observer.position.length();
         uniforms.interior_mode.value = (obsR < 1.0) ? 1.0 : 0.0;
+
+        var observerSpeedSq = observer.velocity.lengthSq();
+        var photonSpinLensingScale = 1.0;
+        if (observerSpeedSq < 1e-8) {
+            // The exposed Kerr photon-lensing path is a perturbative
+            // Schwarzschild+frame-drag proxy. Very close to the photon sphere
+            // for a static observer it develops obvious one-sided artefacts, so
+            // fade that heuristic out and fall back to the symmetric
+            // Schwarzschild solver in the regime where the approximation breaks.
+            var fade = (obsR - 1.5) / 0.2;
+            fade = Math.max(0.0, Math.min(1.0, fade));
+            photonSpinLensingScale = fade * fade * (3.0 - 2.0 * fade);
+        }
+        uniforms.photon_spin_lensing_scale.value = photonSpinLensingScale;
 
         // Gravitational blueshift factor for background sky:
         // sqrt(1 - r_s/r) = sqrt(1 - 1/r).  Light from infinity has its

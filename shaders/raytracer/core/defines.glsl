@@ -53,6 +53,7 @@ uniform float grav_blueshift_factor;
 uniform float planet_distance, planet_radius;
 uniform float disk_temperature;
 uniform float bh_spin, bh_spin_strength, bh_rotation_enabled;
+uniform float photon_spin_lensing_scale;
 uniform float accretion_inner_r;
 uniform float look_exposure, look_disk_gain, look_glow, look_doppler_boost;
 uniform float look_aberration_strength;

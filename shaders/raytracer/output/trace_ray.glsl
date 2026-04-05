@@ -43,6 +43,16 @@ vec4 trace_ray(vec3 ray) {
     // initial conditions
     float u = 1.0 / length(pos), old_u;
     float u0 = u;
+    float observer_speed = length(cam_vel);
+    float observer_static_lapse = 1.0;
+    if (interior_mode < 0.5 && observer_speed < 1e-4) {
+        // Static camera rays live in the local orthonormal frame. In
+        // Schwarzschild coordinates the radial basis is compressed by
+        // sqrt(1 - r_s/r), so the radial component must carry that factor when
+        // converted to the Binet initial condition. Without it the near-horizon
+        // hover escape cone stays far too wide.
+        observer_static_lapse = sqrt(max(1.0 - u, 1e-4));
+    }
 
     vec3 normal_vec = normalize(pos);
     // Tangential component of ray (perpendicular to radial direction).
@@ -66,9 +76,10 @@ vec4 trace_ray(vec3 ray) {
 
     // du/dφ: rate of inverse-radius change per orbit angle.
     // For near-radial rays (small tangential component), du is large but finite.
+    float radial_component = dot(ray, normal_vec) * observer_static_lapse;
     float dot_tang = dot(ray, tangent_vec);
     float du = (abs(dot_tang) > 1e-6)
-        ? -dot(ray, normal_vec) / dot_tang * u
+        ? -radial_component / dot_tang * u
         : -sign(dot(ray, normal_vec)) * u * 200.0; // nearly radial — large du
     // Clamp: ±200 keeps near-radial rays integrable while covering all
     // physically relevant escape trajectories from inside the horizon.
@@ -132,9 +143,34 @@ vec4 trace_ray(vec3 ray) {
                 shadow_capture = true;  // not enough energy to escape
             }
         }
+    } else if (observer_speed < 1e-4 && u > 2.0/3.0) {
+        // Exact Schwarzschild escape test for a static observer inside the
+        // photon sphere. This removes the numerical leakage that made the
+        // visible sky stop shrinking during hover.
+        if (du >= 0.0) {
+            shadow_capture = true;
+        } else {
+            float E_binet = du*du + u*u*(1.0 - u);
+            if (E_binet <= 4.0/27.0) {
+                shadow_capture = true;
+            }
+        }
     }
 
-    for (int j=0; j < NSTEPS; j++) {
+    float E_binet0 = du0*du0 + u0*u0*(1.0 - u0);
+    bool allow_extended_trace = !use_kerr &&
+        interior_mode < 0.5 &&
+        observer_speed < 1e-4 &&
+        u0 > 2.0/3.0 &&
+        du0 < 0.0 &&
+        E_binet0 > 4.0/27.0;
+    bool trace_finished = false;
+
+    for (int pass = 0; pass < 3; pass++) {
+        if (trace_finished) break;
+        if (pass > 0 && !allow_extended_trace) break;
+
+        for (int j=0; j < NSTEPS; j++) {
         if (shadow_capture) break;  // pre-classified capture → skip loop
 
         if (use_kerr) {
@@ -249,7 +285,8 @@ vec4 trace_ray(vec3 ray) {
         vec3 planar_pos = (cos(phi)*normal_vec + sin(phi)*tangent_vec)/u;
 
         float drag_u = clamp(u, 0.0, 1.15);
-        float frame_drag_step = bh_rotation_enabled * bh_spin * bh_spin_strength *
+        float frame_drag_step = photon_spin_lensing_scale *
+            bh_rotation_enabled * bh_spin * bh_spin_strength *
             spin_alignment * step * 0.85 * drag_u*drag_u*drag_u;
         frame_drag_phase += frame_drag_step;
 
@@ -807,7 +844,8 @@ vec4 trace_ray(vec3 ray) {
         if (!use_kerr) {
         {{#kerr_fast_mode}}
         if (interior_mode < 0.5) {
-            float capture_u = 1.0 + bh_rotation_enabled * bh_spin * bh_spin_strength *
+            float capture_u = 1.0 + photon_spin_lensing_scale *
+                bh_rotation_enabled * bh_spin * bh_spin_strength *
                 spin_alignment * 0.12;
             capture_u = clamp(capture_u, 0.82, 1.18);
             if (u > capture_u) {
@@ -834,6 +872,9 @@ vec4 trace_ray(vec3 ray) {
         }
         {{/kerr_full_geodesic}}
         } // end if (!use_kerr)
+    }
+
+        trace_finished = shadow_capture || u < 1.0 || use_kerr || !allow_extended_trace || u > 20.0;
     }
 
     // Background sky: show for rays that escaped to far field.
