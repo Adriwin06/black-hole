@@ -6,6 +6,8 @@
 // Public API exposed via global `timelinePanelBinding`.
 
 var PRESENTATION_EDITOR_COMMON_PATHS = [
+    'dive.currentR',
+    'hover.currentR',
     'observer.distance',
     'observer.orbital_inclination',
     'observer.motion',
@@ -1731,6 +1733,134 @@ function buildTimelinePanel() {
             setStatus('Timeline applied.', '');
             rememberState();
         }
+    }
+
+    function ensureDraftForExternalInsert() {
+        if (draft) return draft;
+        var runtimeTimeline = (typeof getPresentationTimeline === 'function')
+            ? getPresentationTimeline()
+            : null;
+        if (runtimeTimeline) {
+            draft = normalizeTL(runtimeTimeline);
+        } else {
+            draft = normalizeTL({
+                name: 'Captured Motion',
+                duration: Math.max(12, currentTime() + 6),
+                tracks: [],
+                events: []
+            });
+        }
+        return draft;
+    }
+
+    function insertAnimationCapture(capture) {
+        if (!capture || typeof capture !== 'object') {
+            return { ok: false, error: 'Invalid animation capture.' };
+        }
+
+        var mode = (capture.mode === 'hover') ? 'hover' : 'dive';
+        var samples = Array.isArray(capture.samples) ? capture.samples : [];
+        if (!samples.length) {
+            return { ok: false, error: 'Nothing was recorded.' };
+        }
+
+        ensureDraftForExternalInsert();
+        if (!draft) {
+            return { ok: false, error: 'Timeline editor is unavailable.' };
+        }
+
+        var baseTime = currentTime();
+        pushUndo();
+
+        if (presetSelect && presetSelect.querySelector('option[value=""]')) {
+            presetSelect.value = '';
+        }
+
+        var startEvent = {
+            t: baseTime,
+            action: (mode === 'dive') ? 'startDive' : 'startHover',
+            position: clonePlain(capture.startPosition || { x: 1, y: 0, z: 0 }),
+            velocity: clonePlain(capture.startVelocity || { x: 0, y: 0, z: 0 }),
+            prevMotionState: !!capture.prevMotionState,
+            prevDistance: isFinite(capture.prevDistance) ? capture.prevDistance : undefined,
+            observerTime: isFinite(capture.startObserverTime) ? capture.startObserverTime : undefined
+        };
+        draft.events.push(startEvent);
+
+        var radiusPath = mode + '.currentR';
+        var maxT = baseTime;
+        var insertedSamples = 0;
+        for (var i = 0; i < samples.length; i++) {
+            var sample = samples[i];
+            if (!sample || typeof sample !== 'object') continue;
+            var sampleT = parseFloat(sample.t);
+            if (!isFinite(sampleT)) continue;
+            var ktime = baseTime + Math.max(0, sampleT);
+            var camPos = sample.cameraPosition || {};
+            var camQuat = sample.cameraQuaternion || {};
+            var sampleRadius = parseFloat(sample.radius);
+            if (!isFinite(sampleRadius)) continue;
+            var panX = isFinite(sample.cameraPanX) ? sample.cameraPanX : 0;
+            var panY = isFinite(sample.cameraPanY) ? sample.cameraPanY : 0;
+            var posX = isFinite(camPos.x) ? camPos.x : 0;
+            var posY = isFinite(camPos.y) ? camPos.y : 0;
+            var posZ = isFinite(camPos.z) ? camPos.z : 0;
+            var quatX = isFinite(camQuat.x) ? camQuat.x : 0;
+            var quatY = isFinite(camQuat.y) ? camQuat.y : 0;
+            var quatZ = isFinite(camQuat.z) ? camQuat.z : 0;
+            var quatW = isFinite(camQuat.w) ? camQuat.w : 1;
+
+            upsertKey(radiusPath, ktime, sampleRadius, 'linear');
+            upsertKey('cameraPan.x', ktime, panX, 'linear');
+            upsertKey('cameraPan.y', ktime, panY, 'linear');
+            upsertKey('camera.position.x', ktime, posX, 'linear');
+            upsertKey('camera.position.y', ktime, posY, 'linear');
+            upsertKey('camera.position.z', ktime, posZ, 'linear');
+            upsertKey('camera.quaternion.x', ktime, quatX, 'linear');
+            upsertKey('camera.quaternion.y', ktime, quatY, 'linear');
+            upsertKey('camera.quaternion.z', ktime, quatZ, 'linear');
+            upsertKey('camera.quaternion.w', ktime, quatW, 'linear');
+            insertedSamples++;
+            if (ktime > maxT) maxT = ktime;
+        }
+
+        if (!insertedSamples) {
+            redoStack = [];
+            draft = undoStack.pop();
+            return { ok: false, error: 'Nothing usable was captured.' };
+        }
+
+        draft.events.sort(function(a, b) { return a.t - b.t; });
+        draft.tracks.sort(function(a, b) { return a.path.localeCompare(b.path); });
+        draft.duration = Math.max(
+            draft.duration,
+            maxT,
+            baseTime + Math.max(parseFloat(capture.duration) || 0, 0)
+        );
+
+        selectedTrack = radiusPath;
+        selectedKeyT = baseTime;
+        selectedEventIdx = -1;
+        clearMultiSelect();
+        normalizeQuatSigns();
+        applyDraft();
+        if (typeof seekPresentation === 'function') seekPresentation(baseTime);
+        rebuildAll();
+        rememberState();
+        setStatus(
+            (mode === 'dive' ? 'Dive' : 'Hover') +
+            ' capture inserted at t=' + baseTime.toFixed(2) + 's.',
+            'tl-status--info'
+        );
+
+        return {
+            ok: true,
+            mode: mode,
+            startTime: baseTime,
+            endTime: maxT,
+            duration: Math.max(0, maxT - baseTime),
+            sampleCount: insertedSamples
+        };
     }
 
     // ── Path datalist ───────────────────────────────────────────────────────
@@ -3952,7 +4082,8 @@ function buildTimelinePanel() {
         isOpen: function() { return panelOpen; },
         sync: syncFromRuntime,
         loadPreset: loadPresetByName,
-        syncRecState: syncRecModal
+        syncRecState: syncRecModal,
+        insertAnimationCapture: insertAnimationCapture
     };
     return timelinePanelBinding;
 }

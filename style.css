@@ -691,6 +691,102 @@ body.has-timeline-panel .sp-panel {
     color: #c0ddff;
 }
 
+.anim-capture-block {
+    margin-top: 10px;
+    margin-bottom: 10px;
+    padding: 8px 10px;
+    border-radius: 4px;
+    border: 1px solid #1f314d;
+    background: rgba(8, 16, 30, 0.68);
+}
+
+.anim-capture-block--dive {
+    border-color: rgba(48, 98, 176, 0.55);
+    background: rgba(10, 18, 34, 0.76);
+}
+
+.anim-capture-block--hover {
+    border-color: rgba(42, 92, 142, 0.55);
+    background: rgba(5, 16, 28, 0.76);
+}
+
+.anim-capture-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.anim-capture-label {
+    color: #9db6d8;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.1px;
+    text-transform: uppercase;
+}
+
+.anim-capture-status {
+    color: #6f8daf;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-align: right;
+}
+
+.anim-capture-status.is-recording {
+    color: #ff8787;
+}
+
+.anim-capture-status.is-warning {
+    color: #ffcc73;
+}
+
+.anim-capture-status.is-ready {
+    color: #8fc0ff;
+}
+
+.anim-capture-hint {
+    color: #7287a3;
+    font-size: 9px;
+    line-height: 1.4;
+    margin-bottom: 8px;
+}
+
+.dive-btn-capture,
+.hover-btn-capture {
+    margin: 0;
+    border: 1px solid rgba(116, 154, 214, 0.28);
+    background: linear-gradient(135deg, rgba(20, 34, 58, 0.96) 0%, rgba(10, 20, 38, 0.98) 100%);
+    box-shadow: inset 0 0 0 1px rgba(122, 164, 226, 0.08);
+}
+
+.dive-btn-capture {
+    color: #9fc6ff;
+}
+
+.hover-btn-capture {
+    color: #97d2ff;
+}
+
+.dive-btn-capture:hover:not(:disabled),
+.hover-btn-capture:hover:not(:disabled) {
+    background: linear-gradient(135deg, rgba(28, 54, 92, 0.96) 0%, rgba(12, 28, 54, 0.98) 100%);
+    box-shadow: 0 2px 12px rgba(60, 126, 214, 0.18);
+}
+
+.dive-btn-capture.is-recording,
+.hover-btn-capture.is-recording {
+    background: linear-gradient(135deg, #8f1111 0%, #4b0d0d 100%);
+    color: #ffe2e2;
+    box-shadow: 0 2px 12px rgba(210, 48, 48, 0.26);
+}
+
+.dive-btn-capture.is-recording:hover:not(:disabled),
+.hover-btn-capture.is-recording:hover:not(:disabled) {
+    background: linear-gradient(135deg, #b71a1a 0%, #641111 100%);
+}
+
 .hover-control-row {
     display: flex;
     align-items: center;

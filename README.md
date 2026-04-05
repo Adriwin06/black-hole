@@ -38,8 +38,9 @@ A real-time, GPU-accelerated browser visualization of a black hole with an accre
 - **Observer controls** — mouse orbit/pan/roll, a bottom-left observer widget with distance dial + motion toggle, and optional automatic circular orbit in the stable Schwarzschild regime (`r >= 3 r_s`)
 
 ### Presentation & Recording
-- **Presentation Timeline** — bottom-docked dopesheet editor (inspired by Blender / After Effects) for scripted keyframe animations; supports linear, smooth, and smoother easing
+- **Presentation Timeline** — bottom-docked dopesheet editor (inspired by Blender / After Effects) for scripted keyframe animations, preset loading, playback, and recording; supports linear, smooth, and smoother easing
 - **Built-in interactive scenarios** — *Freefall Dive* and *Hover Approach*
+- **Live scenario capture to timeline** — record a manual *Freefall Dive* or *Hover Approach* run, including orbit/pan camera motion, straight into timeline tracks
 - **Built-in timeline presets** — *Full Feature Tour* (186 s) and *Orbit Showcase*
 - **WebM video recording** — realtime MediaRecorder capture plus offline WebCodecs/WebM muxing when supported
 - **Offline PNG snapshot** — one-click still export that forces the Cinematic (offline) quality preset before download
@@ -82,8 +83,9 @@ Open `http://localhost:8000` in a modern browser (Chrome or Firefox recommended)
 - **Left + Right drag** — roll
 - **Scroll** — zoom in/out
 - **Controls panel** (right side, `CONTROLS ▶`) — all simulation parameters
+- **Animations panel** (left side, `◀ ANIMATIONS`) — Freefall Dive, Hover Approach, and live capture of those runs into the timeline
 - **Observer widget** (bottom-left XYZ indicator) — distance dial, motion toggle, camera reset
-- **Timeline panel** (bottom, ▲ TIMELINE) — animation playback and recording
+- **Timeline panel** (bottom, `▲ TIMELINE`) — preset loading, timeline editing, playback, recording, and export/import
 
 ### Key GUI parameters
 
@@ -168,15 +170,15 @@ js/app/
 ├── core/                           # System core
 │   ├── observer.js                 # Observer state, circular-orbit kinematics, simulation time scaling
 │   ├── shader.js                   # Shader class, compile-time Mustache parameters
-│   └── renderer.js                 # Three.js scene, init, TAA, bloom, render loop
+│   └── renderer.js                 # Three.js scene, live dive/hover capture, TAA, bloom, render loop
 ├── scene/                          # Scene management
 │   └── camera.js                   # Camera initialization & per-frame updates
 ├── graphics/                       # Graphics effects
 │   └── bloom.js                    # Multi-pass mip-chain Gaussian bloom
 ├── presentation/                   # Presentation & recording system
 │   ├── presentation-controller.js  # Keyframe timeline engine, annotations, recording pipeline
-│   ├── presentation-gui.js         # ANIMATIONS panel UI (preset selector, status)
-│   ├── timeline-panel.js           # Bottom dopesheet panel (transport, key inspector)
+│   ├── presentation-gui.js         # Legacy presentation mini-panel helper (kept for reference)
+│   ├── timeline-panel.js           # Bottom dopesheet panel (transport, presets, key inspector, recording)
 │   └── presets/                    # Built-in animation sequences (JSON)
 │       ├── manifest.json
 │       ├── full-feature-tour.json
@@ -210,7 +212,8 @@ Additions over the [upstream oseiskar/black-hole](https://github.com/oseiskar/bl
 |---------|---------|
 | WIP Kerr geodesics | Carter (1968) Mino-time integrator exists in GLSL but is not yet exposed in the UI |
 | GRMHD-inspired accretion controls | plasma β, B-field strength, R_high, MAD flux, MRI-inspired turbulence, κ-distribution electrons |
-| Presentation Timeline | Keyframe dopesheet editor with transport controls and easing curves |
+| Presentation Timeline | Keyframe dopesheet editor with presets, transport controls, recording, and easing curves |
+| Scenario capture to timeline | Records live Freefall Dive / Hover Approach runs plus camera motion into keyframed timeline data |
 | WebM recording | Realtime MediaRecorder capture plus offline WebCodecs/WebMMuxer export |
 | Offline PNG snapshot | One-click still image export using the Cinematic offline preset |
 | Interactive observer scenarios | Freefall Dive and Hover Approach |

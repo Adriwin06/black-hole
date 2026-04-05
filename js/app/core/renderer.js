@@ -383,6 +383,7 @@ var diveState = {
     speed: 1.0,
     cinematic: false,   // auto-vary speed for maximum visual drama
     autoOrient: true,
+    timelineDriven: false,
     currentR: 11.0,
     direction: new THREE.Vector3(1, 0, 0),
     startPosition: new THREE.Vector3(10, 0, 0),
@@ -405,6 +406,7 @@ var hoverState = {
     active: false,
     paused: false,
     speed: 0.3,
+    timelineDriven: false,
     currentR: 11.0,
     direction: new THREE.Vector3(1, 0, 0),
     startPosition: new THREE.Vector3(10, 0, 0),
@@ -413,6 +415,351 @@ var hoverState = {
     prevDistance: 11.0,
     minR: 1.0002  // Cannot hover at the horizon (infinite proper acceleration)
 };
+
+var animationTimelineCaptureState = {
+    active: false,
+    mode: '',
+    startedAtMs: 0,
+    lastElapsed: 0,
+    nextSampleTime: 0,
+    sampleInterval: 1.0 / 30.0,
+    samples: [],
+    startPosition: null,
+    startVelocity: null,
+    prevMotionState: true,
+    prevDistance: 11.0,
+    startObserverTime: 0.0,
+    feedback: {
+        dive: { text: 'Idle', tone: '' },
+        hover: { text: 'Idle', tone: '' }
+    }
+};
+
+function cloneVector3Plain(vec) {
+    return {
+        x: vec ? vec.x : 0,
+        y: vec ? vec.y : 0,
+        z: vec ? vec.z : 0
+    };
+}
+
+function cloneQuaternionPlain(quat) {
+    return {
+        x: quat ? quat.x : 0,
+        y: quat ? quat.y : 0,
+        z: quat ? quat.z : 0,
+        w: quat ? quat.w : 1
+    };
+}
+
+function setAnimationTimelineCaptureFeedback(mode, text, tone) {
+    if (!animationTimelineCaptureState.feedback[mode]) return;
+    animationTimelineCaptureState.feedback[mode].text = text || 'Idle';
+    animationTimelineCaptureState.feedback[mode].tone = tone || '';
+}
+
+function updateAnimationTimelineCaptureUi() {
+    function syncMode(mode, btnId, statusId) {
+        var btn = document.getElementById(btnId);
+        var status = document.getElementById(statusId);
+        var isActive = animationTimelineCaptureState.active &&
+            animationTimelineCaptureState.mode === mode;
+        var otherActive = animationTimelineCaptureState.active &&
+            animationTimelineCaptureState.mode !== mode;
+        var feedback = animationTimelineCaptureState.feedback[mode] ||
+            { text: 'Idle', tone: '' };
+
+        if (btn) {
+            btn.classList.toggle('is-recording', isActive);
+            btn.disabled = otherActive;
+            btn.innerHTML = isActive
+                ? '&#9632; STOP &amp; SAVE'
+                : '&#9679; RECORD TO TIMELINE';
+        }
+        if (status) {
+            var text = feedback.text || 'Idle';
+            var tone = feedback.tone || '';
+            if (isActive) {
+                text = 'Recording ' +
+                    animationTimelineCaptureState.lastElapsed.toFixed(2) + 's';
+                tone = 'is-recording';
+            } else if (otherActive) {
+                text = 'Other capture active';
+                tone = 'is-warning';
+            }
+            status.textContent = text;
+            status.className = 'anim-capture-status' + (tone ? ' ' + tone : '');
+        }
+    }
+
+    syncMode('dive', 'dive-capture-btn', 'dive-capture-status');
+    syncMode('hover', 'hover-capture-btn', 'hover-capture-status');
+}
+
+function readAnimationCaptureAnchorPosition(rawPosition) {
+    if (!rawPosition || typeof rawPosition !== 'object') return null;
+    var x = parseFloat(rawPosition.x);
+    var y = parseFloat(rawPosition.y);
+    var z = parseFloat(rawPosition.z);
+    if (!isFinite(x) || !isFinite(y) || !isFinite(z)) return null;
+    var out = new THREE.Vector3(x, y, z);
+    return out.lengthSq() > 1e-10 ? out : null;
+}
+
+function readAnimationCaptureAnchorVelocity(rawVelocity) {
+    if (!rawVelocity || typeof rawVelocity !== 'object') return null;
+    var x = parseFloat(rawVelocity.x);
+    var y = parseFloat(rawVelocity.y);
+    var z = parseFloat(rawVelocity.z);
+    if (!isFinite(x) || !isFinite(y) || !isFinite(z)) return null;
+    return new THREE.Vector3(x, y, z);
+}
+
+function buildAnimationTimelineCaptureSample(mode, elapsedSeconds) {
+    var radius = mode === 'dive' ? diveState.currentR : hoverState.currentR;
+    return {
+        t: Math.max(0, elapsedSeconds),
+        radius: radius,
+        cameraPanX: cameraPan ? cameraPan.x : 0,
+        cameraPanY: cameraPan ? cameraPan.y : 0,
+        cameraPosition: cloneVector3Plain(camera && camera.position ? camera.position : null),
+        cameraQuaternion: cloneQuaternionPlain(camera && camera.quaternion ? camera.quaternion : null)
+    };
+}
+
+function animationTimelineCaptureSamplesEqual(a, b) {
+    if (!a || !b) return false;
+    return Math.abs(a.radius - b.radius) < 1e-5 &&
+        Math.abs(a.cameraPanX - b.cameraPanX) < 1e-5 &&
+        Math.abs(a.cameraPanY - b.cameraPanY) < 1e-5 &&
+        Math.abs(a.cameraPosition.x - b.cameraPosition.x) < 1e-5 &&
+        Math.abs(a.cameraPosition.y - b.cameraPosition.y) < 1e-5 &&
+        Math.abs(a.cameraPosition.z - b.cameraPosition.z) < 1e-5 &&
+        Math.abs(a.cameraQuaternion.x - b.cameraQuaternion.x) < 1e-5 &&
+        Math.abs(a.cameraQuaternion.y - b.cameraQuaternion.y) < 1e-5 &&
+        Math.abs(a.cameraQuaternion.z - b.cameraQuaternion.z) < 1e-5 &&
+        Math.abs(a.cameraQuaternion.w - b.cameraQuaternion.w) < 1e-5;
+}
+
+function pushAnimationTimelineCaptureSample(mode, elapsedSeconds, force) {
+    if (!animationTimelineCaptureState.active ||
+        animationTimelineCaptureState.mode !== mode) {
+        return false;
+    }
+
+    var sample = buildAnimationTimelineCaptureSample(mode, elapsedSeconds);
+    var samples = animationTimelineCaptureState.samples;
+    var last = samples.length ? samples[samples.length - 1] : null;
+
+    if (last && Math.abs(last.t - sample.t) < 1e-4) {
+        samples[samples.length - 1] = sample;
+        animationTimelineCaptureState.lastElapsed = sample.t;
+        animationTimelineCaptureState.nextSampleTime =
+            sample.t + animationTimelineCaptureState.sampleInterval;
+        return true;
+    }
+    if (!force && last && animationTimelineCaptureSamplesEqual(last, sample)) {
+        return false;
+    }
+
+    samples.push(sample);
+    animationTimelineCaptureState.lastElapsed = sample.t;
+    animationTimelineCaptureState.nextSampleTime =
+        sample.t + animationTimelineCaptureState.sampleInterval;
+    return true;
+}
+
+function finalizeAnimationTimelineCapture(mode) {
+    if (!animationTimelineCaptureState.active ||
+        animationTimelineCaptureState.mode !== mode) {
+        return false;
+    }
+
+    var elapsed = Math.max(
+        animationTimelineCaptureState.lastElapsed,
+        (performance.now() - animationTimelineCaptureState.startedAtMs) / 1000.0
+    );
+    pushAnimationTimelineCaptureSample(mode, elapsed, true);
+
+    var payload = {
+        mode: mode,
+        duration: animationTimelineCaptureState.lastElapsed,
+        startPosition: cloneVector3Plain(animationTimelineCaptureState.startPosition),
+        startVelocity: cloneVector3Plain(animationTimelineCaptureState.startVelocity),
+        prevMotionState: !!animationTimelineCaptureState.prevMotionState,
+        prevDistance: animationTimelineCaptureState.prevDistance,
+        startObserverTime: animationTimelineCaptureState.startObserverTime,
+        samples: animationTimelineCaptureState.samples.slice()
+    };
+
+    animationTimelineCaptureState.active = false;
+    animationTimelineCaptureState.mode = '';
+    animationTimelineCaptureState.startedAtMs = 0;
+    animationTimelineCaptureState.lastElapsed = 0;
+    animationTimelineCaptureState.nextSampleTime = 0;
+    animationTimelineCaptureState.samples = [];
+    animationTimelineCaptureState.startPosition = null;
+    animationTimelineCaptureState.startVelocity = null;
+    animationTimelineCaptureState.startObserverTime = 0.0;
+
+    var result = null;
+    if (timelinePanelBinding &&
+        typeof timelinePanelBinding.insertAnimationCapture === 'function') {
+        result = timelinePanelBinding.insertAnimationCapture(payload);
+    }
+
+    if (result && result.ok) {
+        setAnimationTimelineCaptureFeedback(
+            mode,
+            'Saved ' + result.sampleCount + ' samples @ t=' +
+                result.startTime.toFixed(2) + 's',
+            'is-ready'
+        );
+    } else {
+        setAnimationTimelineCaptureFeedback(
+            mode,
+            (result && result.error) ? result.error : 'Timeline unavailable',
+            'is-warning'
+        );
+    }
+
+    updateAnimationTimelineCaptureUi();
+    return !!(result && result.ok);
+}
+
+function startAnimationTimelineCapture(mode) {
+    if (mode !== 'dive' && mode !== 'hover') return false;
+    if (animationTimelineCaptureState.active) {
+        if (animationTimelineCaptureState.mode === mode) {
+            return finalizeAnimationTimelineCapture(mode);
+        }
+        setAnimationTimelineCaptureFeedback(
+            mode,
+            'Stop the current capture first',
+            'is-warning'
+        );
+        updateAnimationTimelineCaptureUi();
+        return false;
+    }
+
+    var presentationRuntimeState = (typeof getPresentationState === 'function')
+        ? getPresentationState()
+        : null;
+    if (presentationRuntimeState && presentationRuntimeState.recording) {
+        setAnimationTimelineCaptureFeedback(
+            mode,
+            'Stop timeline recording first',
+            'is-warning'
+        );
+        updateAnimationTimelineCaptureUi();
+        return false;
+    }
+    if (presentationRuntimeState && presentationRuntimeState.playing &&
+        typeof pausePresentation === 'function') {
+        pausePresentation();
+    }
+
+    var modeWasAlreadyActive = (mode === 'dive')
+        ? (diveState.active && !diveState.reachedSingularity)
+        : hoverState.active;
+
+    if (mode === 'dive') {
+        if (!diveState.active || diveState.reachedSingularity) {
+            startDive({ restart: true });
+        } else if (diveState.paused) {
+            diveState.timelineDriven = false;
+            diveState.paused = false;
+            updateDiveUI();
+        }
+        if (!diveState.active) {
+            setAnimationTimelineCaptureFeedback(
+                mode,
+                'Unable to start live dive',
+                'is-warning'
+            );
+            updateAnimationTimelineCaptureUi();
+            return false;
+        }
+    } else {
+        if (!hoverState.active) {
+            startHover({ restart: true });
+        } else if (hoverState.paused) {
+            hoverState.timelineDriven = false;
+            hoverState.paused = false;
+            updateHoverUI();
+        }
+        if (!hoverState.active) {
+            setAnimationTimelineCaptureFeedback(
+                mode,
+                'Unable to start live hover',
+                'is-warning'
+            );
+            updateAnimationTimelineCaptureUi();
+            return false;
+        }
+    }
+
+    animationTimelineCaptureState.active = true;
+    animationTimelineCaptureState.mode = mode;
+    animationTimelineCaptureState.startedAtMs = performance.now();
+    animationTimelineCaptureState.lastElapsed = 0.0;
+    animationTimelineCaptureState.nextSampleTime = 0.0;
+    animationTimelineCaptureState.sampleInterval = 1.0 / 30.0;
+    animationTimelineCaptureState.samples = [];
+    if (mode === 'dive' && !modeWasAlreadyActive) {
+        animationTimelineCaptureState.startPosition = diveState.startPosition.clone();
+        animationTimelineCaptureState.startVelocity = diveState.startVelocity.clone();
+        animationTimelineCaptureState.prevMotionState = diveState.prevMotionState;
+        animationTimelineCaptureState.prevDistance = diveState.prevDistance;
+    } else if (mode === 'hover' && !modeWasAlreadyActive) {
+        animationTimelineCaptureState.startPosition = hoverState.startPosition.clone();
+        animationTimelineCaptureState.startVelocity = hoverState.startVelocity.clone();
+        animationTimelineCaptureState.prevMotionState = hoverState.prevMotionState;
+        animationTimelineCaptureState.prevDistance = hoverState.prevDistance;
+    } else {
+        animationTimelineCaptureState.startPosition = observer.position.clone();
+        animationTimelineCaptureState.startVelocity = observer.velocity.clone();
+        animationTimelineCaptureState.prevMotionState = shader.parameters.observer.motion;
+        animationTimelineCaptureState.prevDistance = shader.parameters.observer.distance;
+    }
+    animationTimelineCaptureState.startObserverTime = observer.time;
+
+    setAnimationTimelineCaptureFeedback(mode, 'Recording 0.00s', 'is-recording');
+    pushAnimationTimelineCaptureSample(mode, 0.0, true);
+    updateAnimationTimelineCaptureUi();
+    return true;
+}
+
+function toggleAnimationTimelineCapture(mode) {
+    if (animationTimelineCaptureState.active &&
+        animationTimelineCaptureState.mode === mode) {
+        return finalizeAnimationTimelineCapture(mode);
+    }
+    return startAnimationTimelineCapture(mode);
+}
+
+function updateAnimationTimelineCaptureFrame() {
+    if (!animationTimelineCaptureState.active) return;
+
+    var mode = animationTimelineCaptureState.mode;
+    if (mode === 'dive' && !diveState.active && !diveState.reachedSingularity) {
+        finalizeAnimationTimelineCapture(mode);
+        return;
+    }
+    if (mode === 'hover' && !hoverState.active) {
+        finalizeAnimationTimelineCapture(mode);
+        return;
+    }
+
+    var elapsed = Math.max(
+        0.0,
+        (performance.now() - animationTimelineCaptureState.startedAtMs) / 1000.0
+    );
+    if (elapsed + 1e-6 >= animationTimelineCaptureState.nextSampleTime) {
+        pushAnimationTimelineCaptureSample(mode, elapsed, false);
+        updateAnimationTimelineCaptureUi();
+    }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 var effectLabels = {
@@ -795,16 +1142,24 @@ function init(glslSource, textures) {
 // the observer approaches the singularity.
 // ─────────────────────────────────────────────────────────────────────────────
 
-function startDive() {
-    if (diveState.active && !diveState.paused) {
+function startDive(options) {
+    options = options || {};
+    var restartRequested = !!options.restart;
+
+    if (!restartRequested && diveState.active && !diveState.paused) {
         diveState.paused = true;
+        diveState.timelineDriven = false;
         updateDiveUI();
         return;
     }
-    if (diveState.paused) {
+    if (!restartRequested && diveState.paused) {
         diveState.paused = false;
+        diveState.timelineDriven = false;
         updateDiveUI();
         return;
+    }
+    if (restartRequested && (diveState.active || diveState.reachedSingularity)) {
+        resetDive();
     }
 
     // Abort any active hover first — restores observer to pre-hover state so
@@ -813,11 +1168,32 @@ function startDive() {
         resetHover();
     }
 
+    var anchorPosition = readAnimationCaptureAnchorPosition(options.anchorPosition) ||
+        observer.position.clone();
+    if (anchorPosition.lengthSq() < 1e-10) {
+        anchorPosition.set(Math.max(shader.parameters.observer.distance, 1.0), 0, 0);
+    }
+    var anchorVelocity = readAnimationCaptureAnchorVelocity(options.anchorVelocity) ||
+        observer.velocity.clone();
+    var anchorRadius = anchorPosition.length();
+
+    observer.position.copy(anchorPosition);
+    observer.velocity.copy(anchorVelocity);
+    shader.parameters.observer.distance = anchorRadius;
+    if (typeof options.observerTime === 'number' && isFinite(options.observerTime)) {
+        observer.time = options.observerTime;
+    }
+
     // Save current observer state for reset
-    diveState.prevMotionState = shader.parameters.observer.motion;
-    diveState.prevDistance = shader.parameters.observer.distance;
-    diveState.startPosition = observer.position.clone();
-    diveState.startVelocity = observer.velocity.clone();
+    diveState.prevMotionState = (options.prevMotionState !== undefined)
+        ? !!options.prevMotionState
+        : shader.parameters.observer.motion;
+    diveState.prevDistance = (typeof options.prevDistance === 'number' &&
+        isFinite(options.prevDistance))
+        ? options.prevDistance
+        : anchorRadius;
+    diveState.startPosition = anchorPosition.clone();
+    diveState.startVelocity = anchorVelocity.clone();
     diveState.startRenderSettings = {
         n_steps: shader.parameters.n_steps,
         max_revolutions: shader.parameters.max_revolutions,
@@ -832,6 +1208,7 @@ function startDive() {
     diveState.currentR = observer.position.length();
     diveState.active = true;
     diveState.paused = false;
+    diveState.timelineDriven = false;
     diveState.reachedSingularity = false;
 
     // Boost ray steps for interior — need more integration steps to trace
@@ -851,8 +1228,13 @@ function startDive() {
 }
 
 function resetDive() {
+    if (animationTimelineCaptureState.active &&
+        animationTimelineCaptureState.mode === 'dive') {
+        finalizeAnimationTimelineCapture('dive');
+    }
     diveState.active = false;
     diveState.paused = false;
+    diveState.timelineDriven = false;
     diveState.reachedSingularity = false;
 
     // Restore pre-dive observer state
@@ -892,7 +1274,8 @@ function cinematicFactor(r) {
     return (1.0 + farBoost) / (1.0 + photonSlow + horizonSlow);
 }
 
-function seekDive(targetR) {
+function seekDive(targetR, options) {
+    options = options || {};
     if (!diveState.active && !diveState.reachedSingularity) return;
     targetR = Math.max(0.08, Math.min(diveState.prevDistance, targetR));
 
@@ -907,6 +1290,7 @@ function seekDive(targetR) {
         diveState.reachedSingularity = true;
     }
     diveState.paused = true;
+    diveState.timelineDriven = !!options.timelineDriven;
 
     // Update observer position and velocity for the new radius
     observer.position.copy(diveState.direction.clone().multiplyScalar(targetR));
@@ -1061,17 +1445,25 @@ function updateDiveFade() {
 // sequence of hovering positions (not a free-fall trajectory).
 // ─────────────────────────────────────────────────────────────────────────────
 
-function startHover() {
+function startHover(options) {
+    options = options || {};
+    var restartRequested = !!options.restart;
+
     // Toggle pause if already active
-    if (hoverState.active && !hoverState.paused) {
+    if (!restartRequested && hoverState.active && !hoverState.paused) {
         hoverState.paused = true;
+        hoverState.timelineDriven = false;
         updateHoverUI();
         return;
     }
-    if (hoverState.paused) {
+    if (!restartRequested && hoverState.paused) {
         hoverState.paused = false;
+        hoverState.timelineDriven = false;
         updateHoverUI();
         return;
+    }
+    if (restartRequested && hoverState.active) {
+        resetHover();
     }
 
     // Abort any active dive first
@@ -1079,11 +1471,32 @@ function startHover() {
         resetDive();
     }
 
+    var anchorPosition = readAnimationCaptureAnchorPosition(options.anchorPosition) ||
+        observer.position.clone();
+    if (anchorPosition.lengthSq() < 1e-10) {
+        anchorPosition.set(Math.max(shader.parameters.observer.distance, 1.0), 0, 0);
+    }
+    var anchorVelocity = readAnimationCaptureAnchorVelocity(options.anchorVelocity) ||
+        observer.velocity.clone();
+    var anchorRadius = anchorPosition.length();
+
+    observer.position.copy(anchorPosition);
+    observer.velocity.copy(anchorVelocity);
+    shader.parameters.observer.distance = anchorRadius;
+    if (typeof options.observerTime === 'number' && isFinite(options.observerTime)) {
+        observer.time = options.observerTime;
+    }
+
     // Save current observer state for reset
-    hoverState.prevMotionState = shader.parameters.observer.motion;
-    hoverState.prevDistance = shader.parameters.observer.distance;
-    hoverState.startPosition = observer.position.clone();
-    hoverState.startVelocity = observer.velocity.clone();
+    hoverState.prevMotionState = (options.prevMotionState !== undefined)
+        ? !!options.prevMotionState
+        : shader.parameters.observer.motion;
+    hoverState.prevDistance = (typeof options.prevDistance === 'number' &&
+        isFinite(options.prevDistance))
+        ? options.prevDistance
+        : anchorRadius;
+    hoverState.startPosition = anchorPosition.clone();
+    hoverState.startVelocity = anchorVelocity.clone();
 
     // Disable orbital motion — hover controls the observer now
     shader.parameters.observer.motion = false;
@@ -1093,6 +1506,7 @@ function startHover() {
     hoverState.currentR = observer.position.length();
     hoverState.active = true;
     hoverState.paused = false;
+    hoverState.timelineDriven = false;
 
     // Set observer as stationary (hovering)
     observer.velocity.set(0, 0, 0);
@@ -1104,8 +1518,13 @@ function startHover() {
 }
 
 function resetHover() {
+    if (animationTimelineCaptureState.active &&
+        animationTimelineCaptureState.mode === 'hover') {
+        finalizeAnimationTimelineCapture('hover');
+    }
     hoverState.active = false;
     hoverState.paused = false;
+    hoverState.timelineDriven = false;
 
     // Restore pre-hover observer state
     shader.parameters.observer.motion = hoverState.prevMotionState;
@@ -1122,12 +1541,14 @@ function resetHover() {
     if (refreshAllControllersGlobal) refreshAllControllersGlobal();
 }
 
-function seekHover(targetR) {
+function seekHover(targetR, options) {
+    options = options || {};
     if (!hoverState.active) return;
     targetR = Math.max(hoverState.minR, Math.min(hoverState.prevDistance, targetR));
 
     hoverState.currentR = targetR;
     hoverState.paused = true;
+    hoverState.timelineDriven = !!options.timelineDriven;
 
     // Update observer position (stationary, zero velocity)
     observer.position.copy(hoverState.direction.clone().multiplyScalar(targetR));
@@ -1387,12 +1808,20 @@ function stepRendererSimulation(dt, skipBenchmark) {
             updatePresentation(dt);
         }
     }
-    if (diveState.active && !diveState.paused && !diveState.reachedSingularity) {
-        updateDive(dt);
-        updateCamera();
-    } else if (hoverState.active && !hoverState.paused) {
-        updateHover(dt);
-        updateCamera();
+    if (diveState.active && !diveState.reachedSingularity) {
+        if (!diveState.paused && !diveState.timelineDriven) {
+            updateDive(dt);
+        }
+        if (!diveState.paused || diveState.timelineDriven) {
+            updateCamera();
+        }
+    } else if (hoverState.active) {
+        if (!hoverState.paused && !hoverState.timelineDriven) {
+            updateHover(dt);
+        }
+        if (!hoverState.paused || hoverState.timelineDriven) {
+            updateCamera();
+        }
     } else {
         observer.move(dt);
         if (shader.parameters.observer.motion) updateCamera();
@@ -1450,6 +1879,7 @@ function animate() {
     // with hasMovingParts()==false silently froze the disk animation.
     var dt = getFrameDuration();
     stepRendererSimulation(dt, false);
+    updateAnimationTimelineCaptureFrame();
     // ─────────────────────────────────────────────────────────────────────────
     drawRendererFrame(false);
 }

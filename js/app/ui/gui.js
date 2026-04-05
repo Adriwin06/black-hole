@@ -1331,6 +1331,15 @@ function setupGUI() {
                         '<div id="dive-velocity" class="dive-metric">v = 0.000 c</div>' +
                         '<div id="dive-status" class="dive-status ready">Ready</div>' +
                     '</div>' +
+                    '<div class="anim-capture-block anim-capture-block--dive">' +
+                        '<div class="anim-capture-head">' +
+                            '<span class="anim-capture-label">Timeline capture</span>' +
+                            '<span id="dive-capture-status" class="anim-capture-status">Idle</span>' +
+                        '</div>' +
+                        '<div class="anim-capture-hint">Record the live dive plus orbit/pan camera moves into the bottom timeline at the current playhead.</div>' +
+                        '<button id="dive-capture-btn" class="dive-btn dive-btn-capture">' +
+                            '&#9679; RECORD TO TIMELINE</button>' +
+                    '</div>' +
                     '<button id="dive-reset-btn" class="dive-btn dive-btn-reset" ' +
                         'disabled>\u21ba RESET</button>' +
                 '</div>' +
@@ -1368,13 +1377,19 @@ function setupGUI() {
                             'a = 0.00 c\u00b2/r<sub>s</sub></div>' +
                         '<div id="hover-status" class="hover-status ready">Ready</div>' +
                     '</div>' +
+                    '<div class="anim-capture-block anim-capture-block--hover">' +
+                        '<div class="anim-capture-head">' +
+                            '<span class="anim-capture-label">Timeline capture</span>' +
+                            '<span id="hover-capture-status" class="anim-capture-status">Idle</span>' +
+                        '</div>' +
+                        '<div class="anim-capture-hint">Record the live hover descent plus orbit/pan camera moves into the bottom timeline at the current playhead.</div>' +
+                        '<button id="hover-capture-btn" class="hover-btn hover-btn-capture">' +
+                            '&#9679; RECORD TO TIMELINE</button>' +
+                    '</div>' +
                     '<button id="hover-reset-btn" class="hover-btn hover-btn-reset" ' +
                         'disabled>\u21ba RESET</button>' +
                 '</div>' +
             '</div>' +
-            (typeof createPresentationAnimationSectionHtml === 'function'
-                ? createPresentationAnimationSectionHtml()
-                : '') +
             '</div>'; // close .sp-content
         document.body.appendChild(panel);
 
@@ -1454,9 +1469,6 @@ function setupGUI() {
         }
         setupSectionToggle('dive-section');
         setupSectionToggle('hover-section');
-        if (document.getElementById('presentation-section')) {
-            setupSectionToggle('presentation-section');
-        }
 
         // ── Dive events ────────────────────────────────────────────────
         document.getElementById('dive-start-btn').addEventListener('click',
@@ -1472,6 +1484,12 @@ function setupGUI() {
             });
         document.getElementById('dive-cinematic').addEventListener('change',
             function() { diveState.cinematic = this.checked; });
+        document.getElementById('dive-capture-btn').addEventListener('click',
+            function() {
+                if (typeof toggleAnimationTimelineCapture === 'function') {
+                    toggleAnimationTimelineCapture('dive');
+                }
+            });
 
         var diveTrack = document.getElementById('dive-horizon-track');
         var diveDragging = false;
@@ -1511,6 +1529,12 @@ function setupGUI() {
                 document.getElementById('hover-speed-val').textContent =
                     (v < 0.1 ? v.toFixed(2) : v.toFixed(1)) + '\u00d7';
             });
+        document.getElementById('hover-capture-btn').addEventListener('click',
+            function() {
+                if (typeof toggleAnimationTimelineCapture === 'function') {
+                    toggleAnimationTimelineCapture('hover');
+                }
+            });
 
         var hoverTrack = document.getElementById('hover-horizon-track');
         var hoverDragging = false;
@@ -1540,8 +1564,8 @@ function setupGUI() {
         });
 
         // ── Presentation timeline events ───────────────────────────────
-        if (typeof bindPresentationAnimationSection === 'function') {
-            bindPresentationAnimationSection(panel);
+        if (typeof updateAnimationTimelineCaptureUi === 'function') {
+            updateAnimationTimelineCaptureUi();
         }
 
         // ── Bottom-docked timeline panel ────────────────────────────────

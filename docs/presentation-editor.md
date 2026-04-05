@@ -7,258 +7,267 @@ This guide explains how to use the in-app timeline editor.
 
 If you want the raw JSON schema, see `docs/presentation-json.md`.
 
-## 1. UI overview — three panels
+## 1. UI overview
 
-The interface has three separate sliding panels:
+The interface has three sliding panels:
 
 | Button | Location | Panel contents |
 |---|---|---|
-| `◀ ANIMATIONS` | left screen edge | Freefall Dive, Hover Approach, **Presentation Timeline** preset picker + status |
-| `▶ CONTROLS` | right screen edge | Physics / rendering controls (dat.GUI) |
-| `▲ TIMELINE` | bottom of screen | **Dopesheet editor** — tracks, keyframes, annotations, transport, and the REC modal |
+| `ANIMATIONS` | left screen edge | Freefall Dive, Hover Approach, and `RECORD TO TIMELINE` controls for those live scenarios |
+| `CONTROLS` | right screen edge | Physics and rendering controls (`dat.GUI`) |
+| `TIMELINE` | bottom of screen | Preset dropdown, transport, dopesheet, annotations, recording modal, import/export |
 
-Click an edge button to open its panel. The `▲ TIMELINE` panel also opens automatically when you select **New Preset** in the Animations panel.
+Click an edge button to open its panel.
 
 ## 2. How to open the editor
 
-**Option A — via the Animations panel:**
-
-1. Click `◀ ANIMATIONS` on the left edge to open the Animations panel.
-2. Expand the **PRESENTATION TIMELINE** section.
-3. In the `Preset` dropdown, select **`New Preset`**.
-   - The `▲ TIMELINE` bottom panel opens automatically with a blank draft.
-
-**Option B — directly:**
-
-1. Click `▲ TIMELINE` at the bottom of the screen.
-2. In the Preset dropdown in the transport bar, select **`— new empty —`**.
+1. Click `TIMELINE` at the bottom of the screen.
+2. In the Preset dropdown, select `-- new empty --` to start from a blank draft.
 
 ## 3. Timeline panel layout
 
-```
-┌──────────────────────────────────────────────────────────────────────┐
-│ ▶  ⏸  ■   0.00 / 12.00  [────scrubber────]  Preset ▾  SAVE  ⊕ FX  ● REC  AUTO KEY  + TRACK  ✎ TEXT  ↑ IMPORT  ↓ EXPORT  × │  ← transport bar
-├────────────────┬───────────────────────────────┬─────────────────────┤
-│  TRACKS        │  dopesheet lanes               │  KEY INSPECTOR      │
-│  observer.di…  │  ──●──────────●──────────      │  Path               │
-│  look.exposure │  ────●────────●────────        │  Time / Ease        │
-│  …             │                                │  Value              │
-│                │                                │  USE TIME  LIVE VALUE │
-│                │                                │  SET KEY  DELETE    │
-└────────────────┴───────────────────────────────┴─────────────────────┘
-```
+The bottom panel has three main columns:
 
-**Transport bar buttons:**
-- `▶ ⏸ ■` — Play / Pause / Stop
-- **Time / Duration fields** — two editable number inputs showing `current / total`. Click either field and type a value to seek or change the timeline duration.
-- Preset dropdown — load a saved preset or `— new empty —` to start fresh
-- `SAVE` — download the current draft using its linked filename
-- `⊕ FX` — open the **Motion Functions** panel (see section 5)
-- `● REC` — open the recording / screenshot modal
-- `AUTO KEY` — capture changed controls as keyframes at the current time
-- `+ TRACK` — add a new blank track using the path typed in the Key Inspector
-- `✎ TEXT` — add or edit an annotation event at the current time
-- `↑ IMPORT` — import a `.json` timeline file from disk
-- `↓ EXPORT` — download the current draft as a `.json` file
-- `×` — close the timeline panel
+- **Track list** on the left: parameter tracks plus annotation lanes.
+- **Dopesheet** in the center: keyframes, annotation bars, ruler, and scrubber.
+- **Inspector** on the right: key editing or annotation editing depending on the current selection.
 
-**Dopesheet columns:**
-- **Track list** (left) — parameter tracks plus annotation channels; click a row to select that lane
-- **Lanes** (center) — keyframe dots and annotation bars; **Ctrl+click** to add/remove from a multi-selection; **double-click** a keyframe dot to select all keyframes across all tracks that share the same time; click the ruler to seek
-- **Inspector** (right) — switches between the Key Inspector and the Text Event inspector depending on what you selected
+The transport bar includes:
 
-## 4. Fast workflow (recommended)
+- `Play / Pause / Stop`
+- `current time / duration` numeric inputs
+- `Preset` dropdown
+- `SAVE`
+- `FX`
+- `REC`
+- `AUTO KEY`
+- `+ TRACK`
+- `TEXT`
+- `IMPORT`
+- `EXPORT`
+- `Close`
 
-This is the easiest way to animate many controls quickly.
+## 4. Fast workflow
 
-1. Open the Timeline panel (see section 2).
-2. Scrub to your first keyframe time (usually `0.00`).
-3. Click **`AUTO KEY`** in the transport bar.
-   - If you are at `0.00` or starting from an empty draft, the editor asks whether to store a **full initial state** or start in **diff mode**.
-   - Otherwise it stores a **baseline snapshot**.
-4. Change settings in the **Controls panel** (observer distance, accretion mode, jet, GRMHD, look, etc.).
-5. Scrub to the next keyframe time (example `5.00`).
-6. Click **`AUTO KEY`** again.
-   - Changed values are written as tracks with keys at both the previous and current time.
-7. Repeat steps 4–6 for more keyframes.
-8. Press `▶` in the transport bar to preview.
+This is the fastest way to animate a normal presentation:
 
-Changes **auto-apply** immediately — no separate Apply step is needed.
+1. Open the Timeline panel.
+2. Move the playhead to the first keyframe time, usually `0.00`.
+3. Click `AUTO KEY`.
+4. Change controls in the right-side `CONTROLS` panel.
+5. Move the playhead to the next keyframe time.
+6. Click `AUTO KEY` again.
+7. Repeat for more beats.
+8. Press `Play` to preview.
 
-## 5. Motion Functions (⊕ FX)
+Changes auto-apply immediately. There is no separate global apply step for ordinary timeline editing.
 
-Click `⊕ FX` in the transport bar to open the **Motion Functions** panel. It floats above the timeline and lets you generate whole blocks of keyframes from a preset motion type.
+### Capturing Freefall Dive / Hover Approach into the timeline
+
+The built-in `Freefall Dive` and `Hover Approach` modes can be recorded directly into the timeline. This is the intended workflow when a hand-authored keyframe edit would be too awkward or too hard to match physically.
+
+Workflow:
+
+1. Open `TIMELINE` and move the playhead to the shot start.
+2. Open `ANIMATIONS`.
+3. In either `FREEFALL DIVE` or `HOVER APPROACH`, click `RECORD TO TIMELINE`.
+4. While the capture is running, move the camera normally:
+   - left drag: orbit
+   - right drag: pan
+   - left + right drag: roll
+5. Click `STOP & SAVE` in the same section.
+
+That capture writes all of the following into the timeline at the current playhead:
+
+- a `startDive` or `startHover` event
+- a radius track: `dive.currentR` or `hover.currentR`
+- `camera.position.x/y/z`
+- `camera.quaternion.x/y/z/w`
+- `cameraPan.x/y`
+
+Playback then re-seeks the dive or hover radius from those captured samples, so the replay follows the recorded shot instead of trying to re-run the live motion with slightly different timing.
+
+## 5. Motion Functions (`FX`)
+
+Click `FX` in the transport bar to open the Motion Functions panel. It generates blocks of keyframes from a preset motion type.
 
 | Type | What it animates | Tracks created |
 |---|---|---|
-| **Intro: sky reveal** | Starts close to the hole and widens the view into the sky / full scene | Camera transform tracks |
-| **Orbit around BH** | Camera circles the black hole at constant radius and elevation | `camera.position.x/y/z`, `camera.quaternion.x/y/z/w` |
-| **Zoom in / out** | Observer distance change | `observer.distance` |
-| **Exposure fade** | Exposure ramp | `look.exposure` |
-| **Inclination sweep** | Camera latitude sweep | `observer.orbital_inclination` |
+| `Intro: sky reveal` | Starts close to the hole and widens into the full scene | camera transform tracks |
+| `Orbit around BH` | Camera circles the black hole at constant radius and elevation | `camera.position.*`, `camera.quaternion.*` |
+| `Zoom in / out` | Observer distance change | `observer.distance` |
+| `Exposure fade` | Exposure ramp | `look.exposure` |
+| `Inclination sweep` | Camera latitude sweep | `observer.orbital_inclination` |
 
-**Shared parameters for all types:**
-- **Start time** — defaults to the current playhead position
-- **Duration** — total seconds the motion spans
-- **Ease** — easing curve applied between steps
+Shared parameters:
 
-**Orbit-specific parameters:**
-- **Number of orbits** — how many full 360° circles (fractional values allowed, e.g. `0.5` = semicircle)
-- **Direction** — Counter-clockwise (CCW) or Clockwise (CW) as seen from above
+- `Start time`
+- `Duration`
+- `Ease`
 
-The orbit generator uses linear easing between 32 samples/orbit, which gives a visually near-constant angular velocity with no intentional easing slowdown at intermediate points. Generated quaternions are automatically sign-normalised to prevent the camera from snapping.
+Orbit-specific parameters:
 
-Press **APPLY** in the Motion Functions panel to write the generated keyframes into the draft, or press `Escape` / click outside the panel to close it without applying.
+- `Number of orbits`
+- `Direction`
 
-## 6. What Auto Key does exactly
+Press `APPLY` in the Motion Functions panel to insert the generated keys.
 
-- First click at `0.00` or on an empty draft: prompts for **Full initial state** or **Changes only (diff mode)**.
-- First click elsewhere: captures baseline only.
-- Next clicks: compares current controls vs previous baseline snapshot.
-- For each changed value, writes:
-  - a key at the previous snapshot time
+## 6. What Auto Key does
+
+- First click at `0.00` or on an empty draft: prompts for `Full initial state` or `Changes only`.
+- First click elsewhere: captures a baseline only.
+- Next clicks: compares the current runtime state to the previous baseline.
+- For each changed value, the editor writes:
+  - a key at the previous baseline time
   - a key at the current time
-- If no changes are detected, no tracks are added.
+- If nothing changed, no tracks are added.
 
-This lets you animate many parameters without manually entering each path.
+`AUTO KEY` is best for controls-panel animation, not for Freefall Dive / Hover shots. Use `RECORD TO TIMELINE` for those.
 
-## 7. Manual track/keyframe editing
+## 7. Manual track and keyframe editing
 
-Use the **Key Inspector** (right column of the timeline panel) for direct control.
+Use the Key Inspector on the right for direct editing.
 
 Fields:
-- `Path` — parameter path (example `observer.distance`, `accretion_mode`, `cameraPan.x`)
-- `Time` — time in seconds
-- `Ease` — `linear`, `smooth`, `smoother`
-- `Value` — value at that key
 
-Buttons in the inspector:
-- `USE TIME` — fills the Time field from the current playhead position
-- `LIVE VALUE` — reads the current runtime value for the entered Path
-- `SET KEY` — add or replace the key at this time; if `Value` is blank, the editor uses the current live value automatically
-- `DELETE KEY` — remove the selected key
+- `Path`
+- `Time`
+- `Ease`
+- `Value`
 
-Click a **track row** in the left column to inspect that track.  
-Click a **keyframe dot** in the dopesheet to select that specific key.  
-**Ctrl+click** additional dots to build a multi-selection across one or many tracks.
+Inspector buttons:
 
-Fast manual workflow:
-- Click a track row.
-- Move the playhead.
-- Press `K` to key that track's current live value at the playhead.
+- `USE TIME`
+- `LIVE VALUE`
+- `SET KEY`
+- `DELETE KEY`
 
-Use `✎ TEXT` in the transport bar to create an annotation event at the current time. Selecting an annotation bar switches the right column into the **Text Event** inspector, where you can edit title, body, color, width, fade-in, placement, and duration/end-marker behavior.
+Useful workflow:
+
+1. Click a track row.
+2. Move the playhead.
+3. Press `K` to key that track's current live value at the playhead.
+
+Use `TEXT` in the transport bar to create an annotation event at the current time. Selecting an annotation bar switches the inspector into annotation-edit mode.
 
 ## 8. Interpolation rules
 
-- Number values interpolate smoothly between keys.
-- Boolean/string values are stepped (switch at the key time, no interpolation).
+- Number-to-number keys interpolate.
+- Boolean and string values step; there is no interpolation between them.
 
 Practical tip:
-- For mode switches like `accretion_mode`, `kerr_mode`, `jet.mode` use events (`set`) in the JSON rather than numeric tracks. Text annotations are editable in the UI; other discrete events are easiest to author via **JSON import/export** (see section 13).
+
+- For mode switches such as `accretion_mode`, `kerr_mode`, or `jet.mode`, use JSON `set` events rather than numeric tracks.
 
 ## 9. Keyboard shortcuts
-
-The timeline panel responds to keyboard shortcuts when it is focused:
 
 | Shortcut | Action |
 |---|---|
 | `Space` | Play / Pause |
-| `Delete` or `Backspace` | Delete all selected keyframes |
-| `Ctrl+A` | Select all keyframes on the active track; with `Shift` held (`Ctrl+Shift+A`), select all keyframes across all tracks |
-| `Shift+A` | Select all keyframes at the current playhead time across tracks |
-| Double-click keyframe | Select all keyframes across all tracks at that same time |
-| `Ctrl+C` | Copy selected keyframes to clipboard |
-| `Ctrl+V` | Paste copied keyframes at the current playhead time |
-| `K` | Key the selected track at the current playhead using its live value |
-| `Ctrl+Z` | Undo last edit |
-| `Ctrl+Y` / `Ctrl+Shift+Z` | Redo |
-| `Escape` | Close the Motion Functions panel (if open) |
+| `Delete` or `Backspace` | Delete selected keyframes |
+| `Ctrl+A` | Select all keys on the active track |
+| `Ctrl+Shift+A` | Select all keys across all tracks |
+| `Shift+A` | Select all keys at the current playhead time |
+| Double-click keyframe | Select all keys at that same time across tracks |
+| `Ctrl+C` | Copy selected keyframes |
+| `Ctrl+V` | Paste copied keyframes at the current playhead |
+| `K` | Key the selected track using its live value |
+| `Ctrl+Z` | Undo |
+| `Ctrl+Y` or `Ctrl+Shift+Z` | Redo |
+| `Escape` | Close the Motion Functions panel |
 | `Home` | Seek to `0.00` |
-| `End` | Seek to the end of the timeline (duration) |
-| `←` / `→` | Nudge playhead by ±0.1 s |
-| `Shift+←` / `Shift+→` | Nudge playhead by ±1.0 s |
+| `End` | Seek to timeline end |
+| `Left` / `Right` | Nudge playhead by `0.1 s` |
+| `Shift+Left` / `Shift+Right` | Nudge playhead by `1.0 s` |
 
 ## 10. Undo / Redo
 
-Every mutating operation (SET KEY, DELETE KEY, AUTO KEY, + TRACK) pushes a snapshot onto an undo stack (max 40 entries). Use **Ctrl+Z** to undo and **Ctrl+Y** (or **Ctrl+Shift+Z**) to redo.
+Every mutating operation pushes a snapshot onto the undo stack. Use `Ctrl+Z` to undo and `Ctrl+Y` or `Ctrl+Shift+Z` to redo.
 
-## 11. Changes are live — no APPLY needed
+## 11. Changes are live
 
-Every edit (SET KEY, DELETE KEY, AUTO KEY, + TRACK) immediately updates the running timeline.
-
-There is no separate global **APPLY** step for normal timeline editing. The only remaining **APPLY** button is inside the Motion Functions panel, where it inserts generated keyframes.
+Normal edits update the running timeline immediately. The only apply-style action is inside the Motion Functions panel, where generated keyframes are inserted into the draft.
 
 ## 12. Panel state persistence
 
-When you close the timeline panel, its state is saved to session storage automatically:
-- The selected preset
-- The current draft (all tracks and keyframes)
-- The selected track and keyframe selection
-- The current playhead position and Auto Key baseline
-- Recording-panel choices such as capture mode, resolution, bitrate, and reset-on-record-start
-- Annotation / parameter-HUD visibility settings and the selected HUD parameter list
+Closing the Timeline panel stores its state in session storage:
 
-Reopening the panel restores everything exactly as you left it. Once saved, that state survives page reloads in the same tab/session. It is cleared when the tab or browser session ends.
+- selected preset
+- current draft
+- selected track and key selection
+- playhead position
+- Auto Key baseline
+- recording modal choices
+- annotation / parameter-HUD visibility and HUD item list
+
+Reopening the panel restores that state for the current tab/session.
 
 ## 13. JSON import / export
 
-Use the transport bar buttons to move between the UI editor and raw JSON:
+Transport-bar file actions:
 
-- `SAVE` — re-download the current draft with its linked filename
-- `↑ IMPORT` — opens a file picker; loads a `.json` timeline file into the editor
-- `↓ EXPORT` — downloads the current draft as `<name>.json`
+- `SAVE`: re-download the current draft with its linked filename
+- `IMPORT`: load a `.json` timeline file into the editor
+- `EXPORT`: download the current draft as `<name>.json`
 
-Use exported JSON to hand-edit mode-switch events, compile flags, annotation channels, manual annotation box placement, and other advanced fields not fully exposed in the dopesheet UI. See `docs/presentation-json.md` for the full schema.
+Use exported JSON to edit advanced fields such as mode-switch events, compile flags, custom annotation channels, manual annotation placement, or captured dive/hover event payloads.
 
 ## 14. Playback and recording
 
-Playback controls and recording settings live in the **Timeline panel** (`▲ TIMELINE`), not in the Animations panel.
+Playback controls, preset loading, and recording settings live in the `TIMELINE` panel, not in the `ANIMATIONS` panel.
 
-Open `▲ TIMELINE` → click `● REC` to access:
-- Loop toggle
-- Annotation and parameter-HUD visibility toggles
-- A visible-parameter list with `ADD SELECTED` / `CLEAR`
-- Whether overlays are included in recordings
-- Reset-on-record-start toggle
-- Recording quality, mode, resolution, FPS, bitrate
-- `PNG SNAPSHOT`, `START REC`, and `STOP REC`
+Open `TIMELINE`, then click `REC` to access:
 
-The `◀ ANIMATIONS` panel only loads built-in presentation presets and shows current status.
+- loop toggle
+- annotation and parameter-HUD visibility
+- HUD parameter list with `ADD SELECTED` / `CLEAR`
+- overlay inclusion in recordings
+- reset-on-record-start
+- recording quality, mode, resolution, FPS, bitrate
+- `PNG SNAPSHOT`
+- `START REC`
+- `STOP REC`
+
+The `ANIMATIONS` panel is for the live Freefall Dive / Hover Approach modes and for capturing those runs into timeline data.
 
 ## 15. Save as a reusable preset
 
-`New Preset` / `— new empty —` is a runtime editing mode.  
-Closing the panel saves the current draft to session storage, so it can survive a reload in the same tab/session.  
-To make a preset permanently available across fresh sessions and as part of the repository:
+`-- new empty --` is a runtime editing mode. Closing the panel preserves the current draft only for the current tab/session.
 
-`SAVE` only downloads the current draft with its linked filename; it does not write back into the repository automatically.
+To make a preset permanent in the repository:
 
-1. Click `↓ EXPORT` in the transport bar.
+1. Click `EXPORT`.
 2. Place the downloaded file in `js/app/presentation/presets/`.
 3. Add an entry in `js/app/presentation/presets/manifest.json`.
 4. Reload the page.
 
-The preset now appears in the Preset dropdown in both the Animations panel and the Timeline panel.
+The preset will then appear in the Timeline-panel Preset dropdown.
 
 ## 16. Troubleshooting
 
-**Timeline panel doesn't open:**
-- Click the `▲ TIMELINE` button at the bottom of the screen.
-- Or select `New Preset` in the Animations panel (`◀ ANIMATIONS`).
+**Timeline panel does not open**
 
-**My edits don't appear during playback:**
-- Changes auto-apply; if playback seems stale, press Stop then Play again.
+- Click the `TIMELINE` button at the bottom of the screen.
 
-**AUTO KEY reports no changes:**
-- You likely clicked it twice without changing any controls between clicks.
-- Change controls (in the Controls panel on the right) between AUTO KEY presses.
+**My edits do not appear during playback**
 
-**A keyframe does nothing:**
+- Edits auto-apply. If playback seems stale, press `Stop` and `Play` again.
+
+**AUTO KEY reports no changes**
+
+- You likely pressed it twice without changing any controls between captures.
+
+**A keyframe does nothing**
+
 - The path may be wrong or unsupported.
-- Type the path in the Inspector, click `LIVE VALUE` to verify it resolves to a value.
-- Check path spelling against `docs/presentation-json.md`.
+- Type the path in the Inspector and click `LIVE VALUE` to verify it resolves.
+- Check spelling against `docs/presentation-json.md`.
 
-**Camera rotation was not captured by AUTO KEY:**
-- AUTO KEY captures the orbit camera transform as `camera.position.*` and `camera.quaternion.*`.
-- Make sure you actually moved the camera between clicks.
+**Camera rotation was not captured by AUTO KEY**
+
+- `AUTO KEY` captures camera transforms only when you move the camera between the two captures.
+
+**I need to animate a dive or hover shot and hand-keying is too awkward**
+
+- Use `RECORD TO TIMELINE` in the `ANIMATIONS` panel.
+- That workflow captures the live radius evolution plus camera orbit/pan/roll into timeline tracks.

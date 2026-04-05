@@ -1166,6 +1166,19 @@ function normalizePresentationTimeline(timeline) {
         };
         if (typeof ev.channel === 'number') normEv.channel = ev.channel;
         if (ev._pairOf !== undefined) normEv._pairOf = ev._pairOf;
+        var extraKeys = Object.keys(ev);
+        for (var ek = 0; ek < extraKeys.length; ek++) {
+            var extraKey = extraKeys[ek];
+            if (extraKey === 't' || extraKey === 'action' ||
+                extraKey === 'path' || extraKey === 'value' ||
+                extraKey === 'compile' || extraKey === 'note' ||
+                extraKey === 'channel' || extraKey === '_pairOf') {
+                continue;
+            }
+            if (ev[extraKey] !== undefined) {
+                normEv[extraKey] = clonePresentationData(ev[extraKey]);
+            }
+        }
         out.events.push(normEv);
     }
     out.events.sort(function(a, b) { return a.t - b.t; });
@@ -1301,6 +1314,28 @@ function setPresentationInteractionLock(locked) {
 }
 
 function setPresentationPathValue(path, value) {
+    var cleanPath = (typeof path === 'string') ? path.trim() : '';
+    if (cleanPath === 'dive.currentR') {
+        var diveRadius = parseFloat(value);
+        if (!isFinite(diveRadius) || (!diveState.active && !diveState.reachedSingularity)) {
+            return false;
+        }
+        var diveChanged = Math.abs(diveState.currentR - diveRadius) > 1e-8 ||
+            !diveState.timelineDriven || !diveState.paused;
+        seekDive(diveRadius, { timelineDriven: true });
+        return diveChanged;
+    }
+    if (cleanPath === 'hover.currentR') {
+        var hoverRadius = parseFloat(value);
+        if (!isFinite(hoverRadius) || !hoverState.active) {
+            return false;
+        }
+        var hoverChanged = Math.abs(hoverState.currentR - hoverRadius) > 1e-8 ||
+            !hoverState.timelineDriven || !hoverState.paused;
+        seekHover(hoverRadius, { timelineDriven: true });
+        return hoverChanged;
+    }
+
     var resolved = resolvePresentationPath(path);
     if (!resolved) return false;
 
@@ -1433,7 +1468,14 @@ function executePresentationEvent(event) {
             }
             break;
         case 'startDive':
-            startDive();
+            startDive({
+                restart: true,
+                anchorPosition: event.position,
+                anchorVelocity: event.velocity,
+                prevMotionState: event.prevMotionState,
+                prevDistance: event.prevDistance,
+                observerTime: event.observerTime
+            });
             break;
         case 'resetDive':
             resetDive();
@@ -1441,11 +1483,19 @@ function executePresentationEvent(event) {
         case 'pauseDive':
             if (diveState.active) {
                 diveState.paused = true;
+                diveState.timelineDriven = false;
                 updateDiveUI();
             }
             break;
         case 'startHover':
-            startHover();
+            startHover({
+                restart: true,
+                anchorPosition: event.position,
+                anchorVelocity: event.velocity,
+                prevMotionState: event.prevMotionState,
+                prevDistance: event.prevDistance,
+                observerTime: event.observerTime
+            });
             break;
         case 'resetHover':
             resetHover();
@@ -1453,6 +1503,7 @@ function executePresentationEvent(event) {
         case 'pauseHover':
             if (hoverState.active) {
                 hoverState.paused = true;
+                hoverState.timelineDriven = false;
                 updateHoverUI();
             }
             break;
@@ -1573,9 +1624,11 @@ function playPresentation(fromStart) {
         seekPresentation(0.0);
         presentationState.eventCursor = 0;
         processPresentationEvents(-1.0, 0.0); // fire t=0 events once
+        applyPresentationTracks(0.0);
     } else if (presentationState.time <= 1e-6) {
         presentationState.eventCursor = 0;
         processPresentationEvents(-1.0, 0.0);
+        applyPresentationTracks(0.0);
     }
 
     presentationState.active = true;
