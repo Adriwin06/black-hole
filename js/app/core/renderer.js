@@ -423,6 +423,13 @@ var animationTimelineCaptureState = {
     lastElapsed: 0,
     nextSampleTime: 0,
     sampleInterval: 1.0 / 30.0,
+    cameraSmoothingEnabled: (function() {
+        try {
+            return localStorage.getItem('black-hole.anim-capture.camera-smoothing') === '1';
+        } catch (e) {
+            return false;
+        }
+    })(),
     samples: [],
     startPosition: null,
     startVelocity: null,
@@ -452,6 +459,139 @@ function cloneQuaternionPlain(quat) {
     };
 }
 
+function cloneAnimationTimelineCaptureSample(sample) {
+    return {
+        t: sample.t,
+        radius: sample.radius,
+        observerTime: sample.observerTime,
+        cameraPanX: sample.cameraPanX,
+        cameraPanY: sample.cameraPanY,
+        cameraPosition: cloneVector3Plain(sample.cameraPosition),
+        cameraQuaternion: cloneQuaternionPlain(sample.cameraQuaternion)
+    };
+}
+
+function animationCaptureQuaternionDot(a, b) {
+    return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
+}
+
+function normalizeAnimationCaptureQuaternion(quat) {
+    var len = Math.sqrt(
+        quat.x * quat.x +
+        quat.y * quat.y +
+        quat.z * quat.z +
+        quat.w * quat.w
+    );
+    if (len < 1e-8) {
+        return { x: 0, y: 0, z: 0, w: 1 };
+    }
+    return {
+        x: quat.x / len,
+        y: quat.y / len,
+        z: quat.z / len,
+        w: quat.w / len
+    };
+}
+
+function alignAnimationCaptureQuaternion(refQuat, sampleQuat) {
+    var q = cloneQuaternionPlain(sampleQuat);
+    if (animationCaptureQuaternionDot(refQuat, q) < 0) {
+        q.x = -q.x;
+        q.y = -q.y;
+        q.z = -q.z;
+        q.w = -q.w;
+    }
+    return q;
+}
+
+function smoothAnimationTimelineCaptureSamples(samples, radius) {
+    var src = Array.isArray(samples) ? samples : [];
+    radius = Math.max(0, Math.floor(radius || 0));
+    if (!src.length || radius <= 0) {
+        return src.slice();
+    }
+
+    var out = [];
+    for (var i = 0; i < src.length; i++) {
+        var base = cloneAnimationTimelineCaptureSample(src[i]);
+        if (i === 0 || i === src.length - 1) {
+            out.push(base);
+            continue;
+        }
+
+        var panX = 0, panY = 0;
+        var posX = 0, posY = 0, posZ = 0;
+        var quatX = 0, quatY = 0, quatZ = 0, quatW = 0;
+        var totalWeight = 0;
+        var refQuat = normalizeAnimationCaptureQuaternion(base.cameraQuaternion);
+
+        for (var j = Math.max(0, i - radius); j <= Math.min(src.length - 1, i + radius); j++) {
+            var neighbor = src[j];
+            if (!neighbor) continue;
+            var weight = radius + 1 - Math.abs(j - i);
+            var neighborQuat = alignAnimationCaptureQuaternion(refQuat, neighbor.cameraQuaternion);
+
+            panX += (isFinite(neighbor.cameraPanX) ? neighbor.cameraPanX : 0) * weight;
+            panY += (isFinite(neighbor.cameraPanY) ? neighbor.cameraPanY : 0) * weight;
+            posX += (neighbor.cameraPosition && isFinite(neighbor.cameraPosition.x) ? neighbor.cameraPosition.x : 0) * weight;
+            posY += (neighbor.cameraPosition && isFinite(neighbor.cameraPosition.y) ? neighbor.cameraPosition.y : 0) * weight;
+            posZ += (neighbor.cameraPosition && isFinite(neighbor.cameraPosition.z) ? neighbor.cameraPosition.z : 0) * weight;
+            quatX += neighborQuat.x * weight;
+            quatY += neighborQuat.y * weight;
+            quatZ += neighborQuat.z * weight;
+            quatW += neighborQuat.w * weight;
+            totalWeight += weight;
+        }
+
+        if (totalWeight > 0) {
+            base.cameraPanX = panX / totalWeight;
+            base.cameraPanY = panY / totalWeight;
+            base.cameraPosition.x = posX / totalWeight;
+            base.cameraPosition.y = posY / totalWeight;
+            base.cameraPosition.z = posZ / totalWeight;
+            base.cameraQuaternion = normalizeAnimationCaptureQuaternion({
+                x: quatX / totalWeight,
+                y: quatY / totalWeight,
+                z: quatZ / totalWeight,
+                w: quatW / totalWeight
+            });
+        }
+
+        out.push(base);
+    }
+
+    return out;
+}
+
+function setAnimationTimelineCaptureCameraSmoothingEnabled(enabled) {
+    animationTimelineCaptureState.cameraSmoothingEnabled = !!enabled;
+    try {
+        localStorage.setItem(
+            'black-hole.anim-capture.camera-smoothing',
+            animationTimelineCaptureState.cameraSmoothingEnabled ? '1' : '0'
+        );
+    } catch (e) {}
+    updateAnimationTimelineCaptureUi();
+}
+
+function advanceTimelineDrivenDiveObserverTime(dt) {
+    if (!isFinite(dt) || dt <= 0 || !diveState.active || diveState.reachedSingularity) {
+        return;
+    }
+    var r = Math.max(diveState.currentR, 0.08);
+    var effectiveSpeed = diveState.cinematic
+        ? diveState.speed * cinematicFactor(r)
+        : diveState.speed;
+    observer.time += dt * effectiveSpeed * shader.parameters.time_scale;
+}
+
+function advanceTimelineDrivenHoverObserverTime(dt) {
+    if (!isFinite(dt) || dt <= 0 || !hoverState.active) return;
+    var r = Math.max(hoverState.currentR, hoverState.minR, 1.0001);
+    var timeDilation = Math.sqrt(Math.max(1.0 - 1.0 / r, 0.001));
+    observer.time += dt * shader.parameters.time_scale / timeDilation;
+}
+
 function setAnimationTimelineCaptureFeedback(mode, text, tone) {
     if (!animationTimelineCaptureState.feedback[mode]) return;
     animationTimelineCaptureState.feedback[mode].text = text || 'Idle';
@@ -462,6 +602,7 @@ function updateAnimationTimelineCaptureUi() {
     function syncMode(mode, btnId, statusId) {
         var btn = document.getElementById(btnId);
         var status = document.getElementById(statusId);
+        var smoothToggle = document.getElementById(mode + '-capture-smooth');
         var isActive = animationTimelineCaptureState.active &&
             animationTimelineCaptureState.mode === mode;
         var otherActive = animationTimelineCaptureState.active &&
@@ -489,6 +630,9 @@ function updateAnimationTimelineCaptureUi() {
             }
             status.textContent = text;
             status.className = 'anim-capture-status' + (tone ? ' ' + tone : '');
+        }
+        if (smoothToggle) {
+            smoothToggle.checked = !!animationTimelineCaptureState.cameraSmoothingEnabled;
         }
     }
 
@@ -520,6 +664,7 @@ function buildAnimationTimelineCaptureSample(mode, elapsedSeconds) {
     return {
         t: Math.max(0, elapsedSeconds),
         radius: radius,
+        observerTime: (observer && typeof observer.time === 'number') ? observer.time : 0,
         cameraPanX: cameraPan ? cameraPan.x : 0,
         cameraPanY: cameraPan ? cameraPan.y : 0,
         cameraPosition: cloneVector3Plain(camera && camera.position ? camera.position : null),
@@ -530,6 +675,7 @@ function buildAnimationTimelineCaptureSample(mode, elapsedSeconds) {
 function animationTimelineCaptureSamplesEqual(a, b) {
     if (!a || !b) return false;
     return Math.abs(a.radius - b.radius) < 1e-5 &&
+        Math.abs(a.observerTime - b.observerTime) < 1e-5 &&
         Math.abs(a.cameraPanX - b.cameraPanX) < 1e-5 &&
         Math.abs(a.cameraPanY - b.cameraPanY) < 1e-5 &&
         Math.abs(a.cameraPosition.x - b.cameraPosition.x) < 1e-5 &&
@@ -580,6 +726,10 @@ function finalizeAnimationTimelineCapture(mode) {
         (performance.now() - animationTimelineCaptureState.startedAtMs) / 1000.0
     );
     pushAnimationTimelineCaptureSample(mode, elapsed, true);
+    var captureSamples = animationTimelineCaptureState.samples.slice();
+    if (animationTimelineCaptureState.cameraSmoothingEnabled) {
+        captureSamples = smoothAnimationTimelineCaptureSamples(captureSamples, 2);
+    }
 
     var payload = {
         mode: mode,
@@ -589,7 +739,7 @@ function finalizeAnimationTimelineCapture(mode) {
         prevMotionState: !!animationTimelineCaptureState.prevMotionState,
         prevDistance: animationTimelineCaptureState.prevDistance,
         startObserverTime: animationTimelineCaptureState.startObserverTime,
-        samples: animationTimelineCaptureState.samples.slice()
+        samples: captureSamples
     };
 
     animationTimelineCaptureState.active = false;
@@ -612,7 +762,8 @@ function finalizeAnimationTimelineCapture(mode) {
         setAnimationTimelineCaptureFeedback(
             mode,
             'Saved ' + result.sampleCount + ' samples @ t=' +
-                result.startTime.toFixed(2) + 's',
+                result.startTime.toFixed(2) + 's' +
+                (animationTimelineCaptureState.cameraSmoothingEnabled ? ' (smoothed)' : ''),
             'is-ready'
         );
     } else {
@@ -1801,16 +1952,27 @@ var getFrameDuration = (function() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function stepRendererSimulation(dt, skipBenchmark) {
-    if (typeof getPresentationState === 'function' &&
+    var presentationRuntimeState = (typeof getPresentationState === 'function')
+        ? getPresentationState()
+        : null;
+    if (presentationRuntimeState &&
+        presentationRuntimeState.playing &&
         typeof updatePresentation === 'function') {
-        var presentationRuntimeState = getPresentationState();
-        if (presentationRuntimeState.playing) {
-            updatePresentation(dt);
-        }
+        updatePresentation(dt);
     }
+    var presentationDrivesObserverTime = !!(
+        presentationRuntimeState &&
+        presentationRuntimeState.playing &&
+        presentationRuntimeState.drives_observer_time
+    );
     if (diveState.active && !diveState.reachedSingularity) {
         if (!diveState.paused && !diveState.timelineDriven) {
             updateDive(dt);
+        } else if (diveState.timelineDriven &&
+            presentationRuntimeState &&
+            presentationRuntimeState.playing &&
+            !presentationDrivesObserverTime) {
+            advanceTimelineDrivenDiveObserverTime(dt);
         }
         if (!diveState.paused || diveState.timelineDriven) {
             updateCamera();
@@ -1818,6 +1980,11 @@ function stepRendererSimulation(dt, skipBenchmark) {
     } else if (hoverState.active) {
         if (!hoverState.paused && !hoverState.timelineDriven) {
             updateHover(dt);
+        } else if (hoverState.timelineDriven &&
+            presentationRuntimeState &&
+            presentationRuntimeState.playing &&
+            !presentationDrivesObserverTime) {
+            advanceTimelineDrivenHoverObserverTime(dt);
         }
         if (!hoverState.paused || hoverState.timelineDriven) {
             updateCamera();

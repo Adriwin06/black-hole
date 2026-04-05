@@ -8,6 +8,7 @@
 var PRESENTATION_EDITOR_COMMON_PATHS = [
     'dive.currentR',
     'hover.currentR',
+    'observerState.time',
     'observer.distance',
     'observer.orbital_inclination',
     'observer.motion',
@@ -1800,6 +1801,7 @@ function buildTimelinePanel() {
             var camQuat = sample.cameraQuaternion || {};
             var sampleRadius = parseFloat(sample.radius);
             if (!isFinite(sampleRadius)) continue;
+            var sampleObserverTime = parseFloat(sample.observerTime);
             var panX = isFinite(sample.cameraPanX) ? sample.cameraPanX : 0;
             var panY = isFinite(sample.cameraPanY) ? sample.cameraPanY : 0;
             var posX = isFinite(camPos.x) ? camPos.x : 0;
@@ -1811,6 +1813,9 @@ function buildTimelinePanel() {
             var quatW = isFinite(camQuat.w) ? camQuat.w : 1;
 
             upsertKey(radiusPath, ktime, sampleRadius, 'linear');
+            if (isFinite(sampleObserverTime)) {
+                upsertKey('observerState.time', ktime, sampleObserverTime, 'linear');
+            }
             upsertKey('cameraPan.x', ktime, panX, 'linear');
             upsertKey('cameraPan.y', ktime, panY, 'linear');
             upsertKey('camera.position.x', ktime, posX, 'linear');

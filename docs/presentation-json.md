@@ -126,6 +126,8 @@ Optional fields:
 
 These fields let playback restart the live dive/hover mode from the same observer state that was used during capture before the radius track takes over.
 
+Recorded dive/hover captures also write an `observerState.time` track so shader-driven motion such as accretion-disk rotation and turbulence stays in sync during replay.
+
 ## 5. Path resolution
 
 Supported path prefixes:
@@ -264,4 +266,4 @@ Screen anchor:
 - Keep boolean and string changes in events unless you intentionally want step behavior on a track.
 - The `TEXT` workflow in the timeline editor covers common annotation editing; use raw JSON for advanced note fields and custom channels.
 - If an annotation points to the wrong place in a dynamic shot, switch from a symbolic world target to an explicit screen anchor.
-- Use the `ANIMATIONS` panel's `RECORD TO TIMELINE` flow for Freefall Dive or Hover shots instead of hand-authoring `startDive` / `startHover` plus radius tracks.
+- Use the `ANIMATIONS` panel's `RECORD TO TIMELINE` flow for Freefall Dive or Hover shots instead of hand-authoring `startDive` / `startHover`, radius tracks, and `observerState.time` by hand.

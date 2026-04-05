@@ -1337,6 +1337,10 @@ function setupGUI() {
                             '<span id="dive-capture-status" class="anim-capture-status">Idle</span>' +
                         '</div>' +
                         '<div class="anim-capture-hint">Record the live dive plus orbit/pan camera moves into the bottom timeline at the current playhead.</div>' +
+                        '<label class="anim-capture-check" for="dive-capture-smooth">' +
+                            '<input type="checkbox" id="dive-capture-smooth">' +
+                            '<span>Smooth recorded camera</span>' +
+                        '</label>' +
                         '<button id="dive-capture-btn" class="dive-btn dive-btn-capture">' +
                             '&#9679; RECORD TO TIMELINE</button>' +
                     '</div>' +
@@ -1383,6 +1387,10 @@ function setupGUI() {
                             '<span id="hover-capture-status" class="anim-capture-status">Idle</span>' +
                         '</div>' +
                         '<div class="anim-capture-hint">Record the live hover descent plus orbit/pan camera moves into the bottom timeline at the current playhead.</div>' +
+                        '<label class="anim-capture-check" for="hover-capture-smooth">' +
+                            '<input type="checkbox" id="hover-capture-smooth">' +
+                            '<span>Smooth recorded camera</span>' +
+                        '</label>' +
                         '<button id="hover-capture-btn" class="hover-btn hover-btn-capture">' +
                             '&#9679; RECORD TO TIMELINE</button>' +
                     '</div>' +
@@ -1490,6 +1498,12 @@ function setupGUI() {
                     toggleAnimationTimelineCapture('dive');
                 }
             });
+        document.getElementById('dive-capture-smooth').addEventListener('change',
+            function() {
+                if (typeof setAnimationTimelineCaptureCameraSmoothingEnabled === 'function') {
+                    setAnimationTimelineCaptureCameraSmoothingEnabled(this.checked);
+                }
+            });
 
         var diveTrack = document.getElementById('dive-horizon-track');
         var diveDragging = false;
@@ -1533,6 +1547,12 @@ function setupGUI() {
             function() {
                 if (typeof toggleAnimationTimelineCapture === 'function') {
                     toggleAnimationTimelineCapture('hover');
+                }
+            });
+        document.getElementById('hover-capture-smooth').addEventListener('change',
+            function() {
+                if (typeof setAnimationTimelineCaptureCameraSmoothingEnabled === 'function') {
+                    setAnimationTimelineCaptureCameraSmoothingEnabled(this.checked);
                 }
             });
 

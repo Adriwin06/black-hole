@@ -40,7 +40,7 @@ A real-time, GPU-accelerated browser visualization of a black hole with an accre
 ### Presentation & Recording
 - **Presentation Timeline** — bottom-docked dopesheet editor (inspired by Blender / After Effects) for scripted keyframe animations, preset loading, playback, and recording; supports linear, smooth, and smoother easing
 - **Built-in interactive scenarios** — *Freefall Dive* and *Hover Approach*
-- **Live scenario capture to timeline** — record a manual *Freefall Dive* or *Hover Approach* run, including orbit/pan camera motion, straight into timeline tracks
+- **Live scenario capture to timeline** — record a manual *Freefall Dive* or *Hover Approach* run, including orbit/pan camera motion and captured shader time, straight into timeline tracks, with optional camera smoothing
 - **Built-in timeline presets** — *Full Feature Tour* (186 s) and *Orbit Showcase*
 - **WebM video recording** — realtime MediaRecorder capture plus offline WebCodecs/WebM muxing when supported
 - **Offline PNG snapshot** — one-click still export that forces the Cinematic (offline) quality preset before download

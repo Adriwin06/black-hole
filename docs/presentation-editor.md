@@ -71,6 +71,7 @@ Workflow:
 1. Open `TIMELINE` and move the playhead to the shot start.
 2. Open `ANIMATIONS`.
 3. In either `FREEFALL DIVE` or `HOVER APPROACH`, click `RECORD TO TIMELINE`.
+   - Enable `Smooth recorded camera` first if you want a light smoothing pass on the captured camera path.
 4. While the capture is running, move the camera normally:
    - left drag: orbit
    - right drag: pan
@@ -81,9 +82,12 @@ That capture writes all of the following into the timeline at the current playhe
 
 - a `startDive` or `startHover` event
 - a radius track: `dive.currentR` or `hover.currentR`
+- `observerState.time`
 - `camera.position.x/y/z`
 - `camera.quaternion.x/y/z/w`
 - `cameraPan.x/y`
+
+The smoothing option only affects the recorded camera motion (`camera.position.*`, `camera.quaternion.*`, `cameraPan.*`). It does not alter the recorded dive/hover radius track or the captured `observerState.time` shader clock.
 
 Playback then re-seeks the dive or hover radius from those captured samples, so the replay follows the recorded shot instead of trying to re-run the live motion with slightly different timing.
 

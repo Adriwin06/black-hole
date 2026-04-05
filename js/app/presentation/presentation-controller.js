@@ -1420,6 +1420,19 @@ function getPresentationPathValue(path) {
     return value;
 }
 
+function presentationTimelineHasTrack(path) {
+    if (!presentationState.timeline || typeof path !== 'string') return false;
+    var clean = path.trim();
+    if (!clean) return false;
+
+    var tracks = presentationState.timeline.tracks;
+    for (var i = 0; i < tracks.length; i++) {
+        if (!tracks[i] || typeof tracks[i].path !== 'string') continue;
+        if (tracks[i].path.trim() === clean) return true;
+    }
+    return false;
+}
+
 function flushPresentationShaderCompile() {
     if (!presentationState.compileRequested) return;
     if (scene && typeof scene.updateShader === 'function') {
@@ -1753,6 +1766,7 @@ function getPresentationState() {
         presets_loaded: !!presentationPresetLoadState.loaded,
         presets_loading: !!presentationPresetLoadState.loading,
         playing: presentationState.active && !presentationState.paused,
+        drives_observer_time: presentationTimelineHasTrack('observerState.time'),
         loop: !!presentationState.loop,
         time: presentationState.time,
         duration: presentationState.duration,
@@ -3143,6 +3157,7 @@ if (typeof window !== 'undefined') {
         seek: seekPresentation,
         setLoop: setPresentationLoop,
         state: getPresentationState,
+        hasTrack: presentationTimelineHasTrack,
         setAnnotationsEnabled: setPresentationAnnotationsEnabled,
         setAnnotationsIncludedInRecording: setPresentationAnnotationsIncludedInRecording,
         annotationState: getPresentationAnnotationsState,
