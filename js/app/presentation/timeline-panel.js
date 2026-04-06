@@ -3,7 +3,39 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 // Provides a full-width bottom panel similar to After Effects / Blender dopesheet
 // with transport controls, track list, keyframe lanes, ruler, and key inspector.
-// Public API exposed via global `timelinePanelBinding`.
+// Public API exposed via the module export and runtime UI registry.
+
+import { registerBlackHoleUiBinding } from '../core/runtime-registry.js';
+import {
+    PRESENTATION_PRESETS,
+    PRESENTATION_PRESET_ORDER,
+    registerPresentationPreset,
+    getPresentationTimeline,
+    setPresentationTimeline,
+    seekPresentation,
+    getPresentationState,
+    playPresentation,
+    pausePresentation,
+    stopPresentation,
+    listPresentationPresets,
+    loadPresentationPreset,
+    getPresentationAnnotationsState,
+    getPresentationParamHudState,
+    isParamInHud,
+    toggleParamInHud,
+    getPresentationPathValue,
+    setPresentationAnnotationsEnabled,
+    setPresentationAnnotationsIncludedInRecording,
+    setPresentationParamHudEnabled,
+    setPresentationParamHudIncludedInRecording,
+    removeParamFromHud,
+    addParamToHud,
+    clearParamHud,
+    setParamHudLayout,
+    capturePresentationScreenshot,
+    startPresentationRecording,
+    stopPresentationRecording
+} from './presentation-controller.js';
 
 var PRESENTATION_EDITOR_COMMON_PATHS = [
     'dive.currentR',
@@ -35,9 +67,9 @@ var PRESENTATION_EDITOR_COMMON_PATHS = [
     'camera.quaternion.w'
 ];
 
-var timelinePanelBinding = null;
+export var timelinePanelBinding = null;
 
-function buildTimelinePanel() {
+export function buildTimelinePanel() {
     'use strict';
 
     // ── Utility helpers ─────────────────────────────────────────────────────
@@ -4090,5 +4122,8 @@ function buildTimelinePanel() {
         syncRecState: syncRecModal,
         insertAnimationCapture: insertAnimationCapture
     };
+    if (typeof registerBlackHoleUiBinding === 'function') {
+        registerBlackHoleUiBinding('timelinePanel', timelinePanelBinding);
+    }
     return timelinePanelBinding;
 }

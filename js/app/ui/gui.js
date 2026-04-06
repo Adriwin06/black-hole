@@ -4,7 +4,52 @@
 //       data from presets.js and quality-presets.js. Must be called after init()
 //       has created the scene.
 
-function setupGUI() {
+import { $, dat } from '../vendor.js';
+import {
+    DISK_TEMPERATURE_MIN,
+    DISK_TEMPERATURE_MAX,
+    shader,
+    scene,
+    camera,
+    cameraControls,
+    cameraPan,
+    observer,
+    updateUniforms,
+    setDistanceController,
+    setRefreshAllControllersGlobal
+} from '../core/runtime-state.js';
+import {
+    OBSERVER_ORBIT_MIN,
+    OBSERVER_DISTANCE_MIN,
+    OBSERVER_DISTANCE_MAX,
+    PLANET_ORBIT_MIN,
+    clampObserverDistance
+} from '../core/observer.js';
+import { updateCamera } from '../scene/camera.js';
+import {
+    applyQualityPresetValues,
+    QUALITY_PRESETS,
+    QUALITY_PRESET_LABELS,
+    KERR_MODE_LABELS
+} from './quality-presets.js';
+import { BH_PRESETS } from './presets.js';
+import { diveState, hoverState } from '../core/scenario-state.js';
+import { startDive, resetDive, seekDive } from '../core/dive.js';
+import { startHover, resetHover, seekHover } from '../core/hover.js';
+import {
+    toggleAnimationTimelineCapture,
+    setAnimationTimelineCaptureCameraSmoothingEnabled,
+    updateAnimationTimelineCaptureUi
+} from '../core/animation-capture.js';
+import {
+    createPresentationAnimationSectionHtml,
+    bindPresentationAnimationSection
+} from '../presentation/presentation-gui.js';
+import { buildTimelinePanel } from '../presentation/timeline-panel.js';
+import { getTimelinePanelBinding } from '../core/ui-bindings.js';
+import { registerBlackHoleUiBinding } from '../core/runtime-registry.js';
+
+export function setupGUI() {
 
     var hint = $('#hint-text');
     var p = shader.parameters;
@@ -158,7 +203,8 @@ function setupGUI() {
         recurse(gui);
         if (syncObserverWidgetControls) syncObserverWidgetControls();
     }
-    refreshAllControllersGlobal = refreshAllControllers;
+    setRefreshAllControllersGlobal(refreshAllControllers);
+    registerBlackHoleUiBinding('refreshControllers', refreshAllControllers);
 
     function setGuiRowClass(guiEl, klass) {
         $(guiEl.domElement).parent().parent().addClass(klass);
@@ -1600,8 +1646,9 @@ function setupGUI() {
             document.body.appendChild(tlOpenBtn);
 
             tlOpenBtn.addEventListener('click', function() {
-                if (timelinePanelBinding && typeof timelinePanelBinding.toggle === 'function') {
-                    timelinePanelBinding.toggle();
+                var timelineBinding = getTimelinePanelBinding();
+                if (timelineBinding && typeof timelineBinding.toggle === 'function') {
+                    timelineBinding.toggle();
                 }
             });
         }
@@ -1723,7 +1770,9 @@ function setupGUI() {
         }
 
         syncObserverWidgetControls = updateObserverWidget;
-        distanceController = { updateDisplay: updateObserverWidget };
+        var observerDistanceBinding = { updateDisplay: updateObserverWidget };
+        setDistanceController(observerDistanceBinding);
+        registerBlackHoleUiBinding('observerDistance', observerDistanceBinding);
         updateObserverWidget();
 
         function toggleOrbitMenuFromEvent(event) {

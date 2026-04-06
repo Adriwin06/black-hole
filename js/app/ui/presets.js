@@ -3,8 +3,7 @@
 //       points rather than definitive observational fits. Each preset is
 //       applied wholesale by applyBlackHolePreset() in gui.js.
 
-/*global BH_PRESETS:true */
-var BH_PRESETS = {
+export var BH_PRESETS = {
     'Default': {
         // Simulation defaults — use this to restore the starting configuration.
         spin_enabled: true, spin: 0.90, spin_strength: 1.0,

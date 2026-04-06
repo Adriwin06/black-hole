@@ -2,13 +2,32 @@
 //       Provides presets, keyframe evaluation, scripted events, annotations,
 //       and realtime/offline capture hooks for slideshow-ready sequences.
 
+import { $, THREE } from '../vendor.js';
+import {
+    camera,
+    observer,
+    shader,
+    scene,
+    renderer,
+    cameraControls,
+    cameraPan,
+    distanceController,
+    refreshAllControllersGlobal
+} from '../core/runtime-state.js';
+import { diveState, hoverState } from '../core/scenario-state.js';
+import { initializeCamera, updateCamera } from '../scene/camera.js';
+import { startDive, resetDive, seekDive } from '../core/dive.js';
+import { startHover, resetHover, seekHover } from '../core/hover.js';
+import { applyQualityPresetValues, QUALITY_PRESETS } from '../ui/quality-presets.js';
+import { getBlackHoleRuntimeApi, getBlackHoleUiBinding } from '../core/runtime-registry.js';
+
 // ─── Presentation Timeline + Capture ─────────────────────────────────────────
 // Timeline system for scripted camera/parameter animations suitable for slides
 // and demos. Supports keyframed parameter tracks, timed events (dive/hover),
 // and optional canvas recording via MediaRecorder.
 var PRESENTATION_PRESET_MANIFEST_PATH = 'js/app/presentation/presets/manifest.json';
-var PRESENTATION_PRESETS = {};
-var PRESENTATION_PRESET_ORDER = [];
+export var PRESENTATION_PRESETS = {};
+export var PRESENTATION_PRESET_ORDER = [];
 
 var presentationPresetLoadState = {
     loading: false,
@@ -51,7 +70,7 @@ function requestPresentationJson(path) {
     });
 }
 
-function registerPresentationPreset(preset, fallbackName) {
+export function registerPresentationPreset(preset, fallbackName) {
     if (!preset || typeof preset !== 'object') return false;
 
     var name = (typeof preset.name === 'string' && preset.name.trim())
@@ -68,7 +87,7 @@ function registerPresentationPreset(preset, fallbackName) {
     return true;
 }
 
-function ensurePresentationPresetsLoaded() {
+export function ensurePresentationPresetsLoaded() {
     if (presentationPresetLoadState.loaded) {
         return Promise.resolve(PRESENTATION_PRESETS);
     }
@@ -403,20 +422,20 @@ function startAnnotationFade() {
     presentationAnnotationState.fadeRafId = requestAnimationFrame(annotationFadeTick);
 }
 
-function setPresentationAnnotationsEnabled(enabled) {
+export function setPresentationAnnotationsEnabled(enabled) {
     presentationAnnotationState.enabled = !!enabled;
     syncPresentationTimelineUiConfig();
     updatePresentationOverlay();
     return presentationAnnotationState.enabled;
 }
 
-function setPresentationAnnotationsIncludedInRecording(enabled) {
+export function setPresentationAnnotationsIncludedInRecording(enabled) {
     presentationAnnotationState.includeInRecording = !!enabled;
     syncPresentationTimelineUiConfig();
     return presentationAnnotationState.includeInRecording;
 }
 
-function getPresentationAnnotationsState() {
+export function getPresentationAnnotationsState() {
     return {
         enabled: !!presentationAnnotationState.enabled,
         includeInRecording: !!presentationAnnotationState.includeInRecording,
@@ -426,20 +445,20 @@ function getPresentationAnnotationsState() {
 
 // ── Parameter HUD API ────────────────────────────────────────────────────────
 
-function setPresentationParamHudEnabled(enabled) {
+export function setPresentationParamHudEnabled(enabled) {
     presentationParamHudState.enabled = !!enabled;
     syncPresentationTimelineUiConfig();
     updatePresentationOverlay();
     return presentationParamHudState.enabled;
 }
 
-function setPresentationParamHudIncludedInRecording(enabled) {
+export function setPresentationParamHudIncludedInRecording(enabled) {
     presentationParamHudState.includeInRecording = !!enabled;
     syncPresentationTimelineUiConfig();
     return presentationParamHudState.includeInRecording;
 }
 
-function getPresentationParamHudState() {
+export function getPresentationParamHudState() {
     return {
         enabled: !!presentationParamHudState.enabled,
         includeInRecording: !!presentationParamHudState.includeInRecording,
@@ -450,7 +469,7 @@ function getPresentationParamHudState() {
     };
 }
 
-function setParamHudLayout(opts) {
+export function setParamHudLayout(opts) {
     if (!opts || typeof opts !== 'object') return;
     if (typeof opts.anchorX === 'number' && isFinite(opts.anchorX)) {
         presentationParamHudState.anchorX = Math.max(0, Math.min(1, opts.anchorX));
@@ -465,14 +484,14 @@ function setParamHudLayout(opts) {
     updatePresentationOverlay();
 }
 
-function isParamInHud(path) {
+export function isParamInHud(path) {
     for (var i = 0; i < presentationParamHudState.items.length; i++) {
         if (presentationParamHudState.items[i].path === path) return true;
     }
     return false;
 }
 
-function addParamToHud(path, label) {
+export function addParamToHud(path, label) {
     if (!path || typeof path !== 'string') return false;
     if (isParamInHud(path)) return false;
     presentationParamHudState.items.push({ path: path, label: label || path });
@@ -481,7 +500,7 @@ function addParamToHud(path, label) {
     return true;
 }
 
-function removeParamFromHud(path) {
+export function removeParamFromHud(path) {
     var before = presentationParamHudState.items.length;
     presentationParamHudState.items = presentationParamHudState.items.filter(function(item) {
         return item.path !== path;
@@ -494,7 +513,7 @@ function removeParamFromHud(path) {
     return false;
 }
 
-function toggleParamInHud(path, label) {
+export function toggleParamInHud(path, label) {
     if (isParamInHud(path)) {
         removeParamFromHud(path);
         return false;
@@ -503,7 +522,7 @@ function toggleParamInHud(path, label) {
     return true;
 }
 
-function clearParamHud() {
+export function clearParamHud() {
     presentationParamHudState.items = [];
     syncPresentationTimelineUiConfig();
     updatePresentationOverlay();
@@ -1035,7 +1054,7 @@ function drawPresentationNote(ctx, layout, alpha) {
     ctx.restore();
 }
 
-function updatePresentationOverlay() {
+export function updatePresentationOverlay() {
     var canvas = ensurePresentationAnnotationCanvas();
     var ctx = presentationAnnotationState.ctx;
     if (!canvas || !ctx) return;
@@ -1297,13 +1316,19 @@ function presentationPathNeedsCompile(path) {
 }
 
 function refreshPresentationUiBindings() {
-    if (typeof refreshAllControllersGlobal === 'function') {
-        refreshAllControllersGlobal();
+    var refreshControllers = (typeof getBlackHoleUiBinding === 'function')
+        ? getBlackHoleUiBinding('refreshControllers')
+        : refreshAllControllersGlobal;
+    if (typeof refreshControllers === 'function') {
+        refreshControllers();
     }
-    if (typeof distanceController !== 'undefined' &&
-        distanceController &&
-        typeof distanceController.updateDisplay === 'function') {
-        distanceController.updateDisplay();
+
+    var observerDistanceBinding = (typeof getBlackHoleUiBinding === 'function')
+        ? getBlackHoleUiBinding('observerDistance')
+        : (typeof distanceController !== 'undefined' ? distanceController : null);
+    if (observerDistanceBinding &&
+        typeof observerDistanceBinding.updateDisplay === 'function') {
+        observerDistanceBinding.updateDisplay();
     }
 }
 
@@ -1397,7 +1422,7 @@ function setPresentationPathValue(path, value) {
     return true;
 }
 
-function getPresentationPathValue(path) {
+export function getPresentationPathValue(path) {
     var resolved = resolvePresentationPath(path);
     if (!resolved) return undefined;
 
@@ -1420,7 +1445,7 @@ function getPresentationPathValue(path) {
     return value;
 }
 
-function presentationTimelineHasTrack(path) {
+export function presentationTimelineHasTrack(path) {
     if (!presentationState.timeline || typeof path !== 'string') return false;
     var clean = path.trim();
     if (!clean) return false;
@@ -1546,7 +1571,7 @@ function processPresentationEvents(fromTime, toTime) {
     flushPresentationShaderCompile();
 }
 
-function setPresentationTimeline(timeline) {
+export function setPresentationTimeline(timeline) {
     var normalized = normalizePresentationTimeline(timeline);
     if (!normalized) return false;
 
@@ -1577,17 +1602,17 @@ function setPresentationTimeline(timeline) {
     return true;
 }
 
-function listPresentationPresets() {
+export function listPresentationPresets() {
     return PRESENTATION_PRESET_ORDER.slice();
 }
 
-function getPresentationTimeline() {
+export function getPresentationTimeline() {
     if (!presentationState.timeline) return null;
     syncPresentationTimelineUiConfig();
     return clonePresentationData(presentationState.timeline);
 }
 
-function loadPresentationPreset(name) {
+export function loadPresentationPreset(name) {
     if (!PRESENTATION_PRESETS[name]) {
         ensurePresentationPresetsLoaded();
         return false;
@@ -1597,7 +1622,7 @@ function loadPresentationPreset(name) {
     return setPresentationTimeline(preset);
 }
 
-function seekPresentation(timeSeconds) {
+export function seekPresentation(timeSeconds) {
     if (!presentationState.timeline) return false;
 
     var t = parseFloat(timeSeconds);
@@ -1620,7 +1645,7 @@ function seekPresentation(timeSeconds) {
     return true;
 }
 
-function playPresentation(fromStart) {
+export function playPresentation(fromStart) {
     if (!presentationState.timeline) return false;
 
     var shouldRestart = !!fromStart ||
@@ -1651,7 +1676,7 @@ function playPresentation(fromStart) {
     return true;
 }
 
-function pausePresentation() {
+export function pausePresentation() {
     if (!presentationState.timeline) return false;
     presentationState.active = false;
     presentationState.paused = true;
@@ -1659,7 +1684,7 @@ function pausePresentation() {
     return true;
 }
 
-function stopPresentation() {
+export function stopPresentation() {
     if (!presentationState.timeline) return false;
     presentationState.active = false;
     presentationState.paused = true;
@@ -1672,13 +1697,13 @@ function stopPresentation() {
     return true;
 }
 
-function setPresentationLoop(enabled) {
+export function setPresentationLoop(enabled) {
     presentationState.loop = !!enabled;
     syncPresentationTimelineUiConfig();
     return presentationState.loop;
 }
 
-function getPresentationBackgroundThrottleState() {
+export function getPresentationBackgroundThrottleState() {
     var visible = true;
     var focused = true;
 
@@ -1712,7 +1737,7 @@ function getPresentationBackgroundThrottleState() {
     };
 }
 
-function getPresentationState() {
+export function getPresentationState() {
     var offlineJob = presentationCaptureState.offlineJob;
     var backgroundState = getPresentationBackgroundThrottleState();
     if (presentationCaptureState.active && backgroundState.throttleRisk) {
@@ -1809,7 +1834,7 @@ function getPresentationState() {
     };
 }
 
-function updatePresentation(dt) {
+export function updatePresentation(dt) {
     if (!presentationState.timeline || !presentationState.active || presentationState.paused) return;
 
     var previousTime = presentationState.time;
@@ -1968,8 +1993,14 @@ function resolvePresentationRecordingResolution(preset) {
 }
 
 function getPresentationRendererRuntimeApi() {
-    if (typeof window === 'undefined' || !window.blackHoleRendererRuntime) return null;
-    var runtimeApi = window.blackHoleRendererRuntime;
+    var runtimeApi = null;
+    if (typeof getBlackHoleRuntimeApi === 'function') {
+        runtimeApi = getBlackHoleRuntimeApi('renderer');
+    }
+    if (!runtimeApi && typeof window !== 'undefined') {
+        runtimeApi = window.blackHoleRendererRuntime;
+    }
+    if (!runtimeApi) return null;
     if (typeof runtimeApi.setOfflineSteppingActive !== 'function') return null;
     if (typeof runtimeApi.stepOfflineFrame !== 'function') return null;
     return runtimeApi;
@@ -2596,7 +2627,7 @@ function runOfflinePresentationRecordingLoop() {
     encodeNextFrame();
 }
 
-function capturePresentationScreenshot(options) {
+export function capturePresentationScreenshot(options) {
     if (!renderer || !renderer.domElement) return false;
     if (presentationCaptureState.active) {
         presentationCaptureState.offlineUnavailableReason =
@@ -2729,7 +2760,7 @@ function capturePresentationScreenshot(options) {
     }
 }
 
-function stopPresentationRecording() {
+export function stopPresentationRecording() {
     if (!presentationCaptureState.active) return false;
 
     if (presentationCaptureState.mode === 'offline' && presentationCaptureState.offlineJob) {
@@ -2750,7 +2781,7 @@ function stopPresentationRecording() {
     return true;
 }
 
-function startPresentationRecording(options) {
+export function startPresentationRecording(options) {
     if (!renderer || !renderer.domElement) return false;
     if (presentationCaptureState.active) return false;
 

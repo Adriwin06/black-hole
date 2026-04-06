@@ -1,9 +1,11 @@
-// Role: Bloom post-processing pass — threshold → multi-level mip-chain Gaussian
-//       blur → weighted composite. Approximates lens glow / optical spill from
+// Role: Bloom post-processing pass - threshold -> multi-level mip-chain Gaussian
+//       blur -> weighted composite. Approximates lens glow / optical spill from
 //       bright emission. Called once during init() to build the pass; the returned
 //       bloomPass object exposes render() and resize() for use in the render loop.
 
-function setupBloom() {
+import { THREE } from '../vendor.js';
+
+export function setupBloom() {
     var ppVertexShader = [
         'varying vec2 vUv;',
         'void main() {',
@@ -29,8 +31,6 @@ function setupBloom() {
         '}'
     ].join('\n');
 
-    // 9-tap separable Gaussian blur (sigma ~ 1.77)
-    // Weights: Pascal row 8 / 256 — sum = 1.0
     var blurFS = [
         'uniform sampler2D tDiffuse;',
         'uniform vec2 direction;',
@@ -58,8 +58,6 @@ function setupBloom() {
         '}'
     ].join('\n');
 
-    // Composite: weighted sum of 5 bloom mip levels added to original
-    // Wider mip levels are attenuated by bloomRadius^level for natural PSF falloff
     var compositeFS = [
         'uniform sampler2D tDiffuse;',
         'uniform sampler2D tBloom0;',
@@ -73,10 +71,7 @@ function setupBloom() {
         'void main() {',
         '    vec4 orig = texture2D(tDiffuse, vUv);',
         '    float r = bloomRadius;',
-        '    // Power-law PSF weights: w_i = 1/(1+i)^p with p ≈ 1.5.',
-        '    // This approximates a broad optical/glow-style PSF, giving wider',
-        '    // mip levels relatively more weight than a geometric series.',
-        '    float p = 1.2 + 0.8 * r;',  // r slider now controls PSF steepness
+        '    float p = 1.2 + 0.8 * r;',
         '    float w0 = 1.0;',
         '    float w1 = 1.0 / pow(2.0, p);',
         '    float w2 = 1.0 / pow(3.0, p);',
@@ -157,7 +152,8 @@ function setupBloom() {
 
     function createTargets(w, h) {
         var mainRT = new THREE.WebGLRenderTarget(w, h, rtParams);
-        var mips = [], temps = [];
+        var mips = [];
+        var temps = [];
         for (var i = 0; i < BLOOM_LEVELS; i++) {
             var mw = Math.max(1, Math.floor(w / Math.pow(2, i + 1)));
             var mh = Math.max(1, Math.floor(h / Math.pow(2, i + 1)));
@@ -197,42 +193,35 @@ function setupBloom() {
         render: function(rdr, mainScene, mainCamera, params, outputTarget) {
             var bp = this;
 
-            // 1. Render main scene → full-res render target
             rdr.render(mainScene, mainCamera, bp.mainRT, true);
 
-            // 2. Brightness threshold → first mip (half res)
             bp.thresholdMat.uniforms.tDiffuse.value = bp.mainRT;
             bp.thresholdMat.uniforms.threshold.value = params.threshold;
             bp.ppMesh.material = bp.thresholdMat;
             rdr.render(bp.ppScene, bp.ppCamera, bp.bloomMips[0], true);
 
-            // 3. Progressive downsample + blur for each mip level
             for (var i = 0; i < bp.BLOOM_LEVELS; i++) {
                 var mip = bp.bloomMips[i];
                 var tmp = bp.bloomTemp[i];
                 var mw = mip.width;
                 var mh = mip.height;
 
-                // Downsample from previous blurred level (bilinear)
                 if (i > 0) {
                     bp.copyMat.uniforms.tDiffuse.value = bp.bloomMips[i - 1];
                     bp.ppMesh.material = bp.copyMat;
                     rdr.render(bp.ppScene, bp.ppCamera, mip, true);
                 }
 
-                // Horizontal blur: mip → temp
                 bp.blurMat.uniforms.tDiffuse.value = mip;
                 bp.blurMat.uniforms.direction.value.set(1.0 / mw, 0);
                 bp.ppMesh.material = bp.blurMat;
                 rdr.render(bp.ppScene, bp.ppCamera, tmp, true);
 
-                // Vertical blur: temp → mip
                 bp.blurMat.uniforms.tDiffuse.value = tmp;
                 bp.blurMat.uniforms.direction.value.set(0, 1.0 / mh);
                 rdr.render(bp.ppScene, bp.ppCamera, mip, true);
             }
 
-            // 4. Composite: original + weighted bloom levels → screen
             bp.compositeMat.uniforms.tDiffuse.value = bp.mainRT;
             for (var j = 0; j < bp.BLOOM_LEVELS; j++) {
                 bp.compositeMat.uniforms['tBloom' + j].value = bp.bloomMips[j];

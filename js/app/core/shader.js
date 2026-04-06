@@ -3,10 +3,14 @@
 //       and exposes compile() to render the template into a ready-to-use fragment
 //       shader string. Also defines the degToRad helper.
 
-function degToRad(a) { return Math.PI * a / 180.0; }
+import { Mustache } from '../vendor.js';
+import { diveState, hoverState } from './scenario-state.js';
 
-function Shader(mustacheTemplate) {
-    // Compile-time shader parameters
+export function degToRad(a) {
+    return Math.PI * a / 180.0;
+}
+
+export function Shader(mustacheTemplate) {
     this.parameters = {
         n_steps: 100,
         sample_count: 1,
@@ -104,34 +108,31 @@ function Shader(mustacheTemplate) {
             distance: 11.0,
             orbital_inclination: -10
         },
-
         dive: {
             speed: 1.0,
             autoOrient: true
         },
-
         hover: {
             speed: 0.3
         },
-
         planetEnabled: function() {
-            return this.planet.enabled &&
-                this.quality !== 'mobile';
+            return this.planet.enabled && this.quality !== 'mobile';
         },
-
         observerMotion: function() {
             return this.observer.motion;
         }
     };
+
     var that = this;
     this.needsUpdate = false;
 
     this.hasMovingParts = function() {
-        return this.parameters.accretion_disk ||
-            this.parameters.jet.enabled ||
-            this.parameters.planet.enabled || this.parameters.observer.motion ||
-            (typeof diveState !== 'undefined' && diveState.active && !diveState.paused) ||
-            (typeof hoverState !== 'undefined' && hoverState.active && !hoverState.paused);
+        return that.parameters.accretion_disk ||
+            that.parameters.jet.enabled ||
+            that.parameters.planet.enabled ||
+            that.parameters.observer.motion ||
+            (diveState.active && !diveState.paused) ||
+            (hoverState.active && !hoverState.paused);
     };
 
     this.compile = function() {
@@ -144,7 +145,7 @@ function Shader(mustacheTemplate) {
 
         that.parameters.kerr_fast_mode = (that.parameters.kerr_mode === 'fast');
         that.parameters.kerr_inspired_mode = kerrInspiredMode;
-        that.parameters.kerr_full_geodesic = false; // WIP: full Kerr geodesics, not yet exposed in UI
+        that.parameters.kerr_full_geodesic = false;
         that.parameters.kerr_inspired_velocity = kerrInspiredMode;
 
         var accMode = that.parameters.accretion_mode;
@@ -153,8 +154,10 @@ function Shader(mustacheTemplate) {
         that.parameters.accretion_thick_torus = diskOn && (accMode === 'thick_torus');
         that.parameters.accretion_slim_disk = diskOn && (accMode === 'slim_disk');
         that.parameters.jet_enabled = that.parameters.jet.enabled;
-        that.parameters.jet_simple = that.parameters.jet.enabled && (that.parameters.jet.mode === 'simple');
-        that.parameters.jet_physical = that.parameters.jet.enabled && (that.parameters.jet.mode === 'physical');
+        that.parameters.jet_simple =
+            that.parameters.jet.enabled && (that.parameters.jet.mode === 'simple');
+        that.parameters.jet_physical =
+            that.parameters.jet.enabled && (that.parameters.jet.mode === 'physical');
         that.parameters.grmhd_enabled = !!that.parameters.grmhd.enabled;
         that.parameters.disk_self_irradiation_enabled = !!that.parameters.disk_self_irradiation;
 

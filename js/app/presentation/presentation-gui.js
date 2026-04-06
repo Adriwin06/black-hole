@@ -2,7 +2,15 @@
 //       Handles timeline preset selection, playback, recording, and
 //       annotation toggles without using dat.GUI rows.
 
-function createPresentationAnimationSectionHtml() {
+import {
+    ensurePresentationPresetsLoaded,
+    listPresentationPresets,
+    getPresentationState,
+    loadPresentationPreset
+} from './presentation-controller.js';
+import { getTimelinePanelBinding } from '../core/ui-bindings.js';
+
+export function createPresentationAnimationSectionHtml() {
     return '' +
         '<div class="anim-section" id="presentation-section">' +
             '<button class="anim-section-toggle" id="presentation-section-toggle" ' +
@@ -11,27 +19,24 @@ function createPresentationAnimationSectionHtml() {
             '</button>' +
             '<div class="anim-section-body" id="presentation-section-body">' +
                 '<div class="presentation-desc">Playback, toggles &amp; recording are in the <strong>&#9650; TIMELINE</strong> panel at the bottom.</div>' +
-
                 '<div class="presentation-row">' +
                     '<label for="presentation-preset-select">Preset</label>' +
                     '<select id="presentation-preset-select" class="presentation-select"></select>' +
                 '</div>' +
-
                 '<div id="presentation-status" class="presentation-status">Idle</div>' +
             '</div>' +
         '</div>';
 }
 
-function bindPresentationAnimationSection(panelRoot) {
+export function bindPresentationAnimationSection(panelRoot) {
     if (!panelRoot) return;
 
     var section = panelRoot.querySelector('#presentation-section');
     if (!section) return;
 
     var presetSelect = section.querySelector('#presentation-preset-select');
-    var statusEl     = section.querySelector('#presentation-status');
+    var statusEl = section.querySelector('#presentation-status');
     var NEW_PRESET_OPTION_VALUE = '__new_preset__';
-    var timelineMarkersDirty = true; // kept so external code that sets this still works
 
     function setStatus(text, mode) {
         if (!statusEl) return;
@@ -41,14 +46,12 @@ function bindPresentationAnimationSection(panelRoot) {
     }
 
     function hasRealPresetOptions() {
-        if (typeof listPresentationPresets !== 'function') return false;
         var names = listPresentationPresets();
         return Array.isArray(names) && names.length > 0;
     }
 
     function populatePresets() {
-        var names = (typeof listPresentationPresets === 'function')
-            ? listPresentationPresets() : [];
+        var names = listPresentationPresets();
 
         presetSelect.innerHTML = '';
         var newPresetOpt = document.createElement('option');
@@ -69,35 +72,32 @@ function bindPresentationAnimationSection(panelRoot) {
         }
 
         var defaultName = (names.indexOf('Full Feature Tour') !== -1)
-            ? 'Full Feature Tour' : names[0];
+            ? 'Full Feature Tour'
+            : names[0];
         presetSelect.value = defaultName;
     }
 
-    function updateEditorVisibilityForPresetSelection() {
-        // Old editor removed — now handled by the bottom timeline panel
-    }
-
     function syncFromState() {
-        if (typeof getPresentationState !== 'function') return;
         var s = getPresentationState();
-        if (s.recording) setStatus('Recording\u2026', 'is-recording');
-        else if (s.playing) setStatus('Playing \u2013 ' + (s.name || ''), 'is-playing');
+        if (s.recording) setStatus('Recording...', 'is-recording');
+        else if (s.playing) setStatus('Playing - ' + (s.name || ''), 'is-playing');
         else if (s.loaded) setStatus('Loaded: ' + (s.name || ''), '');
-        else if (s.presets_loading) setStatus('Loading presets\u2026', '');
+        else if (s.presets_loading) setStatus('Loading presets...', '');
         else setStatus('Idle', '');
     }
 
     function loadSelectedPreset() {
-        var v = presetSelect.value;
-        if (!v || v === NEW_PRESET_OPTION_VALUE) {
-            if (typeof timelinePanelBinding !== 'undefined' && timelinePanelBinding) {
-                timelinePanelBinding.open();
+        var value = presetSelect.value;
+        if (!value || value === NEW_PRESET_OPTION_VALUE) {
+            var timelineBinding = getTimelinePanelBinding();
+            if (timelineBinding && typeof timelineBinding.open === 'function') {
+                timelineBinding.open();
             }
-            setStatus('Open the \u25b2 TIMELINE panel to edit.', '');
+            setStatus('Open the ▲ TIMELINE panel to edit.', '');
             return;
         }
-        if (typeof loadPresentationPreset !== 'function' || !loadPresentationPreset(v)) {
-            setStatus('Failed to load: ' + v, 'is-warning');
+        if (!loadPresentationPreset(value)) {
+            setStatus('Failed to load: ' + value, 'is-warning');
             return;
         }
         syncFromState();
@@ -106,22 +106,27 @@ function bindPresentationAnimationSection(panelRoot) {
     presetSelect.addEventListener('change', loadSelectedPreset);
 
     function initializePresetsUI() {
-        if (typeof ensurePresentationPresetsLoaded === 'function') {
-            setStatus('Loading presets\u2026', '');
-            var loading = ensurePresentationPresetsLoaded();
-            if (loading && typeof loading.then === 'function') {
-                loading.then(function() {
-                    populatePresets();
-                    setStatus(hasRealPresetOptions() ? 'Select a preset below.' : 'No presets found.', hasRealPresetOptions() ? '' : 'is-warning');
-                    syncFromState();
-                }).catch(function() {
-                    setStatus('Failed to load preset files.', 'is-warning');
-                });
-                return;
-            }
+        setStatus('Loading presets...', '');
+        var loading = ensurePresentationPresetsLoaded();
+        if (loading && typeof loading.then === 'function') {
+            loading.then(function() {
+                populatePresets();
+                setStatus(
+                    hasRealPresetOptions() ? 'Select a preset below.' : 'No presets found.',
+                    hasRealPresetOptions() ? '' : 'is-warning'
+                );
+                syncFromState();
+            }).catch(function() {
+                setStatus('Failed to load preset files.', 'is-warning');
+            });
+            return;
         }
+
         populatePresets();
-        setStatus(hasRealPresetOptions() ? 'Select a preset below.' : 'No presets found.', hasRealPresetOptions() ? '' : 'is-warning');
+        setStatus(
+            hasRealPresetOptions() ? 'Select a preset below.' : 'No presets found.',
+            hasRealPresetOptions() ? '' : 'is-warning'
+        );
         syncFromState();
     }
 

@@ -2,8 +2,7 @@
 //       values and selector labels. Applied by setupGUI() in gui.js so quality
 //       behavior is data-driven and separated from UI wiring.
 
-/*global QUALITY_PRESETS:true, QUALITY_PRESET_LABELS:true, KERR_MODE_LABELS:true, applyQualityPresetValues:true */
-var QUALITY_PRESETS = {
+export var QUALITY_PRESETS = {
     mobile: {
         standard: { n_steps: 28, sample_count: 1, max_revolutions: 1.4, rk4_integration: false },
         kerr: { n_steps: 120, sample_count: 1, max_revolutions: 2.0, rk4_integration: false },
@@ -96,7 +95,7 @@ var QUALITY_PRESETS = {
     }
 };
 
-function applyQualityPresetValues(parameters, presetName) {
+export function applyQualityPresetValues(parameters, presetName) {
     if (!parameters) return null;
 
     var preset = QUALITY_PRESETS[presetName];
@@ -126,7 +125,7 @@ function applyQualityPresetValues(parameters, presetName) {
     return preset;
 }
 
-var QUALITY_PRESET_LABELS = {
+export var QUALITY_PRESET_LABELS = {
     'Custom': 'custom',
     'Mobile (fastest)': 'mobile',
     'Optimal (recommended)': 'optimal',
@@ -136,7 +135,7 @@ var QUALITY_PRESET_LABELS = {
     'Cinematic (offline rendering)': 'cinematic'
 };
 
-var KERR_MODE_LABELS = {
+export var KERR_MODE_LABELS = {
     'Fast (Binet lensing)': 'fast',
     'Kerr-inspired disk velocities': 'kerr_inspired_disk_velocity'
 };
