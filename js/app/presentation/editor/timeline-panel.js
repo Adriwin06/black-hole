@@ -17,6 +17,7 @@ import {
     playPresentation,
     pausePresentation,
     stopPresentation,
+    setPresentationLoop,
     listPresentationPresets,
     loadPresentationPreset,
     getPresentationAnnotationsState,
@@ -53,6 +54,9 @@ import {
     quatSlerp,
     sampleTrackDraft
 } from './motion-utils.js';
+import { setupRecordingModal } from './recording-modal.js';
+import { showAutoKeyChoiceModal } from './auto-key-modal.js';
+import { attachTimelineKeyboardShortcuts } from './timeline-keyboard.js';
 
 var PRESENTATION_EDITOR_COMMON_PATHS = [
     'dive.currentR',
@@ -1552,7 +1556,7 @@ export function buildTimelinePanel() {
             updateTimeInputs();
             updateScrubber();
             updatePlayheads();
-            syncRecModal();
+            recordingModal.sync();
             // Auto-scroll to keep playhead visible during playback
             if (tlZoom > 1.0) {
                 var pst = typeof getPresentationState === 'function' ? getPresentationState() : null;
@@ -1781,7 +1785,7 @@ export function buildTimelinePanel() {
             var path = hudBtn.getAttribute('data-hud-path');
             if (typeof toggleParamInHud === 'function') toggleParamInHud(path, path);
             rebuildTrackList();
-            syncRecModal();
+            recordingModal.sync();
             rememberState();
             return;
         }
@@ -2667,41 +2671,6 @@ export function buildTimelinePanel() {
         }
         return out;
     }
-    // â”€â”€ Auto Key initial-state modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    function showAutoKeyModal(t, snap, paths, onFull, onDiff) {
-        var overlay = document.createElement('div');
-        overlay.className = 'tl-modal-overlay';
-        var tLabel = t < 0.01 ? 't = 0' : 't = ' + t.toFixed(2) + 's';
-        overlay.innerHTML =
-            '<div class="tl-modal">' +
-            '<div class="tl-modal-title">Auto Key &#8212; Initial State</div>' +
-            '<p class="tl-modal-body">First Auto Key capture at <b>' + esc(tLabel) + '</b>.<br>' +
-            'How should the initial state be recorded?</p>' +
-            '<div class="tl-modal-choices">' +
-            '<button class="tl-modal-btn tl-modal-btn--full" type="button">' +
-            '<span class="tl-modal-btn-label">Full initial state</span>' +
-            '<span class="tl-modal-btn-sub">Key every parameter now (' + paths.length + ' values) &mdash; guarantees a clean reset on play</span>' +
-            '</button>' +
-            '<button class="tl-modal-btn tl-modal-btn--diff" type="button">' +
-            '<span class="tl-modal-btn-label">Changes only (diff mode)</span>' +
-            '<span class="tl-modal-btn-sub">Only record what changes on the next press &mdash; lighter, manual approach</span>' +
-            '</button>' +
-            '</div>' +
-            '<button class="tl-modal-btn tl-modal-btn--cancel" type="button">Cancel</button>' +
-            '</div>';
-        document.body.appendChild(overlay);
-
-        function close() { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); }
-        overlay.querySelector('.tl-modal-btn--full').addEventListener('click', function() { close(); onFull(); });
-        overlay.querySelector('.tl-modal-btn--diff').addEventListener('click', function() { close(); onDiff(); });
-        overlay.querySelector('.tl-modal-btn--cancel').addEventListener('click', close);
-        overlay.addEventListener('mousedown', function(e) { if (e.target === overlay) close(); });
-        overlay.addEventListener('keydown', function(e) { if (e.key === 'Escape') close(); });
-        // Focus the overlay so Escape works immediately
-        overlay.setAttribute('tabindex', '-1');
-        overlay.focus();
-    }
-
     autoKeyBtn.addEventListener('click', function(e) {
         if (!draft) { setStatus('Load a timeline first.', 'tl-status--warn'); return; }
         var skipCamera = e.shiftKey;
@@ -2720,9 +2689,11 @@ export function buildTimelinePanel() {
             // First press â€” check if this looks like an initial state (tâ‰ˆ0 or no tracks yet)
             var isInitial = (t < 0.01 || !draft.tracks.length);
             if (isInitial) {
-                showAutoKeyModal(t, snap, paths,
-                    // Full state
-                    function() {
+                showAutoKeyChoiceModal({
+                    time: t,
+                    pathCount: paths.length,
+                    esc: esc,
+                    onFull: function() {
                         pushUndo();
                         var count = 0;
                         for (var i = 0; i < paths.length; i++) {
@@ -2736,12 +2707,11 @@ export function buildTimelinePanel() {
                         rebuildAll();
                         setStatus('Full initial state saved: ' + count + ' parameters keyed at t=0. Now change controls & press AUTO KEY.', 'tl-status--info');
                     },
-                    // Diff mode
-                    function() {
+                    onDiff: function() {
                         autoKeySnapshot = { time: t, values: clonePlain(snap) };
                         setStatus('Baseline captured at ' + t.toFixed(2) + 's. Change controls, press AUTO KEY again.', 'tl-status--info');
                     }
-                );
+                });
                 return;
             }
             autoKeySnapshot = { time: t, values: clonePlain(snap) };
@@ -3231,386 +3201,59 @@ export function buildTimelinePanel() {
         }
     }, true);
 
-    // â”€â”€ Recording modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    function clampNum(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
-
-    function formatRecDuration(s) {
-        if (isNaN(s) || s < 0) return '--:--';
-        var m = Math.floor(s / 60), sec = Math.floor(s % 60);
-        return (m < 10 ? '0' : '') + m + ':' + (sec < 10 ? '0' : '') + sec;
-    }
-
-    function setRecStatus(text, cls) {
-        recStatusEl.textContent = text;
-        recStatusEl.className   = 'tl-rec-status' + (cls ? ' ' + cls : '');
-    }
-
-    function populateRecQuality() {
-        if (!recQualitySelect) return;
-        var cur = recQualitySelect.value;
-        recQualitySelect.innerHTML = '';
-        var presets = (typeof QUALITY_PRESETS !== 'undefined' && QUALITY_PRESETS)
-            ? Object.keys(QUALITY_PRESETS) : [];
-        var keys = presets.length ? presets : ['optimal', 'high', 'ultra', 'cinematic', 'medium', 'mobile'];
-        for (var i = 0; i < keys.length; i++) {
-            var o = document.createElement('option');
-            o.value = keys[i];
-            o.textContent = keys[i].charAt(0).toUpperCase() + keys[i].slice(1);
-            recQualitySelect.appendChild(o);
+    // Recording modal extracted into a dedicated helper so this file stays focused
+    // on timeline/editor state instead of modal implementation details.
+    var recordingModal = setupRecordingModal({
+        panel: panel,
+        esc: esc,
+        rememberState: rememberState,
+        applySavedRecordingUiState: applySavedRecordingUiState,
+        rebuildTrackList: rebuildTrackList,
+        getSelectedTrack: function() { return selectedTrack; },
+        getPresentationState: getPresentationState,
+        getPresentationParamHudState: getPresentationParamHudState,
+        isParamInHud: isParamInHud,
+        setPresentationLoop: setPresentationLoop,
+        setPresentationAnnotationsEnabled: setPresentationAnnotationsEnabled,
+        setPresentationAnnotationsIncludedInRecording: setPresentationAnnotationsIncludedInRecording,
+        setPresentationParamHudEnabled: setPresentationParamHudEnabled,
+        setPresentationParamHudIncludedInRecording: setPresentationParamHudIncludedInRecording,
+        removeParamFromHud: removeParamFromHud,
+        addParamToHud: addParamToHud,
+        clearParamHud: clearParamHud,
+        setParamHudLayout: setParamHudLayout,
+        capturePresentationScreenshot: capturePresentationScreenshot,
+        startPresentationRecording: startPresentationRecording,
+        stopPresentationRecording: stopPresentationRecording,
+        elements: {
+            recBtn: recBtn,
+            recModal: recModal,
+            recCloseBtn: recCloseBtn,
+            recLoopCb: recLoopCb,
+            recAnnotCb: recAnnotCb,
+            recAnnotRecordCb: recAnnotRecordCb,
+            recParamHudShowCb: recParamHudShowCb,
+            recParamHudRecordCb: recParamHudRecordCb,
+            hudXInput: hudXInput,
+            hudYInput: hudYInput,
+            hudFsInput: hudFsInput,
+            hudLayoutRow: hudLayoutRow,
+            recHudEmptyEl: recHudEmptyEl,
+            recHudListEl: recHudListEl,
+            recAddSelectedBtn: recAddSelectedBtn,
+            recClearHudBtn: recClearHudBtn,
+            recResetSimCb: recResetSimCb,
+            recQualitySelect: recQualitySelect,
+            recModeSelect: recModeSelect,
+            recResSelect: recResSelect,
+            recFpsInput: recFpsInput,
+            recBitrateInput: recBitrateInput,
+            recShotBtn: recShotBtn,
+            recStartBtn: recStartBtn,
+            recStopBtn: recStopBtn,
+            recStatusEl: recStatusEl
         }
-        if (cur) recQualitySelect.value = cur;
-        if (!recQualitySelect.value && recQualitySelect.options.length) {
-            recQualitySelect.value = recQualitySelect.options[0].value;
-        }
-    }
-
-    function populateRecMode() {
-        if (!recModeSelect) return;
-        var cur = recModeSelect.value;
-        recModeSelect.innerHTML = '';
-        var state = (typeof getPresentationState === 'function') ? getPresentationState() : {};
-        var modes = [
-            { v: 'offline',  l: 'Offline (fixed FPS)' },
-            { v: 'realtime', l: 'Realtime (screen capture)' }
-        ];
-        for (var i = 0; i < modes.length; i++) {
-            var o = document.createElement('option');
-            o.value = modes[i].v;
-            o.textContent = modes[i].l;
-            recModeSelect.appendChild(o);
-        }
-        if (cur) recModeSelect.value = cur;
-        if (!recModeSelect.value) recModeSelect.value = 'offline';
-    }
-
-    function refreshRecResolutionLabel() {
-        if (!recResSelect) return;
-        var state = (typeof getPresentationState === 'function') ? getPresentationState() : {};
-        for (var i = 0; i < recResSelect.options.length; i++) {
-            var opt = recResSelect.options[i];
-            if (opt.value === 'current') {
-                var w = (state.recording_output_width || window.innerWidth);
-                var h = (state.recording_output_height || window.innerHeight);
-                opt.textContent = 'Current viewport (' + w + '\xd7' + h + ')';
-                break;
-            }
-        }
-    }
-
-    function populateRecResolution() {
-        if (!recResSelect) return;
-        var cur = recResSelect.value;
-        recResSelect.innerHTML = '';
-        var opts = [
-            { v: 'current',   l: 'Current viewport' },
-            { v: '1280x720',  l: '1280\xd7720 (HD)' },
-            { v: '1920x1080', l: '1920\xd71080 (Full HD)' },
-            { v: '2560x1440', l: '2560\xd71440 (2K)' },
-            { v: '3840x2160', l: '3840\xd72160 (4K)' },
-            { v: '7680x4320', l: '7680\xd74320 (8K)' }
-        ];
-        for (var i = 0; i < opts.length; i++) {
-            var o = document.createElement('option');
-            o.value = opts[i].v;
-            o.textContent = opts[i].l;
-            recResSelect.appendChild(o);
-        }
-        if (cur) recResSelect.value = cur;
-        if (!recResSelect.value) recResSelect.value = 'current';
-        refreshRecResolutionLabel();
-    }
-
-    function renderRecHudList() {
-        if (!recHudListEl || !recHudEmptyEl) return;
-        var hs = (typeof getPresentationParamHudState === 'function')
-            ? getPresentationParamHudState()
-            : { items: [] };
-        var items = Array.isArray(hs.items) ? hs.items : [];
-        if (recClearHudBtn) recClearHudBtn.disabled = items.length === 0;
-        if (recAddSelectedBtn) {
-            recAddSelectedBtn.disabled = !selectedTrack ||
-                (typeof isParamInHud === 'function' && isParamInHud(selectedTrack));
-        }
-        if (!items.length) {
-            recHudEmptyEl.style.display = '';
-            recHudListEl.innerHTML = '';
-            return;
-        }
-        recHudEmptyEl.style.display = 'none';
-        var html = '';
-        for (var i = 0; i < items.length; i++) {
-            var item = items[i];
-            var label = item.label || item.path || '';
-            html += '<button type="button" class="tl-rec-chip" data-remove-hud-path="' + esc(item.path) + '"' +
-                ' title="Remove ' + esc(item.path) + ' from the HUD">' +
-                '<span class="tl-rec-chip-label">' + esc(label) + '</span>' +
-                '<span class="tl-rec-chip-x">&times;</span>' +
-                '</button>';
-        }
-        recHudListEl.innerHTML = html;
-    }
-
-    function syncRecModal() {
-        if (!recModal || !recModal.classList.contains('is-open')) {
-            if (recBtn) {
-                var st = (typeof getPresentationState === 'function') ? getPresentationState() : {};
-                recBtn.classList.toggle('is-recording', !!st.recording);
-            }
-            return;
-        }
-        if (typeof getPresentationState !== 'function') return;
-        var s = getPresentationState();
-
-        // Sync loop / annotations checkboxes from state
-        if (recLoopCb)        recLoopCb.checked        = !!s.loop;
-        if (recAnnotCb)       recAnnotCb.checked       = !!s.annotations_enabled;
-        if (recAnnotRecordCb) recAnnotRecordCb.checked = !!s.annotations_in_recording;
-        if (recParamHudShowCb)   recParamHudShowCb.checked   = !!s.param_hud_enabled;
-        if (recParamHudRecordCb) recParamHudRecordCb.checked = !!s.param_hud_in_recording;
-        // Sync HUD position/size inputs and show/hide layout row
-        if (hudLayoutRow) hudLayoutRow.style.display = (s.param_hud_count > 0) ? '' : 'none';
-        if (typeof getPresentationParamHudState === 'function') {
-            var hs = getPresentationParamHudState();
-            if (hudXInput  && document.activeElement !== hudXInput)  hudXInput.value  = hs.anchorX.toFixed(2);
-            if (hudYInput  && document.activeElement !== hudYInput)  hudYInput.value  = hs.anchorY.toFixed(2);
-            if (hudFsInput && document.activeElement !== hudFsInput) hudFsInput.value = hs.fontSize;
-        }
-        renderRecHudList();
-
-        // Refresh resolution label with live viewport size
-        refreshRecResolutionLabel();
-
-        // Keep REC button indicator in sync
-        if (recBtn) recBtn.classList.toggle('is-recording', !!s.recording);
-        if (recShotBtn) recShotBtn.disabled = !!s.recording;
-
-        if (!s.recording) {
-            recStartBtn.disabled = false;
-            recStopBtn.disabled  = true;
-            if (s.recording_offline_unavailable_reason) {
-                setRecStatus(s.recording_offline_unavailable_reason, 'is-warning');
-            } else {
-                setRecStatus('Idle', '');
-            }
-            return;
-        }
-
-        recStartBtn.disabled = true;
-        recStopBtn.disabled  = false;
-
-        if (s.recording_mode === 'realtime') {
-            if (s.recording_background_throttle_detected) {
-                setRecStatus('\u26a0 Background throttle detected \u2014 keep window focused!', 'is-warning');
-            } else {
-                setRecStatus('Recording\u2026 (realtime)', 'is-recording');
-            }
-            return;
-        }
-
-        // Offline mode
-        var phase = s.recording_offline_phase || '';
-        if (phase === 'rendering') {
-            var pct  = Math.round((s.recording_offline_progress || 0) * 100);
-            var done = s.recording_offline_frames_done || 0;
-            var total= s.recording_offline_frames_total || 0;
-            var fps  = s.recording_offline_render_fps ? (' @ ' + s.recording_offline_render_fps.toFixed(1) + ' fps') : '';
-            var eta  = (s.recording_offline_eta_s != null && s.recording_offline_eta_s >= 0)
-                ? (' ETA ' + formatRecDuration(s.recording_offline_eta_s)) : '';
-            setRecStatus('Rendering ' + pct + '% (' + done + '/' + total + ')' + fps + eta, 'is-recording');
-        } else if (phase === 'finalizing-encode' || phase === 'finalizing-mux' || phase === 'finalizing-download') {
-            var fp = s.recording_offline_finalizing_progress;
-            var label = phase === 'finalizing-encode' ? 'Encoding' : phase === 'finalizing-mux' ? 'Muxing' : 'Downloading';
-            var pctStr = (fp != null && fp >= 0) ? (' ' + Math.round(fp * 100) + '%') : '\u2026';
-            setRecStatus(label + pctStr, 'is-recording');
-        } else {
-            setRecStatus('Recording\u2026', 'is-recording');
-        }
-    }
-
-    function openRecModal() {
-        populateRecQuality();
-        populateRecMode();
-        populateRecResolution();
-        applySavedRecordingUiState();
-        syncRecModal();
-        recModal.classList.add('is-open');
-        recBtn.classList.add('is-active');
-    }
-    function closeRecModal() {
-        recModal.classList.remove('is-open');
-        recBtn.classList.remove('is-active');
-    }
-
-    recBtn.addEventListener('click', function(e) {
-        e.stopPropagation();
-        if (recModal.classList.contains('is-open')) closeRecModal();
-        else openRecModal();
     });
-    recCloseBtn.addEventListener('click', function(e) {
-        e.stopPropagation();
-        closeRecModal();
-    });
-
-    recLoopCb.addEventListener('change', function() {
-        if (typeof setPresentationLoop === 'function') setPresentationLoop(recLoopCb.checked);
-        rememberState();
-    });
-    recAnnotCb.addEventListener('change', function() {
-        if (typeof setPresentationAnnotationsEnabled === 'function') setPresentationAnnotationsEnabled(recAnnotCb.checked);
-        rememberState();
-    });
-    recAnnotRecordCb.addEventListener('change', function() {
-        if (typeof setPresentationAnnotationsIncludedInRecording === 'function') setPresentationAnnotationsIncludedInRecording(recAnnotRecordCb.checked);
-        rememberState();
-    });
-    recParamHudShowCb.addEventListener('change', function() {
-        if (typeof setPresentationParamHudEnabled === 'function') setPresentationParamHudEnabled(recParamHudShowCb.checked);
-        rememberState();
-    });
-    recParamHudRecordCb.addEventListener('change', function() {
-        if (typeof setPresentationParamHudIncludedInRecording === 'function') setPresentationParamHudIncludedInRecording(recParamHudRecordCb.checked);
-        rememberState();
-    });
-
-    if (recHudListEl) {
-        recHudListEl.addEventListener('click', function(e) {
-            var chip = e.target.closest('[data-remove-hud-path]');
-            if (!chip) return;
-            var path = chip.getAttribute('data-remove-hud-path');
-            if (path && typeof removeParamFromHud === 'function') removeParamFromHud(path);
-            syncRecModal();
-            rebuildTrackList();
-            rememberState();
-        });
-    }
-    if (recAddSelectedBtn) {
-        recAddSelectedBtn.addEventListener('click', function() {
-            if (!selectedTrack || typeof addParamToHud !== 'function') return;
-            addParamToHud(selectedTrack, selectedTrack);
-            syncRecModal();
-            rebuildTrackList();
-            rememberState();
-        });
-    }
-    if (recClearHudBtn) {
-        recClearHudBtn.addEventListener('click', function() {
-            if (typeof clearParamHud !== 'function') return;
-            clearParamHud();
-            syncRecModal();
-            rebuildTrackList();
-            rememberState();
-        });
-    }
-
-    function applyHudLayout() {
-        if (typeof setParamHudLayout !== 'function') return;
-        var x  = parseFloat(hudXInput.value);
-        var y  = parseFloat(hudYInput.value);
-        var fs = parseFloat(hudFsInput.value);
-        setParamHudLayout({
-            anchorX:  isFinite(x)  ? x  : undefined,
-            anchorY:  isFinite(y)  ? y  : undefined,
-            fontSize: isFinite(fs) ? fs : undefined
-        });
-        syncRecModal();
-        rememberState();
-    }
-    if (hudXInput)    hudXInput.addEventListener('input', applyHudLayout);
-    if (hudYInput)    hudYInput.addEventListener('input', applyHudLayout);
-    if (hudFsInput)   hudFsInput.addEventListener('input', applyHudLayout);
-    if (recQualitySelect) recQualitySelect.addEventListener('change', rememberState);
-    if (recModeSelect)    recModeSelect.addEventListener('change', rememberState);
-    if (recResSelect)     recResSelect.addEventListener('change', rememberState);
-    if (recFpsInput)      recFpsInput.addEventListener('input', rememberState);
-    if (recBitrateInput)  recBitrateInput.addEventListener('input', rememberState);
-    if (recResetSimCb)    recResetSimCb.addEventListener('change', rememberState);
-
-    recShotBtn.addEventListener('click', function() {
-        if (typeof capturePresentationScreenshot !== 'function') return;
-        if (recQualitySelect && recQualitySelect.querySelector('option[value="cinematic"]')) {
-            recQualitySelect.value = 'cinematic';
-        }
-        var captured = capturePresentationScreenshot({
-            qualityPreset: 'cinematic',
-            recordingResolution: recResSelect ? recResSelect.value : 'current',
-            includeAnnotationsInScreenshot: !!recAnnotRecordCb.checked
-        });
-        if (!captured) {
-            var st = (typeof getPresentationState === 'function') ? getPresentationState() : {};
-            setRecStatus(st.recording_offline_unavailable_reason || 'Failed to capture screenshot.', 'is-warning');
-        } else {
-            setRecStatus('Offline screenshot downloaded (.png).', '');
-        }
-        syncRecModal();
-    });
-
-    recStartBtn.addEventListener('click', async function() {
-        if (typeof startPresentationRecording !== 'function') return;
-        if (recResetSimCb && recResetSimCb.checked) {
-            if (typeof observer !== 'undefined' && observer) observer.time = 0.0;
-            if (typeof shader !== 'undefined' && shader) shader.needsUpdate = true;
-        }
-        var fps     = clampNum(parseFloat(recFpsInput.value) || 60, 24, 120);
-        var bitrate = clampNum(parseFloat(recBitrateInput.value) || 20, 4, 80);
-        recFpsInput.value     = Math.round(fps);
-        recBitrateInput.value = Math.round(bitrate);
-        var recMode = recModeSelect ? recModeSelect.value : 'offline';
-        var recOptions = {
-            fps: fps,
-            bitrateMbps: bitrate,
-            autoStopOnPresentationEnd: true,
-            recordingMode:       recMode,
-            recordingResolution: recResSelect     ? recResSelect.value     : 'current',
-            qualityPreset:       recQualitySelect ? recQualitySelect.value : 'optimal',
-            includeAnnotationsInRecording: !!recAnnotRecordCb.checked
-        };
-
-        // For offline mode, try to use the File System Access API to stream encoded
-        // chunks directly to disk. This avoids accumulating the entire video as a
-        // growing ArrayBuffer in RAM, which causes GPU/browser crashes on long renders.
-        if (recMode === 'offline' &&
-            typeof showSaveFilePicker === 'function' &&
-            typeof window.WebMMuxer !== 'undefined' &&
-            typeof window.WebMMuxer.FileSystemWritableFileStreamTarget === 'function') {
-            try {
-                var suggestedName = (typeof presentationCaptureFilename === 'function')
-                    ? presentationCaptureFilename('black-hole-presentation', 'video/webm')
-                    : 'black-hole-presentation.webm';
-                var fileHandle = await showSaveFilePicker({
-                    suggestedName: suggestedName,
-                    types: [{ description: 'WebM video', accept: { 'video/webm': ['.webm'] } }]
-                });
-                recOptions.writableFileStream = await fileHandle.createWritable();
-            } catch (pickerErr) {
-                if (pickerErr.name === 'AbortError') return; // user cancelled the dialog
-                // File picker failed for another reason â€” fall back to ArrayBuffer mode silently
-                console.warn('File picker failed, falling back to in-memory recording:', pickerErr);
-            }
-        }
-
-        var started = startPresentationRecording(recOptions);
-        if (!started) {
-            if (recOptions.writableFileStream) {
-                try { recOptions.writableFileStream.abort(); } catch (e) {}
-            }
-            var st = (typeof getPresentationState === 'function') ? getPresentationState() : {};
-            setRecStatus(st.recording_offline_unavailable_reason || 'Failed to start recording.', 'is-warning');
-        }
-        syncRecModal();
-    });
-    recStopBtn.addEventListener('click', function() {
-        if (typeof stopPresentationRecording === 'function') stopPresentationRecording();
-        syncRecModal();
-    });
-
-    // Close REC modal on click outside
-    panel.addEventListener('click', function(e) {
-        if (recModal.classList.contains('is-open') &&
-            !recModal.contains(e.target) &&
-            e.target !== recBtn) {
-            closeRecModal();
-        }
-    }, true);
 
     // â”€â”€ Keyboard shortcuts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     function deleteTrack(path) {
@@ -3729,133 +3372,39 @@ export function buildTimelinePanel() {
         setStatus(clipboard.entries.length + ' key' + (clipboard.entries.length > 1 ? 's' : '') + ' pasted.', '');
     }
 
-    window.addEventListener('keydown', function(e) {
-        if (!panelOpen) return;
-        // Don't capture when typing in input/textarea (except for specific shortcuts)
-        var tag = (e.target.tagName || '').toLowerCase();
-        var inInput = (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable);
-
-        // Ctrl+Z / Ctrl+Y â€” fire whenever the panel is open, unless focus is
-        // in an input that lives *outside* the timeline panel itself.
-        var inExternalInput = inInput && !panel.contains(e.target);
-        if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.code === 'KeyZ' && !inExternalInput) {
-            e.preventDefault();
-            e.stopPropagation();
-            undo();
-            return;
-        }
-        if ((e.ctrlKey || e.metaKey) && (e.code === 'KeyY' || (e.shiftKey && e.code === 'KeyZ')) && !inExternalInput) {
-            e.preventDefault();
-            e.stopPropagation();
-            redo();
-            return;
-        }
-
-        if (inInput) return;
-
-        // Escape â†’ close motion modal if open, or deselect event
-        if (e.code === 'Escape') {
-            if (motionModal.classList.contains('is-open')) { closeMotionModal(); e.preventDefault(); return; }
-            if (selectedEventIdx >= 0) {
-                selectedEventIdx = -1;
-                showKeyInspector();
-                rebuildEventsLane();
-                e.preventDefault();
-            }
-            return;
-        }
-
-        // Space â†’ play / pause
-        if (e.code === 'Space') {
-            e.preventDefault();
-            var st = typeof getPresentationState === 'function' ? getPresentationState() : null;
-            if (st && st.active && !st.paused) {
-                if (typeof pausePresentation === 'function') pausePresentation();
-            } else {
-                if (typeof playPresentation === 'function') playPresentation(false);
-            }
-            return;
-        }
-
-        // K â†’ key the selected track at the playhead using the current live value
-        if (!e.ctrlKey && !e.metaKey && !e.altKey && e.code === 'KeyK') {
-            var keyPath = selectedTrack || (inspPath.value || '').trim();
-            if (!keyPath) {
-                setStatus('Select a track first, then press K to key its live value.', 'tl-status--warn');
-                e.preventDefault();
-                return;
-            }
-            inspPath.value = keyPath;
-            inspTime.value = currentTime().toFixed(2);
-            captureInspectorValue(keyPath);
-            doSetKey();
-            e.preventDefault();
-            return;
-        }
-
-        // Delete / Backspace â†’ delete selected keyframes, or the selected track if none selected
-        if (e.code === 'Delete' || e.code === 'Backspace') {
-            e.preventDefault();
-            deleteSelectedKeys();
-            return;
-        }
-
-        // Shift+A â†’ select all keys in the same column as the current playhead time
-        if (e.shiftKey && e.code === 'KeyA') {
-            e.preventDefault();
-            selectAllKeysAtTime(currentTime());
-            return;
-        }
-
-        // Ctrl+A â†’ select all keyframes (on current track if one is selected, else all)
-        if ((e.ctrlKey || e.metaKey) && e.code === 'KeyA') {
-            e.preventDefault();
-            if (selectedTrack && !e.shiftKey) selectAllKeysOnTrack();
-            else selectAllKeys();
-            return;
-        }
-
-        // Ctrl+C â†’ copy selected keyframes to clipboard
-        if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.code === 'KeyC') {
-            e.preventDefault();
-            copySelectedKeys();
-            return;
-        }
-
-        // Ctrl+V â†’ paste keyframes at current time
-        if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.code === 'KeyV') {
-            e.preventDefault();
-            pasteKeys();
-            return;
-        }
-
-        // Home â†’ seek to start
-        if (e.code === 'Home') {
-            e.preventDefault();
-            if (typeof seekPresentation === 'function') seekPresentation(0);
-            updateTimeInputs(); updateScrubber(); updatePlayheads();
-            return;
-        }
-
-        // End â†’ seek to end
-        if (e.code === 'End') {
-            e.preventDefault();
-            if (typeof seekPresentation === 'function') seekPresentation(getDuration());
-            updateTimeInputs(); updateScrubber(); updatePlayheads();
-            return;
-        }
-
-        // Left/Right arrows â†’ nudge time
-        if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
-            var step = e.shiftKey ? 1.0 : 0.1;
-            var dir = (e.code === 'ArrowLeft') ? -1 : 1;
-            var newT = clamp(currentTime() + dir * step, 0, getDuration());
-            if (typeof seekPresentation === 'function') seekPresentation(newT);
-            updateTimeInputs(); updateScrubber(); updatePlayheads();
-            e.preventDefault();
-            return;
-        }
-    }, true);
+    attachTimelineKeyboardShortcuts({
+        panel: panel,
+        motionModal: motionModal,
+        inspPath: inspPath,
+        inspTime: inspTime,
+        isPanelOpen: function() { return panelOpen; },
+        closeMotionModal: closeMotionModal,
+        getSelectedEventIndex: function() { return selectedEventIdx; },
+        setSelectedEventIndex: function(value) { selectedEventIdx = value; },
+        showKeyInspector: showKeyInspector,
+        rebuildEventsLane: rebuildEventsLane,
+        getPresentationState: getPresentationState,
+        pausePresentation: pausePresentation,
+        playPresentation: playPresentation,
+        getSelectedTrack: function() { return selectedTrack; },
+        currentTime: currentTime,
+        getDuration: getDuration,
+        setStatus: setStatus,
+        captureInspectorValue: captureInspectorValue,
+        doSetKey: doSetKey,
+        deleteSelectedKeys: deleteSelectedKeys,
+        selectAllKeysAtTime: selectAllKeysAtTime,
+        selectAllKeysOnTrack: selectAllKeysOnTrack,
+        selectAllKeys: selectAllKeys,
+        copySelectedKeys: copySelectedKeys,
+        pasteKeys: pasteKeys,
+        seekPresentation: seekPresentation,
+        updateTimeInputs: updateTimeInputs,
+        updateScrubber: updateScrubber,
+        updatePlayheads: updatePlayheads,
+        undo: undo,
+        redo: redo
+    });
 
     // â”€â”€ Public API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     timelinePanelBinding = {
@@ -3865,7 +3414,7 @@ export function buildTimelinePanel() {
         isOpen: function() { return panelOpen; },
         sync: syncFromRuntime,
         loadPreset: loadPresetByName,
-        syncRecState: syncRecModal,
+        syncRecState: recordingModal.sync,
         insertAnimationCapture: insertAnimationCapture
     };
     if (typeof registerBlackHoleUiBinding === 'function') {

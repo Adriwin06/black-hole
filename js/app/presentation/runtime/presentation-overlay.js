@@ -161,7 +161,7 @@ function colorWithAlpha(hex, alpha, fallback) {
     return 'rgba(' + rgb.r + ', ' + rgb.g + ', ' + rgb.b + ', ' + alpha + ')';
 }
 
-function ensurePresentationAnnotationCanvas() {
+export function ensurePresentationAnnotationCanvas() {
     if (typeof document === 'undefined') return null;
     if (!presentationAnnotationState.canvas) {
         var canvas = document.createElement('canvas');
