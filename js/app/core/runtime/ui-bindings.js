@@ -1,4 +1,4 @@
-import { getBlackHoleUiBinding } from './runtime-registry.js';
+﻿import { getBlackHoleUiBinding } from './runtime-registry.js';
 import {
     distanceController,
     refreshAllControllersGlobal
@@ -29,3 +29,5 @@ export function updateObserverDistanceBinding() {
         binding.updateDisplay();
     }
 }
+
+

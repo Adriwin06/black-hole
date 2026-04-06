@@ -1,10 +1,10 @@
-// Role: Application entry point - fetches all GLSL shader shards in order and
+﻿// Role: Application entry point - fetches all GLSL shader shards in order and
 //       concatenates them into a single Mustache template string, loads all
 //       textures in parallel, then calls init() once everything is ready.
 
 import { $, THREE } from './vendor.js';
-import { init } from './core/renderer.js';
-import { animate } from './core/render-loop.js';
+import { init } from './core/renderer/renderer.js';
+import { animate } from './core/renderer/render-loop.js';
 
 var SHADER_SHARDS = [
     'shaders/raytracer/core/defines.glsl',
@@ -69,3 +69,5 @@ $.when.apply($, shardRequests).done(function() {
 }).fail(function(jqXHR, textStatus, errorThrown) {
     console.error('Failed to load GLSL shards:', textStatus, errorThrown);
 });
+
+

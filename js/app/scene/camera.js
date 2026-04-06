@@ -1,12 +1,12 @@
-// Role: Camera management - initializes the Three.js orbit camera at a default
+﻿// Role: Camera management - initializes the Three.js orbit camera at a default
 //       viewing angle, synchronizes it with the observer's orientation on each
 //       frame, and provides a Frobenius-norm matrix distance helper used by the
 //       animate loop to skip redundant renders.
 
 import { THREE } from '../vendor.js';
 import { degToRad } from '../core/shader.js';
-import { diveState, hoverState } from '../core/scenario-state.js';
-import { camera, observer, shader } from '../core/runtime-state.js';
+import { diveState, hoverState } from '../core/scenarios/scenario-state.js';
+import { camera, observer, shader } from '../core/runtime/runtime-state.js';
 
 export function initializeCamera(targetCamera) {
     var pitchAngle = 3.0;
@@ -97,3 +97,5 @@ export function frobeniusDistance(matrix1, matrix2) {
     }
     return Math.sqrt(sum);
 }
+
+

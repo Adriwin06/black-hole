@@ -1,6 +1,6 @@
-"use strict";
+﻿"use strict";
 
-import { THREE } from '../vendor.js';
+import { THREE } from '../../vendor.js';
 import {
     renderer,
     camera,
@@ -15,26 +15,26 @@ import {
     rendererContextLost,
     updateUniforms,
     resetTemporalAAHistory
-} from './runtime-state.js';
-import { diveState, hoverState } from './scenario-state.js';
+} from '../runtime/runtime-state.js';
+import { diveState, hoverState } from '../scenarios/scenario-state.js';
 import {
     updatePresentation,
     getPresentationState,
     updatePresentationOverlay
-} from '../presentation/presentation-controller.js';
+} from '../../presentation/runtime/presentation-controller.js';
 import {
     updateDive,
     advanceTimelineDrivenDiveObserverTime
-} from './dive.js';
+} from '../scenarios/dive.js';
 import {
     updateHover,
     advanceTimelineDrivenHoverObserverTime
-} from './hover.js';
-import { updateCamera, frobeniusDistance } from '../scene/camera.js';
+} from '../scenarios/hover.js';
+import { updateCamera, frobeniusDistance } from '../../scene/camera.js';
 import { advanceQualityBenchmark } from './renderer-quality.js';
-import { updateAnimationTimelineCaptureFrame } from './animation-capture.js';
+import { updateAnimationTimelineCaptureFrame } from '../scenarios/animation-capture.js';
 import { resizeRendererAndPasses, updateAxesGizmo } from './renderer.js';
-import { registerBlackHoleRuntimeApi } from './runtime-registry.js';
+import { registerBlackHoleRuntimeApi } from '../runtime/runtime-registry.js';
 
 var lastCameraMat = new THREE.Matrix4().identity();
 var resetRendererFrameClock = function() {};
@@ -234,3 +234,5 @@ export var blackHoleRendererRuntime = {
 
 window.blackHoleRendererRuntime = blackHoleRendererRuntime;
 registerBlackHoleRuntimeApi('renderer', blackHoleRendererRuntime);
+
+

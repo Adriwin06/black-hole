@@ -1,4 +1,4 @@
-// Role: dat.GUI configuration — builds every control panel and folder, wires up
+﻿// Role: dat.GUI configuration â€” builds every control panel and folder, wires up
 //       all parameter bindings, manages conditional visibility for jet / torus /
 //       planet controls, and defines applyBlackHolePreset() to bulk-apply preset
 //       data from presets.js and quality-presets.js. Must be called after init()
@@ -17,7 +17,7 @@ import {
     updateUniforms,
     setDistanceController,
     setRefreshAllControllersGlobal
-} from '../core/runtime-state.js';
+} from '../core/runtime/runtime-state.js';
 import {
     OBSERVER_ORBIT_MIN,
     OBSERVER_DISTANCE_MIN,
@@ -33,21 +33,19 @@ import {
     KERR_MODE_LABELS
 } from './quality-presets.js';
 import { BH_PRESETS } from './presets.js';
-import { diveState, hoverState } from '../core/scenario-state.js';
-import { startDive, resetDive, seekDive } from '../core/dive.js';
-import { startHover, resetHover, seekHover } from '../core/hover.js';
+import { diveState, hoverState } from '../core/scenarios/scenario-state.js';
+import { startDive, resetDive, seekDive } from '../core/scenarios/dive.js';
+import { startHover, resetHover, seekHover } from '../core/scenarios/hover.js';
 import {
     toggleAnimationTimelineCapture,
     setAnimationTimelineCaptureCameraSmoothingEnabled,
     updateAnimationTimelineCaptureUi
-} from '../core/animation-capture.js';
-import {
-    createPresentationAnimationSectionHtml,
-    bindPresentationAnimationSection
-} from '../presentation/presentation-gui.js';
-import { buildTimelinePanel } from '../presentation/timeline-panel.js';
-import { getTimelinePanelBinding } from '../core/ui-bindings.js';
-import { registerBlackHoleUiBinding } from '../core/runtime-registry.js';
+} from '../core/scenarios/animation-capture.js';
+import { buildTimelinePanel } from '../presentation/editor/timeline-panel.js';
+import { getTimelinePanelBinding } from '../core/runtime/ui-bindings.js';
+import { registerBlackHoleUiBinding } from '../core/runtime/runtime-registry.js';
+import { setupAnimationsPanel } from './panels/animations-panel.js';
+import { setupObserverOrbitWidget } from './widgets/observer-orbit-widget.js';
 
 export function setupGUI() {
 
@@ -90,7 +88,7 @@ export function setupGUI() {
 
     var gui = new dat.GUI({ width: 360 });
 
-    // ── Controls Side Panel ────────────────────────────────────────────────
+    // â”€â”€ Controls Side Panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     (function setupControlsPanel() {
         var STORED_WIDTH_KEY = 'black-hole.controls-panel.width';
         var DEFAULT_WIDTH = 370;
@@ -135,7 +133,7 @@ export function setupGUI() {
         document.getElementById('controls-close-btn')
             .addEventListener('click', function() { setPanelOpen(false); });
 
-        // Resize (left edge — drag left to widen)
+        // Resize (left edge â€” drag left to widen)
         var resizer = ctrlPanel.querySelector('.sp-resize');
         var resizing = false;
         var startX = 0;
@@ -190,7 +188,7 @@ export function setupGUI() {
 
     // Recursively update all dat.GUI controllers to reflect programmatic changes.
     // dat.GUI does NOT auto-sync the displayed value when the bound property
-    // is changed from code — you must call updateDisplay() on each controller.
+    // is changed from code â€” you must call updateDisplay() on each controller.
     function refreshAllControllers() {
         function recurse(folder) {
             for (var i = 0; i < folder.__controllers.length; i++) {
@@ -473,7 +471,7 @@ export function setupGUI() {
         }
     }
 
-    // ─── Real Black Hole Presets ─────────────────────────────────────────────────
+    // â”€â”€â”€ Real Black Hole Presets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // applyBlackHolePreset is assigned below, after visibility helpers are defined.
     var presetObj = { preset: 'Default' };
     var applyBlackHolePreset;
@@ -485,7 +483,7 @@ export function setupGUI() {
         help: 'Load a literature-inspired black-hole preset. These are illustrative starting points, not definitive measurements.'
     });
     presetsFolder.open();
-    // ─────────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     var renderFolder = gui.addFolder('Rendering');
     qualityPresetController = addControl(renderFolder, p, 'quality', {
@@ -736,7 +734,7 @@ export function setupGUI() {
         help: 'Outer edge multiplier relative to torus center r0. Controls how far the torus extends.'
     });
 
-    // ─── Slim disk controls ───────────────────────────────
+    // â”€â”€â”€ Slim disk controls â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     var slimHRCtrl = addControl(diskFolder, p.slim, 'h_ratio', {
         min: 0.05,
         max: 0.5,
@@ -769,7 +767,7 @@ export function setupGUI() {
     var torusRows = [torusCenterCtrl, torusHRCtrl, torusFalloffCtrl, torusOpacityCtrl, torusOuterCtrl];
     var slimRows = [slimHRCtrl, slimOpacityCtrl, slimPuffCtrl];
 
-    // ─── GRMHD-inspired toggle ───────────────────────────
+    // â”€â”€â”€ GRMHD-inspired toggle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     var grmhdEnabledCtrl = addControl(diskFolder, p.grmhd, 'enabled', {
         name: 'GRMHD-inspired',
         trackBlackHolePreset: true,
@@ -792,10 +790,10 @@ export function setupGUI() {
         min: 0.01,
         max: 100.0,
         step: 0.1,
-        name: 'plasma β',
+        name: 'plasma Î²',
         trackBlackHolePreset: true,
         onChange: updateUniformsLive,
-        help: 'Ratio of gas-to-magnetic pressure in the disk midplane. Low β = strongly magnetized, high β = gas dominated. GRMHD simulations: β ~ 1-30.'
+        help: 'Ratio of gas-to-magnetic pressure in the disk midplane. Low Î² = strongly magnetized, high Î² = gas dominated. GRMHD simulations: Î² ~ 1-30.'
     });
     var grmhdMADCtrl = addControl(diskFolder, p.grmhd, 'mad_flux', {
         min: 0.0,
@@ -828,10 +826,10 @@ export function setupGUI() {
         min: 2.5,
         max: 8.0,
         step: 0.1,
-        name: 'κ (non-thermal)',
+        name: 'Îº (non-thermal)',
         trackBlackHolePreset: true,
         onChange: updateUniformsLive,
-        help: 'Kappa-distribution index for non-thermal electrons from magnetic reconnection. κ ~ 3.5 = strong non-thermal tail, κ ~ 8 = nearly thermal. (Ball+ 2018, Werner+ 2018).'
+        help: 'Kappa-distribution index for non-thermal electrons from magnetic reconnection. Îº ~ 3.5 = strong non-thermal tail, Îº ~ 8 = nearly thermal. (Ball+ 2018, Werner+ 2018).'
     });
     var grmhdBFieldCtrl = addControl(diskFolder, p.grmhd, 'magnetic_field_str', {
         min: 0.1,
@@ -840,7 +838,7 @@ export function setupGUI() {
         name: 'B-field strength',
         trackBlackHolePreset: true,
         onChange: updateUniformsLive,
-        help: 'Overall magnetic field strength scaling. Affects synchrotron emissivity (j ∝ B²), self-absorption, and electron temperature.'
+        help: 'Overall magnetic field strength scaling. Affects synchrotron emissivity (j âˆ BÂ²), self-absorption, and electron temperature.'
     });
 
     var grmhdRows = [grmhdRHighCtrl, grmhdBetaCtrl, grmhdMADCtrl, grmhdDensityCtrl,
@@ -858,7 +856,7 @@ export function setupGUI() {
 
     diskFolder.open();
 
-    // ─── Relativistic Jets ───────────────────────────────
+    // â”€â”€â”€ Relativistic Jets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     var jetFolder = gui.addFolder('Relativistic jets');
     addControl(jetFolder, p.jet, 'enabled', {
         name: 'enabled',
@@ -883,19 +881,19 @@ export function setupGUI() {
         min: 1.0,
         max: 25.0,
         step: 0.5,
-        name: 'half-angle (°)',
+        name: 'half-angle (Â°)',
         trackBlackHolePreset: true,
         onChange: updateUniformsLive,
-        help: 'Opening half-angle of the jet. Typical AGN jets: 2-7°. Parabolic collimation narrows the beam with distance.'
+        help: 'Opening half-angle of the jet. Typical AGN jets: 2-7Â°. Parabolic collimation narrows the beam with distance.'
     });
     var jetLorentzCtrl = addControl(jetFolder, p.jet, 'lorentz_factor', {
         min: 1.1,
         max: 20.0,
         step: 0.1,
-        name: 'Lorentz Γ',
+        name: 'Lorentz Î“',
         trackBlackHolePreset: true,
         onChange: updateUniformsLive,
-        help: 'Bulk Lorentz factor. Γ~2-5 for AGN jets, Γ~100+ for GRBs. Controls relativistic beaming.'
+        help: 'Bulk Lorentz factor. Î“~2-5 for AGN jets, Î“~100+ for GRBs. Controls relativistic beaming.'
     });
     var jetBrightCtrl = addControl(jetFolder, p.jet, 'brightness', {
         min: 0.05,
@@ -919,10 +917,10 @@ export function setupGUI() {
         min: 1.0,
         max: 50.0,
         step: 0.5,
-        name: 'σ (magnetization)',
+        name: 'Ïƒ (magnetization)',
         trackBlackHolePreset: true,
         onChange: updateUniformsLive,
-        help: 'Plasma magnetization at jet base (σ = B²/4πρc²). Higher σ = more magnetically dominated, narrower spine. MAD jets: σ ~ 10-30.'
+        help: 'Plasma magnetization at jet base (Ïƒ = BÂ²/4Ï€ÏcÂ²). Higher Ïƒ = more magnetically dominated, narrower spine. MAD jets: Ïƒ ~ 10-30.'
     });
     var jetKnotCtrl = addControl(jetFolder, p.jet, 'knot_spacing', {
         min: 2.0,
@@ -1134,7 +1132,7 @@ export function setupGUI() {
     });
     lookFolder.open();
 
-    // ─── Post-processing (bloom) ────────────────────────────────────────────
+    // â”€â”€â”€ Post-processing (bloom) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     var ppFolder = gui.addFolder('Post-processing');
     addControl(ppFolder, p.bloom, 'enabled', {
         name: 'bloom',
@@ -1220,7 +1218,7 @@ export function setupGUI() {
         help: 'Applies relativistic intensity boosting/dimming to thermal emitters and the background-sky proxy. Jet branches keep their own synchrotron beaming model.'
     });
     var physicalBeamingCtrl = addControl(folder, p, 'physical_beaming', {
-        name: 'physical (D³ Liouville)',
+        name: 'physical (DÂ³ Liouville)',
         trackBlackHolePreset: true,
         onChange: function() {
             updateDependentVisibility();
@@ -1268,7 +1266,7 @@ export function setupGUI() {
         observer.time = 0.0;
         shader.needsUpdate = true;
     }};
-    folder.add(resetSimObj, 'reset simulation').name('↺ reset simulation');
+    folder.add(resetSimObj, 'reset simulation').name('â†º reset simulation');
     //folder.open();
 
 
@@ -1322,516 +1320,42 @@ export function setupGUI() {
     };
     updateDependentVisibility();
 
-    // ─── Animations Panel ───────────────────────────────────────────────────────
-    // Single panel that hosts both animation modes — Freefall Dive and Hover
-    // Approach — as collapsible sections.  Only one open-button is needed.
-    // Switching between modes is safe: startDive() aborts any active hover and
-    // startHover() aborts any active dive before saving state.
-    (function setupAnimationsPanel() {
-        var ANIM_PANEL_WIDTH_STORAGE_KEY = 'black-hole.anim-panel.width';
-        var ANIM_PANEL_DEFAULT_WIDTH = 420;
-        var ANIM_PANEL_MIN_WIDTH = 340;
-        var ANIM_PANEL_MAX_WIDTH = 680;
+    // Side panels extracted into focused helpers to keep the main GUI wiring readable.
+    setupAnimationsPanel({
+        initialObserverDistance: p.observer.distance,
+        diveState: diveState,
+        hoverState: hoverState,
+        startDive: startDive,
+        resetDive: resetDive,
+        seekDive: seekDive,
+        startHover: startHover,
+        resetHover: resetHover,
+        seekHover: seekHover,
+        toggleAnimationTimelineCapture: toggleAnimationTimelineCapture,
+        setAnimationTimelineCaptureCameraSmoothingEnabled:
+            setAnimationTimelineCaptureCameraSmoothingEnabled,
+        updateAnimationTimelineCaptureUi: updateAnimationTimelineCaptureUi,
+        buildTimelinePanel: buildTimelinePanel,
+        getTimelinePanelBinding: getTimelinePanelBinding
+    });
 
-        var panel = document.createElement('div');
-        panel.id = 'anim-panel';
-        panel.className = 'sp-panel sp-panel--left sp-panel--collapsed';
-        panel.innerHTML =
-            '<div class="sp-resize sp-resize--right"></div>' +
-            '<div class="sp-header">' +
-                '<span class="sp-title">ANIMATIONS</span>' +
-                '<button id="anim-close-btn" class="sp-close" type="button" ' +
-                    'aria-label="Close Animations panel">&times;</button>' +
-            '</div>' +
-            '<div class="sp-content">' +
-            // ── Freefall Dive section ──────────────────────────────────────────
-            '<div class="anim-section" id="dive-section">' +
-                '<button class="anim-section-toggle" id="dive-section-toggle" ' +
-                    'type="button" aria-expanded="false" aria-controls="dive-section-body">' +
-                    '<span class="anim-section-arrow">&#9654;</span> FREEFALL DIVE' +
-                '</button>' +
-                '<div class="anim-section-body" id="dive-section-body">' +
-                    '<div class="dive-desc">Radial plunge into the black hole interior. ' +
-                    'Uses the Schwarzschild geodesic solver through the event horizon, ' +
-                    'with additional rendering simplifications for interior presentation.</div>' +
-                    '<button id="dive-start-btn" class="dive-btn dive-btn-start">' +
-                        '\u25b6 START DIVE</button>' +
-                    '<div class="dive-control-row">' +
-                        '<label>Fall speed</label>' +
-                        '<input type="range" id="dive-speed" min="0.01" max="5.0" ' +
-                            'step="0.01" value="1.0">' +
-                        '<span id="dive-speed-val">1.0\u00d7</span>' +
-                    '</div>' +
-                    '<div class="dive-control-row dive-cinematic-row">' +
-                        '<label for="dive-cinematic">Auto-speed</label>' +
-                        '<input type="checkbox" id="dive-cinematic">' +
-                        '<span class="dive-cinematic-hint">Slow near photon sphere &amp; horizon</span>' +
-                    '</div>' +
-                    '<div id="dive-horizon-track" class="dive-horizon-track">' +
-                        '<div id="dive-horizon-bar" class="dive-horizon-fill outside"></div>' +
-                        '<div class="dive-horizon-label">Event Horizon</div>' +
-                    '</div>' +
-                    '<div class="dive-readout">' +
-                        '<div id="dive-radius" class="dive-metric">' +
-                            'r = ' + p.observer.distance.toFixed(2) + ' r<sub>s</sub></div>' +
-                        '<div id="dive-velocity" class="dive-metric">v = 0.000 c</div>' +
-                        '<div id="dive-status" class="dive-status ready">Ready</div>' +
-                    '</div>' +
-                    '<div class="anim-capture-block anim-capture-block--dive">' +
-                        '<div class="anim-capture-head">' +
-                            '<span class="anim-capture-label">Timeline capture</span>' +
-                            '<span id="dive-capture-status" class="anim-capture-status">Idle</span>' +
-                        '</div>' +
-                        '<div class="anim-capture-hint">Record the live dive plus orbit/pan camera moves into the bottom timeline at the current playhead.</div>' +
-                        '<label class="anim-capture-check" for="dive-capture-smooth">' +
-                            '<input type="checkbox" id="dive-capture-smooth">' +
-                            '<span>Smooth recorded camera</span>' +
-                        '</label>' +
-                        '<button id="dive-capture-btn" class="dive-btn dive-btn-capture">' +
-                            '&#9679; RECORD TO TIMELINE</button>' +
-                    '</div>' +
-                    '<button id="dive-reset-btn" class="dive-btn dive-btn-reset" ' +
-                        'disabled>\u21ba RESET</button>' +
-                '</div>' +
-            '</div>' +
-            // ── Hover Approach section ─────────────────────────────────────────
-            '<div class="anim-section" id="hover-section">' +
-                '<button class="anim-section-toggle" id="hover-section-toggle" ' +
-                    'type="button" aria-expanded="false" aria-controls="hover-section-body">' +
-                    '<span class="anim-section-arrow">&#9654;</span> HOVER APPROACH' +
-                '</button>' +
-                '<div class="anim-section-body" id="hover-section-body">' +
-                    '<div class="hover-desc">Stationary observer firing thrusters to hover ' +
-                    'at a fixed radius. Zero velocity &mdash; pure gravitational blueshift. ' +
-                    'Light from infinity gains energy falling into the potential well: ' +
-                    'f<sub>obs</sub>/f<sub>emit</sub>&nbsp;=&nbsp;1/&radic;(1&minus;r<sub>s</sub>/r).' +
-                    '</div>' +
-                    '<button id="hover-start-btn" class="hover-btn hover-btn-start">' +
-                        '\u25b6 START HOVER</button>' +
-                    '<div class="hover-control-row">' +
-                        '<label>Descent speed</label>' +
-                        '<input type="range" id="hover-speed" min="0.01" max="2.0" ' +
-                            'step="0.01" value="0.3">' +
-                        '<span id="hover-speed-val">0.3\u00d7</span>' +
-                    '</div>' +
-                    '<div id="hover-horizon-track" class="hover-horizon-track">' +
-                        '<div id="hover-horizon-bar" class="hover-horizon-fill normal"></div>' +
-                        '<div class="hover-horizon-label">Event Horizon</div>' +
-                    '</div>' +
-                    '<div class="hover-readout">' +
-                        '<div id="hover-radius" class="hover-metric">' +
-                            'r = ' + p.observer.distance.toFixed(2) + ' r<sub>s</sub></div>' +
-                        '<div id="hover-blueshift" class="hover-metric">' +
-                            'D<sub>grav</sub> = 1.00\u00d7</div>' +
-                        '<div id="hover-accel" class="hover-metric">' +
-                            'a = 0.00 c\u00b2/r<sub>s</sub></div>' +
-                        '<div id="hover-status" class="hover-status ready">Ready</div>' +
-                    '</div>' +
-                    '<div class="anim-capture-block anim-capture-block--hover">' +
-                        '<div class="anim-capture-head">' +
-                            '<span class="anim-capture-label">Timeline capture</span>' +
-                            '<span id="hover-capture-status" class="anim-capture-status">Idle</span>' +
-                        '</div>' +
-                        '<div class="anim-capture-hint">Record the live hover descent plus orbit/pan camera moves into the bottom timeline at the current playhead.</div>' +
-                        '<label class="anim-capture-check" for="hover-capture-smooth">' +
-                            '<input type="checkbox" id="hover-capture-smooth">' +
-                            '<span>Smooth recorded camera</span>' +
-                        '</label>' +
-                        '<button id="hover-capture-btn" class="hover-btn hover-btn-capture">' +
-                            '&#9679; RECORD TO TIMELINE</button>' +
-                    '</div>' +
-                    '<button id="hover-reset-btn" class="hover-btn hover-btn-reset" ' +
-                        'disabled>\u21ba RESET</button>' +
-                '</div>' +
-            '</div>' +
-            '</div>'; // close .sp-content
-        document.body.appendChild(panel);
-
-        // ── Resize (right edge — drag right to widen) ──────────────────
-        var animResizer = panel.querySelector('.sp-resize');
-        var animResizing = false;
-        var animStartX = 0;
-        var animStartW = ANIM_PANEL_DEFAULT_WIDTH;
-
-        function readAnimWidth() {
-            try { var w = parseFloat(localStorage.getItem(ANIM_PANEL_WIDTH_STORAGE_KEY)); return isFinite(w) ? w : null; } catch(e) { return null; }
-        }
-        function saveAnimWidth(w) {
-            try { localStorage.setItem(ANIM_PANEL_WIDTH_STORAGE_KEY, String(Math.round(w))); } catch(e) {}
-        }
-        function applyAnimWidth(w, persist) {
-            w = Math.round(Math.max(ANIM_PANEL_MIN_WIDTH, Math.min(ANIM_PANEL_MAX_WIDTH, w)));
-            panel.style.width = w + 'px';
-            if (persist) saveAnimWidth(w);
-        }
-
-        applyAnimWidth(readAnimWidth() || ANIM_PANEL_DEFAULT_WIDTH, false);
-
-        animResizer.addEventListener('pointerdown', function(e) {
-            if (e.button !== 0) return;
-            animResizing = true;
-            animStartX = e.clientX;
-            animStartW = panel.getBoundingClientRect().width || ANIM_PANEL_DEFAULT_WIDTH;
-            document.body.classList.add('sp-resizing');
-            if (animResizer.setPointerCapture) animResizer.setPointerCapture(e.pointerId);
-            document.addEventListener('pointermove', onAnimResizeMove);
-            document.addEventListener('pointerup', onAnimResizeEnd);
-            e.preventDefault();
-        });
-        function onAnimResizeMove(e) {
-            if (!animResizing) return;
-            applyAnimWidth(animStartW + (e.clientX - animStartX), false);
-            e.preventDefault();
-        }
-        function onAnimResizeEnd() {
-            if (!animResizing) return;
-            animResizing = false;
-            document.body.classList.remove('sp-resizing');
-            applyAnimWidth(parseFloat(panel.style.width) || ANIM_PANEL_DEFAULT_WIDTH, true);
-            document.removeEventListener('pointermove', onAnimResizeMove);
-            document.removeEventListener('pointerup', onAnimResizeEnd);
-        }
-
-        // ── Open / close ───────────────────────────────────────────────
-        var openBtn = document.createElement('button');
-        openBtn.id = 'anim-open-btn';
-        openBtn.className = 'sp-open-btn sp-open-btn--left';
-        openBtn.type = 'button';
-        openBtn.innerHTML = '&#9664; ANIMATIONS';
-        openBtn.title = 'Open Animations panel';
-        document.body.appendChild(openBtn);
-
-        function setAnimPanelOpen(isOpen) {
-            panel.classList.toggle('sp-panel--collapsed', !isOpen);
-            openBtn.classList.toggle('sp-open-btn--hidden', isOpen);
-            document.body.classList.toggle('has-anim-panel', isOpen);
-        }
-        setAnimPanelOpen(false);
-
-        openBtn.addEventListener('click', function() { setAnimPanelOpen(true); });
-        document.getElementById('anim-close-btn').addEventListener('click',
-            function() { setAnimPanelOpen(false); });
-
-        // ── Collapsible section toggles ────────────────────────────────
-        function setupSectionToggle(sectionId) {
-            var section = document.getElementById(sectionId);
-            var toggle = section.querySelector('.anim-section-toggle');
-            toggle.addEventListener('click', function() {
-                var isOpen = section.classList.toggle('is-open');
-                toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-            });
-        }
-        setupSectionToggle('dive-section');
-        setupSectionToggle('hover-section');
-
-        // ── Dive events ────────────────────────────────────────────────
-        document.getElementById('dive-start-btn').addEventListener('click',
-            function() { startDive(); });
-        document.getElementById('dive-reset-btn').addEventListener('click',
-            function() { resetDive(); });
-        document.getElementById('dive-speed').addEventListener('input',
-            function() {
-                diveState.speed = parseFloat(this.value);
-                var v = diveState.speed;
-                document.getElementById('dive-speed-val').textContent =
-                    (v < 0.1 ? v.toFixed(2) : v.toFixed(1)) + '\u00d7';
-            });
-        document.getElementById('dive-cinematic').addEventListener('change',
-            function() { diveState.cinematic = this.checked; });
-        document.getElementById('dive-capture-btn').addEventListener('click',
-            function() {
-                if (typeof toggleAnimationTimelineCapture === 'function') {
-                    toggleAnimationTimelineCapture('dive');
-                }
-            });
-        document.getElementById('dive-capture-smooth').addEventListener('change',
-            function() {
-                if (typeof setAnimationTimelineCaptureCameraSmoothingEnabled === 'function') {
-                    setAnimationTimelineCaptureCameraSmoothingEnabled(this.checked);
-                }
-            });
-
-        var diveTrack = document.getElementById('dive-horizon-track');
-        var diveDragging = false;
-        function handleDiveTrackSeek(e) {
-            if (!diveState.active && !diveState.reachedSingularity) return;
-            var rect = diveTrack.getBoundingClientRect();
-            var clientX = e.touches ? e.touches[0].clientX : e.clientX;
-            var x = Math.max(0, Math.min(clientX - rect.left, rect.width));
-            var progress = x / rect.width;
-            var startR = Math.max(diveState.prevDistance, 1);
-            var targetR = startR * (1.0 - progress);
-            seekDive(targetR);
-        }
-        diveTrack.addEventListener('mousedown', function(e) {
-            diveDragging = true; handleDiveTrackSeek(e); e.preventDefault();
-        });
-        document.addEventListener('mousemove', function(e) {
-            if (diveDragging) handleDiveTrackSeek(e);
-        });
-        document.addEventListener('mouseup', function() { diveDragging = false; });
-        diveTrack.addEventListener('touchstart', function(e) {
-            handleDiveTrackSeek(e); e.preventDefault();
-        });
-        diveTrack.addEventListener('touchmove', function(e) {
-            handleDiveTrackSeek(e); e.preventDefault();
-        });
-
-        // ── Hover events ───────────────────────────────────────────────
-        document.getElementById('hover-start-btn').addEventListener('click',
-            function() { startHover(); });
-        document.getElementById('hover-reset-btn').addEventListener('click',
-            function() { resetHover(); });
-        document.getElementById('hover-speed').addEventListener('input',
-            function() {
-                hoverState.speed = parseFloat(this.value);
-                var v = hoverState.speed;
-                document.getElementById('hover-speed-val').textContent =
-                    (v < 0.1 ? v.toFixed(2) : v.toFixed(1)) + '\u00d7';
-            });
-        document.getElementById('hover-capture-btn').addEventListener('click',
-            function() {
-                if (typeof toggleAnimationTimelineCapture === 'function') {
-                    toggleAnimationTimelineCapture('hover');
-                }
-            });
-        document.getElementById('hover-capture-smooth').addEventListener('change',
-            function() {
-                if (typeof setAnimationTimelineCaptureCameraSmoothingEnabled === 'function') {
-                    setAnimationTimelineCaptureCameraSmoothingEnabled(this.checked);
-                }
-            });
-
-        var hoverTrack = document.getElementById('hover-horizon-track');
-        var hoverDragging = false;
-        function handleHoverTrackSeek(e) {
-            if (!hoverState.active) return;
-            var rect = hoverTrack.getBoundingClientRect();
-            var clientX = e.touches ? e.touches[0].clientX : e.clientX;
-            var x = Math.max(0, Math.min(clientX - rect.left, rect.width));
-            var progress = x / rect.width;
-            var startR = Math.max(hoverState.prevDistance, 1);
-            var targetR = startR * (1.0 - progress);
-            targetR = Math.max(hoverState.minR, targetR);
-            seekHover(targetR);
-        }
-        hoverTrack.addEventListener('mousedown', function(e) {
-            hoverDragging = true; handleHoverTrackSeek(e); e.preventDefault();
-        });
-        document.addEventListener('mousemove', function(e) {
-            if (hoverDragging) handleHoverTrackSeek(e);
-        });
-        document.addEventListener('mouseup', function() { hoverDragging = false; });
-        hoverTrack.addEventListener('touchstart', function(e) {
-            handleHoverTrackSeek(e); e.preventDefault();
-        });
-        hoverTrack.addEventListener('touchmove', function(e) {
-            handleHoverTrackSeek(e); e.preventDefault();
-        });
-
-        // ── Presentation timeline events ───────────────────────────────
-        if (typeof updateAnimationTimelineCaptureUi === 'function') {
-            updateAnimationTimelineCaptureUi();
-        }
-
-        // ── Bottom-docked timeline panel ────────────────────────────────
-        if (typeof buildTimelinePanel === 'function') {
-            buildTimelinePanel();
-
-            var tlOpenBtn = document.createElement('button');
-            tlOpenBtn.id = 'tl-open-btn';
-            tlOpenBtn.type = 'button';
-            tlOpenBtn.textContent = '\u25B2 TIMELINE';
-            tlOpenBtn.title = 'Open the full timeline / dopesheet panel';
-            document.body.appendChild(tlOpenBtn);
-
-            tlOpenBtn.addEventListener('click', function() {
-                var timelineBinding = getTimelinePanelBinding();
-                if (timelineBinding && typeof timelineBinding.toggle === 'function') {
-                    timelineBinding.toggle();
-                }
-            });
-        }
-    })();
-    // ─────────────────────────────────────────────────────────────────────────────
-
-        // ── 3-D axes orientation gizmo ──────────────────────────────────
-        var gizmo = document.createElement('div');
-        gizmo.id = 'axes-gizmo-container';
-        gizmo.innerHTML =
-            '<div id="observer-orbit-shell" class="observer-orbit-shell">' +
-                '<svg id="observer-distance-arc" class="observer-distance-arc" viewBox="0 0 140 140" aria-label="Observer distance dial">' +
-                    '<path id="observer-distance-track" class="observer-distance-track"></path>' +
-                    '<path id="observer-distance-fill" class="observer-distance-fill"></path>' +
-                    '<path id="observer-distance-hit" class="observer-distance-hit"></path>' +
-                    '<circle id="observer-distance-knob" class="observer-distance-knob" r="6"></circle>' +
-                '</svg>' +
-                '<button id="observer-orbit-motion" type="button" class="observer-orbit-btn observer-orbit-btn-motion" aria-pressed="false">MOTION</button>' +
-                '<button id="observer-orbit-reset" type="button" class="observer-orbit-btn observer-orbit-btn-reset">RESET</button>' +
-                '<div id="observer-orbit-distance" class="observer-orbit-distance">11.0 r_s</div>' +
-                '<div class="observer-orbit-help">L orbit | R pan | L+R roll</div>' +
-                '<canvas id="axes-gizmo" width="80" height="80" aria-label="XYZ orientation indicator"></canvas>' +
-            '</div>' +
-            '<div class="observer-orbit-tag">OBSERVER</div>';
-        document.body.appendChild(gizmo);
-
-        var orbitShell = document.getElementById('observer-orbit-shell');
-        var axesCanvas = document.getElementById('axes-gizmo');
-        var motionBtn = document.getElementById('observer-orbit-motion');
-        var resetBtn = document.getElementById('observer-orbit-reset');
-        var distanceReadout = document.getElementById('observer-orbit-distance');
-        var distanceArcSvg = document.getElementById('observer-distance-arc');
-        var distanceTrack = document.getElementById('observer-distance-track');
-        var distanceFill = document.getElementById('observer-distance-fill');
-        var distanceHit = document.getElementById('observer-distance-hit');
-        var distanceKnob = document.getElementById('observer-distance-knob');
-
-        var ARC = { cx: 70, cy: 70, radius: 56, startDeg: 60, endDeg: 300 };
-        var draggingDistance = false;
-
-        function clamp(value, minValue, maxValue) {
-            return Math.max(minValue, Math.min(maxValue, value));
-        }
-
-        function setOrbitMenuOpen(isOpen) {
-            orbitShell.classList.toggle('is-open', !!isOpen);
-        }
-
-        function getObserverDistanceMin() {
-            return p.observer.motion ? OBSERVER_ORBIT_MIN : OBSERVER_DISTANCE_MIN;
-        }
-
-        function distanceToProgress(distance) {
-            var minDistance = getObserverDistanceMin();
-            return (distance - minDistance) / (OBSERVER_DISTANCE_MAX - minDistance);
-        }
-
-        function progressToDistance(progress) {
-            var minDistance = getObserverDistanceMin();
-            return minDistance + clamp(progress, 0.0, 1.0) * (OBSERVER_DISTANCE_MAX - minDistance);
-        }
-
-        function arcPoint(angleDeg) {
-            var radians = (angleDeg - 90.0) * Math.PI / 180.0;
-            return {
-                x: ARC.cx + ARC.radius * Math.cos(radians),
-                y: ARC.cy + ARC.radius * Math.sin(radians)
-            };
-        }
-
-        function describeArc(startDeg, endDeg) {
-            var start = arcPoint(startDeg);
-            var end = arcPoint(endDeg);
-            var largeArcFlag = Math.abs(endDeg - startDeg) > 180 ? 1 : 0;
-            var sweepFlag = endDeg >= startDeg ? 1 : 0;
-            return 'M ' + start.x.toFixed(3) + ' ' + start.y.toFixed(3) +
-                ' A ' + ARC.radius + ' ' + ARC.radius + ' 0 ' + largeArcFlag + ' ' + sweepFlag +
-                ' ' + end.x.toFixed(3) + ' ' + end.y.toFixed(3);
-        }
-
-        function updateDistanceArc(distance) {
-            var progress = clamp(distanceToProgress(distance), 0.0, 1.0);
-            var angle = ARC.startDeg + progress * (ARC.endDeg - ARC.startDeg);
-            var fillEnd = angle;
-            if (Math.abs(fillEnd - ARC.startDeg) < 0.001) fillEnd += 0.001;
-
-            distanceTrack.setAttribute('d', describeArc(ARC.startDeg, ARC.endDeg));
-            distanceFill.setAttribute('d', describeArc(ARC.startDeg, fillEnd));
-            distanceHit.setAttribute('d', describeArc(ARC.startDeg, ARC.endDeg));
-
-            var knobPos = arcPoint(angle);
-            distanceKnob.setAttribute('cx', knobPos.x.toFixed(3));
-            distanceKnob.setAttribute('cy', knobPos.y.toFixed(3));
-        }
-
-        function setDistanceFromPointerEvent(event) {
-            var rect = distanceArcSvg.getBoundingClientRect();
-            if (!rect.width || !rect.height) return;
-
-            var px = (event.clientX - rect.left) * (140.0 / rect.width);
-            var py = (event.clientY - rect.top) * (140.0 / rect.height);
-            var angle = (Math.atan2(py - ARC.cy, px - ARC.cx) * 180.0 / Math.PI + 90.0 + 360.0) % 360.0;
-            angle = clamp(angle, ARC.startDeg, ARC.endDeg);
-
-            var progress = (angle - ARC.startDeg) / (ARC.endDeg - ARC.startDeg);
-            p.observer.distance = progressToDistance(progress);
-            updateCamera();
+    var observerOrbitWidget = setupObserverOrbitWidget({
+        parameters: p,
+        observerOrbitMin: OBSERVER_ORBIT_MIN,
+        observerDistanceMin: OBSERVER_DISTANCE_MIN,
+        observerDistanceMax: OBSERVER_DISTANCE_MAX,
+        clampObserverDistance: clampObserverDistance,
+        updateCamera: updateCamera,
+        markShaderDirty: function() {
             shader.needsUpdate = true;
-            updateObserverWidget();
-        }
-
-        function updateObserverWidget() {
-            if (!motionBtn || !distanceReadout) return;
-            var motionEnabled = !!p.observer.motion;
-            motionBtn.classList.toggle('is-active', motionEnabled);
-            motionBtn.setAttribute('aria-pressed', motionEnabled ? 'true' : 'false');
-            distanceReadout.textContent = p.observer.distance.toFixed(1) + ' r_s';
-            updateDistanceArc(p.observer.distance);
-        }
-
-        syncObserverWidgetControls = updateObserverWidget;
-        var observerDistanceBinding = { updateDisplay: updateObserverWidget };
-        setDistanceController(observerDistanceBinding);
-        registerBlackHoleUiBinding('observerDistance', observerDistanceBinding);
-        updateObserverWidget();
-
-        function toggleOrbitMenuFromEvent(event) {
-            if (event) {
-                event.stopPropagation();
-                if (event.preventDefault) event.preventDefault();
-            }
-            setOrbitMenuOpen(!orbitShell.classList.contains('is-open'));
-        }
-
-        if (window.PointerEvent) {
-            axesCanvas.addEventListener('pointerdown', toggleOrbitMenuFromEvent);
-        } else {
-            axesCanvas.addEventListener('touchstart', toggleOrbitMenuFromEvent, { passive: false });
-            axesCanvas.addEventListener('click', toggleOrbitMenuFromEvent);
-        }
-
-        orbitShell.addEventListener('pointerdown', function(event) {
-            event.stopPropagation();
-        });
-
-        document.addEventListener('pointerdown', function(event) {
-            if (!orbitShell.contains(event.target)) setOrbitMenuOpen(false);
-        });
-
-        motionBtn.addEventListener('click', function() {
-            p.observer.motion = !p.observer.motion;
-            p.observer.distance = clampObserverDistance(p.observer.distance, p.observer.motion);
-            updateCamera();
-            updateShader();
-            showObserverControlHint(p.observer.motion ? 'Stable circular orbit enabled.' : 'Stationary observer.');
-            updateObserverWidget();
-            setOrbitMenuOpen(true);
-        });
-
-        distanceHit.addEventListener('pointerdown', function(event) {
-            draggingDistance = true;
-            setOrbitMenuOpen(true);
-            setDistanceFromPointerEvent(event);
-            if (distanceHit.setPointerCapture) distanceHit.setPointerCapture(event.pointerId);
-            event.preventDefault();
-        });
-        distanceHit.addEventListener('pointermove', function(event) {
-            if (!draggingDistance) return;
-            setDistanceFromPointerEvent(event);
-            event.preventDefault();
-        });
-        distanceHit.addEventListener('pointerup', function(event) {
-            draggingDistance = false;
-            if (distanceHit.releasePointerCapture) distanceHit.releasePointerCapture(event.pointerId);
-        });
-        distanceHit.addEventListener('pointercancel', function() {
-            draggingDistance = false;
-        });
-
-        resetBtn.addEventListener('click', function() {
-            resetObserverCamera();
-            updateObserverWidget();
-            setOrbitMenuOpen(true);
-        });
-
+        },
+        updateShader: updateShader,
+        resetObserverCamera: resetObserverCamera,
+        showObserverControlHint: showObserverControlHint,
+        registerBlackHoleUiBinding: registerBlackHoleUiBinding,
+        setDistanceController: setDistanceController
+    });
+    syncObserverWidgetControls = observerOrbitWidget.syncControls;
 }
+
+

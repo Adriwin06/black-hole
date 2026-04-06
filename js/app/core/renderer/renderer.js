@@ -1,26 +1,26 @@
-"use strict";
+﻿"use strict";
 
-import { THREE, Stats, Detector, $ } from '../vendor.js';
-import { Shader } from './shader.js';
+import { THREE, Stats, Detector, $ } from '../../vendor.js';
+import { Shader } from '../shader.js';
 import {
     formatThousands,
     clampObserverDistance,
     clampPlanetOrbitDistance
-} from './observer.js';
-import { initializeCamera, updateCamera } from '../scene/camera.js';
-import { setupBloom } from '../graphics/bloom.js';
+} from '../observer.js';
+import { initializeCamera, updateCamera } from '../../scene/camera.js';
+import { setupBloom } from '../../graphics/bloom.js';
 import { setupTemporalAA } from './temporal-aa.js';
-import { setupGUI } from '../ui/gui.js';
+import { setupGUI } from '../../ui/gui.js';
 import {
     applyQualityPresetValues
-} from '../ui/quality-presets.js';
+} from '../../ui/quality-presets.js';
 import {
     beginQualityBenchmarkIfNeeded,
     isLikelyMobileDevice,
     readStoredQualityPreset,
     clampResolutionScale
 } from './renderer-quality.js';
-import { updateObserverDistanceBinding } from './ui-bindings.js';
+import { updateObserverDistanceBinding } from '../runtime/ui-bindings.js';
 import {
     DISK_TEMPERATURE_MIN,
     DISK_TEMPERATURE_MAX,
@@ -54,7 +54,7 @@ import {
     setUpdateUniforms,
     setApplyRenderScaleFromSettings,
     setResetTemporalAAHistory
-} from './runtime-state.js';
+} from '../runtime/runtime-state.js';
 
 if (!Detector.webgl) Detector.addGetWebGLMessage();
 
@@ -467,3 +467,5 @@ export function updateAxesGizmo() {
         ctx.globalAlpha = 1.0;
     }
 }
+
+

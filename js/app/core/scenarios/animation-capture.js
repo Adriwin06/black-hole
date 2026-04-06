@@ -1,15 +1,15 @@
-"use strict";
+﻿"use strict";
 
-import { THREE } from '../vendor.js';
-import { camera, cameraPan, observer, shader } from './runtime-state.js';
+import { THREE } from '../../vendor.js';
+import { camera, cameraPan, observer, shader } from '../runtime/runtime-state.js';
 import { diveState, hoverState, animationTimelineCaptureState } from './scenario-state.js';
-import { getTimelinePanelBinding } from './ui-bindings.js';
+import { getTimelinePanelBinding } from '../runtime/ui-bindings.js';
 import { startDive, updateDiveUI } from './dive.js';
 import { startHover, updateHoverUI } from './hover.js';
 import {
     getPresentationState,
     pausePresentation
-} from '../presentation/presentation-controller.js';
+} from '../../presentation/runtime/presentation-controller.js';
 
 function cloneVector3Plain(vec) {
     return {
@@ -466,3 +466,5 @@ export function updateAnimationTimelineCaptureFrame() {
         updateAnimationTimelineCaptureUi();
     }
 }
+
+

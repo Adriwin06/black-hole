@@ -1,6 +1,6 @@
-"use strict";
+﻿"use strict";
 
-import { THREE } from '../vendor.js';
+import { THREE } from '../../vendor.js';
 
 export function halton(index, base) {
     var f = 1.0;
@@ -163,3 +163,5 @@ export function setupTemporalAA() {
 
     return pass;
 }
+
+

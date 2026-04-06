@@ -1,4 +1,4 @@
-// Role: Observer entity - tracks position, velocity, and orientation of the
+﻿// Role: Observer entity - tracks position, velocity, and orientation of the
 //       in-simulation camera/observer. Handles circular orbital motion and the
 //       simulation-time scaling used for orbit/hover modes. Also exports
 //       formatThousands.
@@ -94,3 +94,5 @@ Observer.prototype.move = function(dt) {
 
     this.time += dt;
 };
+
+

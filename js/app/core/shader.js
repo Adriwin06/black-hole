@@ -1,10 +1,10 @@
-// Role: Shader configuration and compilation. Holds all compile-time parameters
+﻿// Role: Shader configuration and compilation. Holds all compile-time parameters
 //       that control the Mustache-templated GLSL (quality, modes, enabled features)
 //       and exposes compile() to render the template into a ready-to-use fragment
 //       shader string. Also defines the degToRad helper.
 
 import { Mustache } from '../vendor.js';
-import { diveState, hoverState } from './scenario-state.js';
+import { diveState, hoverState } from './scenarios/scenario-state.js';
 
 export function degToRad(a) {
     return Math.PI * a / 180.0;
@@ -164,3 +164,5 @@ export function Shader(mustacheTemplate) {
         return Mustache.render(mustacheTemplate, that.parameters);
     };
 }
+
+

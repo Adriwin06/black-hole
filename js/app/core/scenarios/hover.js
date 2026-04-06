@@ -1,9 +1,9 @@
-"use strict";
+﻿"use strict";
 
-import { observer, shader, scene } from './runtime-state.js';
+import { observer, shader, scene } from '../runtime/runtime-state.js';
 import { diveState, hoverState, animationTimelineCaptureState } from './scenario-state.js';
-import { updateCamera } from '../scene/camera.js';
-import { refreshRendererUiBindings } from './ui-bindings.js';
+import { updateCamera } from '../../scene/camera.js';
+import { refreshRendererUiBindings } from '../runtime/ui-bindings.js';
 import {
     readAnimationCaptureAnchorPosition,
     readAnimationCaptureAnchorVelocity,
@@ -226,3 +226,5 @@ export function updateHoverUI() {
         resetBtn.disabled = !hoverState.active;
     }
 }
+
+

@@ -1,5 +1,5 @@
-import { THREE } from '../vendor.js';
-import { Observer, bindObserverShader } from './observer.js';
+﻿import { THREE } from '../../vendor.js';
+import { Observer, bindObserverShader } from '../observer.js';
 
 export const DISK_TEMPERATURE_MIN = 4500.0;
 export const DISK_TEMPERATURE_MAX = 30000.0;
@@ -51,3 +51,5 @@ export function setApplyRenderScaleFromSettings(value) {
 export function setResetTemporalAAHistory(value) {
     resetTemporalAAHistory = value || function() {};
 }
+
+

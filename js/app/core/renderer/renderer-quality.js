@@ -1,13 +1,13 @@
-"use strict";
+﻿"use strict";
 
-import { $ } from '../vendor.js';
+import { $ } from '../../vendor.js';
 import {
     shader,
     scene,
     applyRenderScaleFromSettings
-} from './runtime-state.js';
-import { refreshRendererUiBindings } from './ui-bindings.js';
-import { QUALITY_PRESETS, applyQualityPresetValues } from '../ui/quality-presets.js';
+} from '../runtime/runtime-state.js';
+import { refreshRendererUiBindings } from '../runtime/ui-bindings.js';
+import { QUALITY_PRESETS, applyQualityPresetValues } from '../../ui/quality-presets.js';
 
 var QUALITY_BENCHMARK_STORAGE_KEY = 'black-hole-quality-benchmark-v4';
 var QUALITY_BENCHMARK_SCHEMA_VERSION = 4;
@@ -148,3 +148,5 @@ export function isLikelyMobileDevice() {
 export function clampResolutionScale(value) {
     return Math.max(0.35, Math.min(2.0, value || 1.0));
 }
+
+

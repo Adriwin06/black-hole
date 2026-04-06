@@ -1,4 +1,4 @@
-// Role: Presentation controls embedded in the ANIMATIONS panel.
+﻿// Role: Presentation controls embedded in the ANIMATIONS panel.
 //       Handles timeline preset selection, playback, recording, and
 //       annotation toggles without using dat.GUI rows.
 
@@ -7,8 +7,8 @@ import {
     listPresentationPresets,
     getPresentationState,
     loadPresentationPreset
-} from './presentation-controller.js';
-import { getTimelinePanelBinding } from '../core/ui-bindings.js';
+} from '../runtime/presentation-controller.js';
+import { getTimelinePanelBinding } from '../../core/runtime/ui-bindings.js';
 
 export function createPresentationAnimationSectionHtml() {
     return '' +
@@ -93,7 +93,7 @@ export function bindPresentationAnimationSection(panelRoot) {
             if (timelineBinding && typeof timelineBinding.open === 'function') {
                 timelineBinding.open();
             }
-            setStatus('Open the ▲ TIMELINE panel to edit.', '');
+            setStatus('Open the â–² TIMELINE panel to edit.', '');
             return;
         }
         if (!loadPresentationPreset(value)) {
@@ -135,3 +135,5 @@ export function bindPresentationAnimationSection(panelRoot) {
     if (section._presentationSyncTimer) clearInterval(section._presentationSyncTimer);
     section._presentationSyncTimer = window.setInterval(syncFromState, 500);
 }
+
+
