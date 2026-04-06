@@ -3,21 +3,9 @@
 //       textures in parallel, then calls init() once everything is ready.
 
 import { $, THREE } from './vendor.js';
+import { SHADER_SHARDS } from './shaders/shader-shards.js';
 import { init } from './core/renderer/renderer.js';
 import { animate } from './core/renderer/render-loop.js';
-
-var SHADER_SHARDS = [
-    'shaders/raytracer/core/defines.glsl',
-    'shaders/raytracer/core/math.glsl',
-    'shaders/raytracer/physics/geodesics.glsl',
-    'shaders/raytracer/physics/accretion.glsl',
-    'shaders/raytracer/physics/jet.glsl',
-    'shaders/raytracer/output/tonemapping.glsl',
-    'shaders/raytracer/physics/planet.glsl',
-    'shaders/raytracer/physics/background.glsl',
-    'shaders/raytracer/output/trace_ray.glsl',
-    'shaders/raytracer/output/main.glsl'
-];
 
 var textures = {};
 var glslSource = null;

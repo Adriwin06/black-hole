@@ -1,0 +1,23 @@
+export var SHADER_SHARDS = [
+    'shaders/raytracer/core/defines.glsl',
+    'shaders/raytracer/core/math.glsl',
+    'shaders/raytracer/physics/geodesics.glsl',
+    'shaders/raytracer/physics/accretion/core.glsl',
+    'shaders/raytracer/physics/accretion/thick-torus.glsl',
+    'shaders/raytracer/physics/accretion/slim-disk.glsl',
+    'shaders/raytracer/physics/accretion/grmhd.glsl',
+    'shaders/raytracer/physics/accretion/planet-irradiation.glsl',
+    'shaders/raytracer/physics/jet/simple.glsl',
+    'shaders/raytracer/physics/jet/physical-core.glsl',
+    'shaders/raytracer/physics/jet/physical-grmhd.glsl',
+    'shaders/raytracer/output/tonemapping.glsl',
+    'shaders/raytracer/physics/planet.glsl',
+    'shaders/raytracer/physics/background.glsl',
+    'shaders/raytracer/output/trace/setup.glsl',
+    'shaders/raytracer/output/trace/accretion-thin.glsl',
+    'shaders/raytracer/output/trace/accretion-thick.glsl',
+    'shaders/raytracer/output/trace/accretion-slim.glsl',
+    'shaders/raytracer/output/trace/jet.glsl',
+    'shaders/raytracer/output/trace/finish.glsl',
+    'shaders/raytracer/output/main.glsl'
+];

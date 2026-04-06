@@ -49,14 +49,15 @@ import {
     normalizeTimelineDraft
 } from './timeline-utils.js';
 import {
-    lookAtOriginQuat,
     quatMul,
-    quatSlerp,
-    sampleTrackDraft
+    quatSlerp
 } from './motion-utils.js';
 import { setupRecordingModal } from './recording-modal.js';
 import { showAutoKeyChoiceModal } from './auto-key-modal.js';
 import { attachTimelineKeyboardShortcuts } from './timeline-keyboard.js';
+import { setupTimelineFileIo } from './timeline-file-io.js';
+import { setupTimelineMotionModal } from './timeline-motion-modal.js';
+import { createTimelineSelectionActions } from './timeline-selection-actions.js';
 
 var PRESENTATION_EDITOR_COMMON_PATHS = [
     'dive.currentR',
@@ -2811,395 +2812,63 @@ export function buildTimelinePanel() {
             if (Math.abs(track.keys[i].t - t) <= 1e-4) { track.keys[i].v = v; return; }
     }
 
-    importBtn.addEventListener('click', function() {
-        var input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.json,application/json';
-        input.style.display = 'none';
-        input.addEventListener('change', function() {
-            var file = input.files && input.files[0];
-            if (!file) return;
-            var reader = new FileReader();
-            reader.onload = function() {
-                try {
-                    var obj = JSON.parse(reader.result);
-                    // Derive a name from the JSON name field or the filename
-                    var presetName = (obj && obj.name && obj.name.trim()) ? obj.name.trim()
-                        : file.name.replace(/\.json$/i, '').replace(/[_-]+/g, ' ').trim();
-                    if (!presetName) presetName = 'Imported';
-                    obj.name = presetName;
-
-                    if (typeof registerPresentationPreset === 'function') {
-                        registerPresentationPreset(obj, presetName);
-                    }
-                    importedPresets[presetName] = true;
-
-                    if (typeof setPresentationTimeline === 'function') {
-                        applyingDraft = true;
-                        if (setPresentationTimeline(obj)) {
-                            applyingDraft = false;
-                            syncFromRuntime();
-                            linkedFileName = file.name;
-                            populatePresets();
-                            presetSelect.value = presetName;
-                            updateDelPresetBtn();
-                            setStatus('Imported: ' + file.name, '');
-                        } else {
-                            applyingDraft = false;
-                            setStatus('Invalid timeline data in ' + file.name, 'tl-status--error');
-                        }
-                    }
-                } catch (err) {
-                    setStatus('JSON parse error: ' + err.message, 'tl-status--error');
-                }
-            };
-            reader.onerror = function() {
-                setStatus('Failed to read file.', 'tl-status--error');
-            };
-            reader.readAsText(file);
-        });
-        document.body.appendChild(input);
-        input.click();
-        input.remove();
-    });
-
-    exportBtn.addEventListener('click', function() {
-        var tl = typeof getPresentationTimeline === 'function' ? getPresentationTimeline() : null;
-        if (!tl && draft) tl = clonePlain(draft);
-        if (!tl) { setStatus('No timeline to export.', 'tl-status--warn'); return; }
-        var defaultName = (tl.name && tl.name !== 'Untitled' && tl.name !== 'Custom')
-            ? tl.name : '';
-        var exportName = prompt('Name for the exported timeline:', defaultName);
-        if (exportName === null) return; // cancelled
-        exportName = exportName.trim();
-        if (!exportName) exportName = 'timeline';
-        tl.name = exportName;
-        if (draft) draft.name = exportName;
-        var json = JSON.stringify(tl, null, 2);
-        var blob = new Blob([json], { type: 'application/json' });
-        var url = URL.createObjectURL(blob);
-        var a = document.createElement('a');
-        a.href = url;
-        var safeFilename = exportName.replace(/[^a-zA-Z0-9_-]/g, '_');
-        a.download = safeFilename + '.json';
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-        linkedFileName = safeFilename + '.json';
-
-        // Register in the preset list (same as import) so it can be reloaded
-        if (typeof registerPresentationPreset === 'function') {
-            registerPresentationPreset(clonePlain(tl), exportName);
-        }
-        importedPresets[exportName] = true;
-        populatePresets();
-        presetSelect.value = exportName;
-        updateDelPresetBtn();
-
-        setStatus('Exported: ' + a.download, '');
-    });
-
-    // â”€â”€ Delete imported preset â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    delPresetBtn.addEventListener('click', function() {
-        var name = presetSelect.value;
-        if (!name || !importedPresets[name]) return;
-        if (!confirm('Remove imported preset "' + name + '" from the list?')) return;
-        delete importedPresets[name];
-        if (typeof PRESENTATION_PRESETS !== 'undefined') delete PRESENTATION_PRESETS[name];
-        if (typeof PRESENTATION_PRESET_ORDER !== 'undefined') {
-            var idx = PRESENTATION_PRESET_ORDER.indexOf(name);
-            if (idx !== -1) PRESENTATION_PRESET_ORDER.splice(idx, 1);
-        }
-        presetSelect.value = '';
-        loadPresetByName('');
-        populatePresets();
-        setStatus('Preset "' + name + '" removed.', '');
-    });
-
-    // â”€â”€ Save button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    saveBtn.addEventListener('click', function() {
-        var tl = typeof getPresentationTimeline === 'function' ? getPresentationTimeline() : null;
-        if (!tl && draft) tl = clonePlain(draft);
-        if (!tl) { setStatus('No timeline to save.', 'tl-status--warn'); return; }
-
-        if (!linkedFileName) {
-            // Not linked to any fileâ€”ask for a name and export as a new file
-            var saveName = prompt('No file linked. Enter a name to save as:', (tl.name && tl.name !== 'Untitled' && tl.name !== 'Custom') ? tl.name : '');
-            if (saveName === null) return; // cancelled
-            saveName = saveName.trim();
-            if (!saveName) { setStatus('Save cancelled.', 'tl-status--warn'); return; }
-            tl.name = saveName;
-            if (draft) draft.name = saveName;
-            linkedFileName = saveName.replace(/[^a-zA-Z0-9_-]/g, '_') + '.json';
-        }
-
-        var json = JSON.stringify(tl, null, 2);
-        var blob = new Blob([json], { type: 'application/json' });
-        var url = URL.createObjectURL(blob);
-        var a = document.createElement('a');
-        a.href = url;
-        a.download = linkedFileName;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-
-        // Also update the registered preset if it exists
-        var name = tl.name || (draft && draft.name) || '';
-        if (name && typeof registerPresentationPreset === 'function') {
-            registerPresentationPreset(tl, name);
-            importedPresets[name] = true;
-            populatePresets();
-            presetSelect.value = name;
-            updateDelPresetBtn();
-        }
-        setStatus('Saved: ' + a.download, '');
-    });
-
-    // â”€â”€ Listen for external timeline loads â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    window.addEventListener('presentation:timeline-panel-sync', function() {
-        if (panelOpen && !applyingDraft) syncFromRuntime();
-    });
-
-    // â•â• Motion Functions â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-    // Each entry: params[] with { id, label, type, min, step, def, defaultFn, options }
-    var MOTION_TYPES = {
-        sky_reveal: {
-            params: [
-                { id: 'start',    label: 'Start time (s)',  type: 'number', min: 0,   step: 0.1, defaultFn: function() { return currentTime().toFixed(2); } },
-                { id: 'duration', label: 'Duration (s)',    type: 'number', min: 0.1, step: 1,   def: 12 },
-                { id: 'from',     label: 'BH enters from', type: 'select', options: [['bottom','Bottom \u2014 see sky above'],['top','Top \u2014 see sky below'],['left','Left \u2014 see sky to the right'],['right','Right \u2014 see sky to the left']] },
-                { id: 'ease',     label: 'Ease',            type: 'select', options: [['smoother','smoother'],['smooth','smooth'],['linear','linear']] }
-            ]
+    setupTimelineFileIo({
+        elements: {
+            importBtn: importBtn,
+            exportBtn: exportBtn,
+            saveBtn: saveBtn,
+            delPresetBtn: delPresetBtn,
+            presetSelect: presetSelect
         },
-        orbit: {
-            params: [
-                { id: 'start',    label: 'Start time (s)',     type: 'number', min: 0,    step: 0.1,  defaultFn: function() { return currentTime().toFixed(2); } },
-                { id: 'duration', label: 'Duration (s)',       type: 'number', min: 0.1,  step: 1,    def: 10 },
-                { id: 'orbits',   label: 'Number of orbits',   type: 'number', min: 0.1,  step: 0.5,  def: 1 },
-                { id: 'dir',      label: 'Direction',          type: 'select', options: [['ccw','Counter-clockwise (CCW)'],['cw','Clockwise (CW)']] }
-            ]
-        },
-        zoom: {
-            params: [
-                { id: 'start',    label: 'Start time (s)',     type: 'number', min: 0,    step: 0.1,  defaultFn: function() { return currentTime().toFixed(2); } },
-                { id: 'duration', label: 'Duration (s)',       type: 'number', min: 0.1,  step: 1,    def: 8 },
-                { id: 'from',     label: 'From distance',      type: 'number', min: 1,    step: 0.5,  defaultFn: function() { var v = typeof getPresentationPathValue === 'function' ? getPresentationPathValue('observer.distance') : undefined; return (typeof v === 'number' ? v : 15).toFixed(2); } },
-                { id: 'to',       label: 'To distance',        type: 'number', min: 1,    step: 0.5,  def: 7 },
-                { id: 'ease',     label: 'Ease',               type: 'select', options: [['smooth','smooth'],['smoother','smoother'],['linear','linear']] }
-            ]
-        },
-        exposure: {
-            params: [
-                { id: 'start',    label: 'Start time (s)',     type: 'number', min: 0,    step: 0.1,  defaultFn: function() { return currentTime().toFixed(2); } },
-                { id: 'duration', label: 'Duration (s)',       type: 'number', min: 0.1,  step: 1,    def: 6 },
-                { id: 'from',     label: 'From exposure',      type: 'number', min: 0,    step: 0.05, defaultFn: function() { var v = typeof getPresentationPathValue === 'function' ? getPresentationPathValue('look.exposure') : undefined; return (typeof v === 'number' ? v : 1.0).toFixed(3); } },
-                { id: 'to',       label: 'To exposure',        type: 'number', min: 0,    step: 0.05, def: 1.5 },
-                { id: 'ease',     label: 'Ease',               type: 'select', options: [['smooth','smooth'],['smoother','smoother'],['linear','linear']] }
-            ]
-        },
-        inclination: {
-            params: [
-                { id: 'start',    label: 'Start time (s)',     type: 'number', min: 0,    step: 0.1,  defaultFn: function() { return currentTime().toFixed(2); } },
-                { id: 'duration', label: 'Duration (s)',       type: 'number', min: 0.1,  step: 1,    def: 8 },
-                { id: 'from',     label: 'From angle (\u00b0)',       type: 'number', min: -90,  step: 5,    defaultFn: function() { var v = typeof getPresentationPathValue === 'function' ? getPresentationPathValue('observer.orbital_inclination') : undefined; return (typeof v === 'number' ? v : 0).toFixed(1); } },
-                { id: 'to',       label: 'To angle (\u00b0)',         type: 'number', min: -90,  step: 5,    def: 30 },
-                { id: 'ease',     label: 'Ease',               type: 'select', options: [['smooth','smooth'],['smoother','smoother'],['linear','linear']] }
-            ]
-        }
-    };
-
-    function renderMotionParams() {
-        var type = motionTypeEl.value;
-        var def = MOTION_TYPES[type];
-        if (!def) { motionParamsEl.innerHTML = ''; return; }
-        var html = '';
-        for (var i = 0; i < def.params.length; i++) {
-            var p = def.params[i];
-            html += '<div class="tl-motion-row"><label>' + esc(p.label) + '</label>';
-            if (p.type === 'select') {
-                html += '<select data-pid="' + esc(p.id) + '" class="tl-motion-input">';
-                for (var j = 0; j < p.options.length; j++) {
-                    html += '<option value="' + esc(p.options[j][0]) + '">' + esc(p.options[j][1]) + '</option>';
-                }
-                html += '</select>';
-            } else {
-                var defVal = p.defaultFn ? p.defaultFn() : (p.def !== undefined ? p.def : '');
-                html += '<input type="number" data-pid="' + esc(p.id) + '" class="tl-motion-input"' +
-                    ' step="' + (p.step || 'any') + '"' +
-                    ' min="' + (p.min !== undefined ? p.min : '') + '"' +
-                    ' value="' + esc(String(defVal)) + '">';
-            }
-            html += '</div>';
-        }
-        motionParamsEl.innerHTML = html;
-    }
-
-    function getMotionParam(id) {
-        var el = motionParamsEl.querySelector('[data-pid="' + CSS.escape(id) + '"]');
-        if (!el) return undefined;
-        return el.tagName === 'SELECT' ? el.value : parseFloat(el.value);
-    }
-
-    // Three.js quaternion: camera at (px, py, pz) looking toward world origin.
-    // The camera's +Z axis (which points AWAY from the look target) = normalize(P).
-    function applyMotionFn() {
-        if (!draft) { setStatus('Load or create a timeline first.', 'tl-status--warn'); return; }
-        var type = motionTypeEl.value;
-        var start    = getMotionParam('start');    if (!isFinite(start))    start    = 0;
-        var duration = getMotionParam('duration'); if (!isFinite(duration) || duration < 0.01) duration = 5;
-        var ease     = getMotionParam('ease')    || 'smooth';
-
-        pushUndo();
-
-        if (type === 'orbit') {
-            var numOrbits = getMotionParam('orbits'); if (!isFinite(numOrbits) || numOrbits < 0.01) numOrbits = 1;
-            var dirSign   = getMotionParam('dir') === 'cw' ? -1 : 1;
-
-            // Seed camera position â€” prefer draft track value at start time, then runtime
-            var cpx = 0, cpy = 0, cpz = 11;
-            if (typeof getPresentationPathValue === 'function') {
-                var vx = getPresentationPathValue('camera.position.x');
-                var vy = getPresentationPathValue('camera.position.y');
-                var vz = getPresentationPathValue('camera.position.z');
-                if (typeof vx === 'number') cpx = vx;
-                if (typeof vy === 'number') cpy = vy;
-                if (typeof vz === 'number') cpz = vz;
-            }
-            var txd = getTrackByPath('camera.position.x');
-            var tyd = getTrackByPath('camera.position.y');
-            var tzd = getTrackByPath('camera.position.z');
-            if (txd && txd.keys.length) cpx = sampleTrackDraft(txd, start);
-            if (tyd && tyd.keys.length) cpy = sampleTrackDraft(tyd, start);
-            if (tzd && tzd.keys.length) cpz = sampleTrackDraft(tzd, start);
-
-            var dist = Math.sqrt(cpx*cpx + cpy*cpy + cpz*cpz);
-            if (dist < 1e-6) { dist = 11; cpz = 11; cpy = 0; cpx = 0; }
-
-            // Spherical coords (Y-up): keep elevation constant, sweep azimuth
-            var theta    = Math.asin(Math.max(-1, Math.min(1, cpy / dist))); // elevation
-            var phi      = Math.atan2(cpz, cpx);                             // azimuth in XZ-plane
-            var cosTheta = Math.cos(theta);
-            var totalAngle = dirSign * numOrbits * 2 * Math.PI;
-            // Use 32 steps per orbit â€” all linear so velocity is perfectly constant.
-            // Each step spans 11.25 degrees; chord/arc deviation is < 0.05 % at that density.
-            var numSteps   = Math.max(8, Math.round(numOrbits * 32));
-
-            for (var si = 0; si <= numSteps; si++) {
-                var frac  = si / numSteps;
-                var angle = phi + frac * totalAngle;
-                var ktime = start + frac * duration;
-                var kx = dist * cosTheta * Math.cos(angle);
-                var ky = dist * Math.sin(theta);
-                var kz = dist * cosTheta * Math.sin(angle);
-                var q  = lookAtOriginQuat(kx, ky, kz);
-                // Always linear â€” smooth/smoother ease would decelerate at every
-                // intermediate keyframe, creating stops every 11.25 degrees.
-                upsertKey('camera.position.x',   ktime, kx,  'linear');
-                upsertKey('camera.position.y',   ktime, ky,  'linear');
-                upsertKey('camera.position.z',   ktime, kz,  'linear');
-                upsertKey('camera.quaternion.x', ktime, q.x, 'linear');
-                upsertKey('camera.quaternion.y', ktime, q.y, 'linear');
-                upsertKey('camera.quaternion.z', ktime, q.z, 'linear');
-                upsertKey('camera.quaternion.w', ktime, q.w, 'linear');
-            }
-            normalizeQuatSigns();
-            selectedTrack = 'camera.position.x';
-            setStatus('Orbit: ' + numOrbits + ' orbit(s) over ' + duration + 's starting at t=' + start.toFixed(2) + 's.', '');
-
-        } else if (type === 'zoom') {
-            var fromV = getMotionParam('from'); if (!isFinite(fromV)) fromV = 15;
-            var toV   = getMotionParam('to');   if (!isFinite(toV))   toV   = 7;
-            upsertKey('observer.distance', start,            fromV, 'linear');
-            upsertKey('observer.distance', start + duration, toV,   ease);
-            selectedTrack = 'observer.distance';
-            setStatus('Zoom: distance ' + fromV + ' \u2192 ' + toV + ' over ' + duration + 's.', '');
-
-        } else if (type === 'exposure') {
-            var fromV = getMotionParam('from'); if (!isFinite(fromV)) fromV = 1.0;
-            var toV   = getMotionParam('to');   if (!isFinite(toV))   toV   = 1.5;
-            upsertKey('look.exposure', start,            fromV, 'linear');
-            upsertKey('look.exposure', start + duration, toV,   ease);
-            selectedTrack = 'look.exposure';
-            setStatus('Exposure: ' + fromV + ' \u2192 ' + toV + ' over ' + duration + 's.', '');
-
-        } else if (type === 'inclination') {
-            var fromV = getMotionParam('from'); if (!isFinite(fromV)) fromV = 0;
-            var toV   = getMotionParam('to');   if (!isFinite(toV))   toV   = 30;
-            upsertKey('observer.orbital_inclination', start,            fromV, 'linear');
-            upsertKey('observer.orbital_inclination', start + duration, toV,   ease);
-            selectedTrack = 'observer.orbital_inclination';
-            setStatus('Inclination: ' + fromV + '\u00b0 \u2192 ' + toV + '\u00b0 over ' + duration + 's.', '');
-
-        } else if (type === 'sky_reveal') {
-            var fromDir = getMotionParam('from') || 'bottom';
-
-            // cam_pan shifts the rendered image so the BH centre appears at
-            // screen coords  screen_pos = -cam_pan.
-            // Screen x \u2208 [-1, 1], screen y \u2248 [-0.56, 0.56] (1920\u00d71080 aspect).
-            // Starting offsets large enough to push the BH fully outside any frame.
-            var startPanX = 0, startPanY = 0;
-            if      (fromDir === 'bottom') { startPanY = +1.0; }  // BH below \u2192 starfield above
-            else if (fromDir === 'top')    { startPanY = -1.0; }  // BH above \u2192 equatorial sky below
-            else if (fromDir === 'left')   { startPanX = +2.0; }  // BH to the left \u2192 sky to the right
-            else if (fromDir === 'right')  { startPanX = -2.0; }  // BH to the right \u2192 sky to the left
-
-            // End value: current cameraPan (or 0)
-            var endPanX = 0, endPanY = 0;
-            if (typeof getPresentationPathValue === 'function') {
-                var epx = getPresentationPathValue('cameraPan.x');
-                var epy = getPresentationPathValue('cameraPan.y');
-                if (typeof epx === 'number') endPanX = epx;
-                if (typeof epy === 'number') endPanY = epy;
-            }
-
-            upsertKey('cameraPan.x', start,            endPanX + startPanX, 'linear');
-            upsertKey('cameraPan.x', start + duration, endPanX,             ease);
-            upsertKey('cameraPan.y', start,            endPanY + startPanY, 'linear');
-            upsertKey('cameraPan.y', start + duration, endPanY,             ease);
-            selectedTrack = 'cameraPan.x';
-            setStatus('Sky reveal: BH enters from ' + fromDir + ' over ' + duration + 's at t=' + start.toFixed(2) + 's.', '');
-        }
-
-        draft.duration = Math.max(draft.duration, start + duration);
-        draft.tracks.sort(function(a, b) { return a.path.localeCompare(b.path); });
-        applyDraft();
-        rebuildAll();
-    }
-
-    function openMotionModal() {
-        renderMotionParams();
-        motionModal.classList.add('is-open');
-        motionBtn.classList.add('is-active');
-    }
-    function closeMotionModal() {
-        motionModal.classList.remove('is-open');
-        motionBtn.classList.remove('is-active');
-    }
-
-    motionBtn.addEventListener('click', function(e) {
-        e.stopPropagation();
-        if (motionModal.classList.contains('is-open')) closeMotionModal();
-        else openMotionModal();
+        getDraft: function() { return draft; },
+        setDraftName: function(name) { if (draft) draft.name = name; },
+        getImportedPresets: function() { return importedPresets; },
+        getLinkedFileName: function() { return linkedFileName; },
+        setLinkedFileName: function(value) { linkedFileName = value; },
+        getApplyingDraft: function() { return applyingDraft; },
+        setApplyingDraft: function(value) { applyingDraft = !!value; },
+        isPanelOpen: function() { return panelOpen; },
+        getPresentationTimeline: getPresentationTimeline,
+        setPresentationTimeline: setPresentationTimeline,
+        registerPresentationPreset: registerPresentationPreset,
+        loadPresetByName: loadPresetByName,
+        populatePresets: populatePresets,
+        updateDelPresetBtn: updateDelPresetBtn,
+        syncFromRuntime: syncFromRuntime,
+        setStatus: setStatus,
+        esc: esc,
+        clonePlain: clonePlain,
+        presentationPresets: PRESENTATION_PRESETS,
+        presentationPresetOrder: PRESENTATION_PRESET_ORDER
     });
-    motionCloseBtn.addEventListener('click', function(e) {
-        e.stopPropagation();
-        closeMotionModal();
+
+    var motionModalApi = setupTimelineMotionModal({
+        panel: panel,
+        motionBtn: motionBtn,
+        motionModal: motionModal,
+        motionTypeEl: motionTypeEl,
+        motionParamsEl: motionParamsEl,
+        motionApplyBtn: motionApplyBtn,
+        motionCloseBtn: motionCloseBtn,
+        esc: esc,
+        currentTime: currentTime,
+        getDraft: function() { return draft; },
+        pushUndo: pushUndo,
+        getTrackByPath: getTrackByPath,
+        upsertKey: upsertKey,
+        normalizeQuatSigns: normalizeQuatSigns,
+        setSelectedTrack: function(value) { selectedTrack = value; },
+        setStatus: setStatus,
+        setDraftDuration: function(value) { if (draft) draft.duration = value; },
+        sortDraftTracks: function() {
+            if (draft) {
+                draft.tracks.sort(function(a, b) { return a.path.localeCompare(b.path); });
+            }
+        },
+        applyDraft: applyDraft,
+        rebuildAll: rebuildAll,
+        getPresentationPathValue: getPresentationPathValue
     });
-    motionTypeEl.addEventListener('change', renderMotionParams);
-    motionApplyBtn.addEventListener('click', function(e) {
-        e.stopPropagation();
-        applyMotionFn();
-    });
-    // Close modal on click outside
-    panel.addEventListener('click', function(e) {
-        if (motionModal.classList.contains('is-open') &&
-            !motionModal.contains(e.target) &&
-            e.target !== motionBtn) {
-            closeMotionModal();
-        }
-    }, true);
 
     // Recording modal extracted into a dedicated helper so this file stays focused
     // on timeline/editor state instead of modal implementation details.
@@ -3256,121 +2925,26 @@ export function buildTimelinePanel() {
     });
 
     // â”€â”€ Keyboard shortcuts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    function deleteTrack(path) {
-        if (!draft || !path) return;
-        pushUndo();
-        draft.tracks = draft.tracks.filter(function(tr) { return tr.path !== path; });
-        // Remove any selectedKeys that were on this track
-        selectedKeys = selectedKeys.filter(function(sk) { return sk.path !== path; });
-        if (selectedTrack === path) {
-            selectedTrack = draft.tracks.length ? draft.tracks[0].path : '';
-            selectedKeyT = NaN;
-        }
-        applyDraft();
-        rebuildAll();
-        setStatus('Track deleted: ' + path, '');
-    }
-
-    function deleteSelectedKeys() {
-        if (!draft) return;
-        // If no keys are selected but a track is active, delete the whole track
-        if (!selectedKeys.length && selectedTrack) {
-            deleteTrack(selectedTrack);
-            return;
-        }
-        if (!selectedKeys.length) return;
-        pushUndo();
-        var count = 0;
-        for (var s = 0; s < selectedKeys.length; s++) {
-            var sk = selectedKeys[s];
-            var tr = getTrackByPath(sk.path);
-            if (!tr) continue;
-            var ki = getKeyAt(tr, sk.t);
-            if (ki >= 0) { tr.keys.splice(ki, 1); count++; }
-        }
-        draft.tracks = draft.tracks.filter(function(tr) { return tr.keys.length > 0; });
-        selectedKeyT = NaN;
-        clearMultiSelect();
-        applyDraft();
-        rebuildAll();
-        if (count) setStatus(count + ' key' + (count > 1 ? 's' : '') + ' deleted.', '');
-    }
-
-    function selectAllKeysOnTrack() {
-        if (!draft || !selectedTrack) return;
-        var track = getTrackByPath(selectedTrack);
-        if (!track) return;
-        clearMultiSelect();
-        for (var k = 0; k < track.keys.length; k++) {
-            addToMultiSelect(track.path, track.keys[k].t);
-        }
-        rebuildLanes();
-        inspSummary.textContent = selectedKeys.length + ' keyframes selected on ' + selectedTrack;
-    }
-
-    function selectAllKeys() {
-        if (!draft) return;
-        clearMultiSelect();
-        for (var i = 0; i < draft.tracks.length; i++) {
-            var tr = draft.tracks[i];
-            for (var k = 0; k < tr.keys.length; k++) {
-                addToMultiSelect(tr.path, tr.keys[k].t);
-            }
-        }
-        rebuildLanes();
-        inspSummary.textContent = selectedKeys.length + ' keyframes selected (all).';
-    }
-
-    // â”€â”€ Copy / Paste keyframes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    function copySelectedKeys() {
-        if (!draft || !selectedKeys.length) return;
-        var anchorT = Infinity;
-        for (var s = 0; s < selectedKeys.length; s++) {
-            if (selectedKeys[s].t < anchorT) anchorT = selectedKeys[s].t;
-        }
-        var entries = [];
-        for (var s = 0; s < selectedKeys.length; s++) {
-            var sk = selectedKeys[s];
-            var tr = getTrackByPath(sk.path);
-            if (!tr) continue;
-            var ki = getKeyAt(tr, sk.t);
-            if (ki < 0) continue;
-            var key = tr.keys[ki];
-            entries.push({ path: sk.path, relT: sk.t - anchorT, v: clonePlain(key.v), ease: key.ease });
-        }
-        if (!entries.length) return;
-        clipboard = { anchorT: anchorT, entries: entries };
-        setStatus(entries.length + ' key' + (entries.length > 1 ? 's' : '') + ' copied.', '');
-    }
-
-    function pasteKeys() {
-        if (!draft || !clipboard) return;
-        var pasteT = currentTime();
-        pushUndo();
-        clearMultiSelect();
-        for (var i = 0; i < clipboard.entries.length; i++) {
-            var entry = clipboard.entries[i];
-            var t = clamp(pasteT + entry.relT, 0, getDuration());
-            var track = getTrackByPath(entry.path);
-            if (!track) {
-                track = { path: entry.path, compile: false, keys: [] };
-                draft.tracks.push(track);
-                draft.tracks.sort(function(a, b) { return a.path.localeCompare(b.path); });
-            }
-            var existing = getKeyAt(track, t);
-            if (existing >= 0) {
-                track.keys[existing] = { t: t, v: clonePlain(entry.v), ease: entry.ease };
-            } else {
-                track.keys.push({ t: t, v: clonePlain(entry.v), ease: entry.ease });
-                track.keys.sort(function(a, b) { return a.t - b.t; });
-            }
-            draft.duration = Math.max(draft.duration, t);
-            addToMultiSelect(entry.path, t);
-        }
-        applyDraft();
-        rebuildAll();
-        setStatus(clipboard.entries.length + ' key' + (clipboard.entries.length > 1 ? 's' : '') + ' pasted.', '');
-    }
+    var selectionActions = createTimelineSelectionActions({
+        getDraft: function() { return draft; },
+        getSelectedTrack: function() { return selectedTrack; },
+        setSelectedTrack: function(value) { selectedTrack = value; },
+        setSelectedKeyT: function(value) { selectedKeyT = value; },
+        getSelectedKeys: function() { return selectedKeys; },
+        setSelectedKeys: function(value) { selectedKeys = value; },
+        pushUndo: pushUndo,
+        getTrackByPath: getTrackByPath,
+        getKeyAt: getKeyAt,
+        applyDraft: applyDraft,
+        rebuildAll: rebuildAll,
+        rebuildLanes: rebuildLanes,
+        addToMultiSelect: addToMultiSelect,
+        clearMultiSelect: clearMultiSelect,
+        currentTime: currentTime,
+        getDuration: getDuration,
+        setStatus: setStatus,
+        inspSummary: inspSummary
+    });
 
     attachTimelineKeyboardShortcuts({
         panel: panel,
@@ -3378,7 +2952,7 @@ export function buildTimelinePanel() {
         inspPath: inspPath,
         inspTime: inspTime,
         isPanelOpen: function() { return panelOpen; },
-        closeMotionModal: closeMotionModal,
+        closeMotionModal: motionModalApi.close,
         getSelectedEventIndex: function() { return selectedEventIdx; },
         setSelectedEventIndex: function(value) { selectedEventIdx = value; },
         showKeyInspector: showKeyInspector,
@@ -3392,12 +2966,12 @@ export function buildTimelinePanel() {
         setStatus: setStatus,
         captureInspectorValue: captureInspectorValue,
         doSetKey: doSetKey,
-        deleteSelectedKeys: deleteSelectedKeys,
+        deleteSelectedKeys: selectionActions.deleteSelectedKeys,
         selectAllKeysAtTime: selectAllKeysAtTime,
-        selectAllKeysOnTrack: selectAllKeysOnTrack,
-        selectAllKeys: selectAllKeys,
-        copySelectedKeys: copySelectedKeys,
-        pasteKeys: pasteKeys,
+        selectAllKeysOnTrack: selectionActions.selectAllKeysOnTrack,
+        selectAllKeys: selectionActions.selectAllKeys,
+        copySelectedKeys: selectionActions.copySelectedKeys,
+        pasteKeys: selectionActions.pasteKeys,
         seekPresentation: seekPresentation,
         updateTimeInputs: updateTimeInputs,
         updateScrubber: updateScrubber,

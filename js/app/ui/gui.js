@@ -46,6 +46,10 @@ import { getTimelinePanelBinding } from '../core/runtime/ui-bindings.js';
 import { registerBlackHoleUiBinding } from '../core/runtime/runtime-registry.js';
 import { setupAnimationsPanel } from './panels/animations-panel.js';
 import { setupObserverOrbitWidget } from './widgets/observer-orbit-widget.js';
+import { setupControlsPanel } from './panels/controls-panel.js';
+import { setupRenderingFolder } from './panels/rendering-folder.js';
+import { setupAccretionLookFolders } from './panels/accretion-look-folders.js';
+import { setupSimulationFolders } from './panels/simulation-folders.js';
 
 export function setupGUI() {
 
@@ -88,101 +92,7 @@ export function setupGUI() {
 
     var gui = new dat.GUI({ width: 360 });
 
-    // â”€â”€ Controls Side Panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    (function setupControlsPanel() {
-        var STORED_WIDTH_KEY = 'black-hole.controls-panel.width';
-        var DEFAULT_WIDTH = 370;
-        var MIN_WIDTH = 300;
-        var MAX_WIDTH = 600;
-
-        var ctrlPanel = document.createElement('div');
-        ctrlPanel.id = 'controls-panel';
-        ctrlPanel.className = 'sp-panel sp-panel--right sp-panel--collapsed';
-        ctrlPanel.innerHTML =
-            '<div class="sp-resize sp-resize--left"></div>' +
-            '<div class="sp-header">' +
-                '<span class="sp-title">CONTROLS</span>' +
-                '<button id="controls-close-btn" class="sp-close" type="button">&times;</button>' +
-            '</div>' +
-            '<div id="controls-content" class="sp-content"></div>';
-        document.body.appendChild(ctrlPanel);
-
-        // Move dat.GUI into the panel
-        var dgAc = gui.domElement.parentElement;
-        document.getElementById('controls-content').appendChild(dgAc);
-
-        // Create open button
-        var openBtn = document.createElement('button');
-        openBtn.id = 'controls-open-btn';
-        openBtn.className = 'sp-open-btn sp-open-btn--right';
-        openBtn.type = 'button';
-        openBtn.innerHTML = 'CONTROLS &#9654;';
-        openBtn.title = 'Open Controls panel';
-        document.body.appendChild(openBtn);
-
-        // Panel state
-        var panelOpen = false;
-        function setPanelOpen(open) {
-            panelOpen = open;
-            ctrlPanel.classList.toggle('sp-panel--collapsed', !open);
-            openBtn.classList.toggle('sp-open-btn--hidden', open);
-            document.body.classList.toggle('has-controls-panel', open);
-        }
-
-        openBtn.addEventListener('click', function() { setPanelOpen(true); });
-        document.getElementById('controls-close-btn')
-            .addEventListener('click', function() { setPanelOpen(false); });
-
-        // Resize (left edge â€” drag left to widen)
-        var resizer = ctrlPanel.querySelector('.sp-resize');
-        var resizing = false;
-        var startX = 0;
-        var startW = DEFAULT_WIDTH;
-
-        function readWidth() {
-            try { var w = parseFloat(localStorage.getItem(STORED_WIDTH_KEY)); return isFinite(w) ? w : null; } catch(e) { return null; }
-        }
-        function saveWidth(w) {
-            try { localStorage.setItem(STORED_WIDTH_KEY, String(Math.round(w))); } catch(e) {}
-        }
-        function applyWidth(w, persist) {
-            w = Math.round(Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, w)));
-            ctrlPanel.style.width = w + 'px';
-            if (persist) saveWidth(w);
-        }
-
-        applyWidth(readWidth() || DEFAULT_WIDTH, false);
-
-        resizer.addEventListener('pointerdown', function(e) {
-            if (e.button !== 0) return;
-            resizing = true;
-            startX = e.clientX;
-            startW = ctrlPanel.getBoundingClientRect().width || DEFAULT_WIDTH;
-            document.body.classList.add('sp-resizing');
-            if (resizer.setPointerCapture) resizer.setPointerCapture(e.pointerId);
-            document.addEventListener('pointermove', onMove);
-            document.addEventListener('pointerup', onEnd);
-            e.preventDefault();
-        });
-        function onMove(e) {
-            if (!resizing) return;
-            applyWidth(startW + (startX - e.clientX), false);
-            e.preventDefault();
-        }
-        function onEnd() {
-            if (!resizing) return;
-            resizing = false;
-            document.body.classList.remove('sp-resizing');
-            applyWidth(parseFloat(ctrlPanel.style.width) || DEFAULT_WIDTH, true);
-            document.removeEventListener('pointermove', onMove);
-            document.removeEventListener('pointerup', onEnd);
-        }
-
-        // Auto-open on desktop
-        if (!(window.matchMedia && window.matchMedia('(max-width: 960px)').matches)) {
-            setPanelOpen(true);
-        }
-    })();
+    setupControlsPanel(gui);
 
     var syncObserverWidgetControls = null;
 
@@ -471,68 +381,22 @@ export function setupGUI() {
         }
     }
 
-    // â”€â”€â”€ Real Black Hole Presets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // applyBlackHolePreset is assigned below, after visibility helpers are defined.
     var presetObj = { preset: 'Default' };
     var applyBlackHolePreset;
-    var presetsFolder = gui.addFolder('Black Hole Presets');
-    blackHolePresetController = addControl(presetsFolder, presetObj, 'preset', {
-        name: 'preset',
-        options: ['Custom', 'Default', 'M87*', 'Sgr A*', 'Cygnus X-1', 'GRS 1915+105', 'Gargantua (Interstellar visuals)', 'Schwarzschild'],
-        onChange: function(val) { if (applyBlackHolePreset) applyBlackHolePreset(val); },
-        help: 'Load a literature-inspired black-hole preset. These are illustrative starting points, not definitive measurements.'
-    });
-    presetsFolder.open();
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-    var renderFolder = gui.addFolder('Rendering');
-    qualityPresetController = addControl(renderFolder, p, 'quality', {
-        options: QUALITY_PRESET_LABELS,
-        name: 'quality preset',
-        onChange: applyQualityPreset,
-        help: 'Global render preset. Higher presets use more ray-marching steps and samples.'
-    });
-    addControl(renderFolder, p, 'kerr_mode', {
-        options: KERR_MODE_LABELS,
-        name: 'solver mode',
-        onChange: applyKerrMode,
-        help: 'Fast = Schwarzschild/Binet photon lensing with a perturbative frame-drag term. Kerr-inspired disk velocities = same photon lensing, but emitting matter uses Kerr angular velocity in a simplified local-speed model.'
-    });
-
-    addControl(renderFolder, p, 'n_steps', {
-        min: 20,
-        max: 1400,
-        step: 1,
-        name: 'ray steps',
-        trackQualityPreset: true,
-        onChange: updateShader,
-        help: 'More steps improve thin features and strong lensing, but reduce FPS.'
-    });
-    addControl(renderFolder, p, 'sample_count', {
-        min: 1,
-        max: 12,
-        step: 1,
-        name: 'samples / pixel',
-        trackQualityPreset: true,
-        onChange: updateShader,
-        help: 'Supersampling for anti-aliasing and smoother edges. Higher values are slower.'
-    });
-    addControl(renderFolder, p, 'max_revolutions', {
-        min: 1.0,
-        max: 8.0,
-        step: 0.1,
-        name: 'max orbit turns',
-        trackQualityPreset: true,
-        onChange: updateShader,
-        help: 'How many wrapped photon turns are traced before escape/capture cutoff.'
-    });
-    addControl(renderFolder, p, 'resolution_scale', {
-        min: 0.35,
-        max: 2.0,
-        step: 0.05,
-        name: 'resolution scale',
-        trackQualityPreset: true,
-        onChange: function() {
+    var renderingFolder = setupRenderingFolder({
+        gui: gui,
+        parameters: p,
+        addControl: addControl,
+        qualityPresetLabels: QUALITY_PRESET_LABELS,
+        kerrModeLabels: KERR_MODE_LABELS,
+        applyBlackHolePreset: function(name) {
+            if (applyBlackHolePreset) applyBlackHolePreset(name);
+        },
+        applyQualityPreset: applyQualityPreset,
+        applyKerrMode: applyKerrMode,
+        updateShader: updateShader,
+        onResolutionScaleChange: function() {
             if (typeof applyRenderScaleFromSettings === 'function') {
                 applyRenderScaleFromSettings();
             }
@@ -540,97 +404,29 @@ export function setupGUI() {
                 resetTemporalAAHistory();
             }
         },
-        help: 'Internal rendering resolution multiplier. <1 lowers cost, >1 supersamples for sharper output.'
-    });
-    var taaEnabledCtrl = addControl(renderFolder, p, 'taa_enabled', {
-        name: 'TAA (stable)',
-        trackQualityPreset: true,
-        onChange: function() {
+        onTaaEnabledChange: function() {
             if (typeof resetTemporalAAHistory === 'function') {
                 resetTemporalAAHistory();
             }
             updateDependentVisibility();
             shader.needsUpdate = true;
         },
-        help: 'Temporal anti-aliasing with aggressive history clamping to avoid ghosting/details loss.'
-    });
-    var taaHistoryWeightCtrl = addControl(renderFolder, p.taa, 'history_weight', {
-        min: 0.0,
-        max: 0.98,
-        step: 0.01,
-        name: 'taa history weight',
-        trackQualityPreset: true,
-        onChange: function() {
+        onTaaSettingChange: function() {
             if (typeof resetTemporalAAHistory === 'function') {
                 resetTemporalAAHistory();
             }
             shader.needsUpdate = true;
-        },
-        help: 'Higher = steadier image but more trailing risk. Lower = cleaner motion.'
+        }
     });
-    var taaClipBoxCtrl = addControl(renderFolder, p.taa, 'clip_box', {
-        min: 0.01,
-        max: 0.5,
-        step: 0.01,
-        name: 'taa clip box',
-        trackQualityPreset: true,
-        onChange: function() {
-            if (typeof resetTemporalAAHistory === 'function') {
-                resetTemporalAAHistory();
-            }
-            shader.needsUpdate = true;
-        },
-        help: 'History clamp size. Lower values reject stale history more aggressively.'
-    });
-    var taaMotionRejectCtrl = addControl(renderFolder, p.taa, 'motion_rejection', {
-        min: 0.0,
-        max: 20.0,
-        step: 0.1,
-        name: 'taa motion reject',
-        trackQualityPreset: true,
-        onChange: function() {
-            if (typeof resetTemporalAAHistory === 'function') {
-                resetTemporalAAHistory();
-            }
-            shader.needsUpdate = true;
-        },
-        help: 'How quickly history influence drops as camera motion increases.'
-    });
-    var taaMaxDeltaCtrl = addControl(renderFolder, p.taa, 'max_camera_delta', {
-        min: 0.005,
-        max: 0.5,
-        step: 0.005,
-        name: 'taa max cam delta',
-        trackQualityPreset: true,
-        onChange: function() {
-            if (typeof resetTemporalAAHistory === 'function') {
-                resetTemporalAAHistory();
-            }
-            shader.needsUpdate = true;
-        },
-        help: 'Hard camera-motion cutoff where TAA history is fully discarded.'
-    });
-    var taaMotionClipCtrl = addControl(renderFolder, p.taa, 'motion_clip_scale', {
-        min: 0.0,
-        max: 2.0,
-        step: 0.01,
-        name: 'taa motion clip',
-        trackQualityPreset: true,
-        onChange: function() {
-            if (typeof resetTemporalAAHistory === 'function') {
-                resetTemporalAAHistory();
-            }
-            shader.needsUpdate = true;
-        },
-        help: 'Extra clamp expansion with motion. Higher values reduce ghosting further in movement.'
-    });
-    addControl(renderFolder, p, 'rk4_integration', {
-        name: 'RK4 integration',
-        trackQualityPreset: true,
-        onChange: updateShader,
-        help: 'Higher-order integration for better stability in curved trajectories.'
-    });
-    renderFolder.open();
+    presetObj = renderingFolder.presetObj;
+    blackHolePresetController = renderingFolder.blackHolePresetController;
+    qualityPresetController = renderingFolder.qualityPresetController;
+    var taaEnabledCtrl = renderingFolder.taaEnabledCtrl;
+    var taaHistoryWeightCtrl = renderingFolder.taaHistoryWeightCtrl;
+    var taaClipBoxCtrl = renderingFolder.taaClipBoxCtrl;
+    var taaMotionRejectCtrl = renderingFolder.taaMotionRejectCtrl;
+    var taaMaxDeltaCtrl = renderingFolder.taaMaxDeltaCtrl;
+    var taaMotionClipCtrl = renderingFolder.taaMotionClipCtrl;
 
     applyQualityPreset(p.quality);
     blackHoleCustomState = captureBlackHolePresetState();
@@ -649,319 +445,38 @@ export function setupGUI() {
         refreshAllControllers();
     }, { passive: false } );
 
-    var diskFolder = gui.addFolder('Accretion disk');
-    addControl(diskFolder, p, 'accretion_disk', {
-        name: 'enabled',
-        trackBlackHolePreset: true,
-        onChange: function() {
-            updateDependentVisibility();
-            updateShader();
-        },
-        help: 'Toggles thermal emission from the accretion disk.'
+    var accretionLookFolders = setupAccretionLookFolders({
+        gui: gui,
+        parameters: p,
+        observer: observer,
+        addControl: addControl,
+        setControlVisible: setControlVisible,
+        setControlsVisible: setControlsVisible,
+        getUpdateDependentVisibility: function() { return updateDependentVisibility; },
+        updateShader: updateShader,
+        updateUniformsLive: updateUniformsLive,
+        markShaderDirty: function() { shader.needsUpdate = true; },
+        diskTemperatureMin: DISK_TEMPERATURE_MIN,
+        diskTemperatureMax: DISK_TEMPERATURE_MAX
     });
-    var accretionModeCtrl = addControl(diskFolder, p, 'accretion_mode', {
-        name: 'accretion type',
-        options: ['thin_disk', 'thick_torus', 'slim_disk'],
-        trackBlackHolePreset: true,
-        onChange: function() {
-            updateDependentVisibility();
-            updateShader();
-            observer.turbulenceTimeOffset = -observer.time;
-            shader.needsUpdate = true;
-        },
-        help: 'Thin disk: zero-torque Shakura-Sunyaev / Novikov-Thorne-style proxy (quasars/XRBs). Thick torus: ADAF/RIAF (M87*/Sgr A*). Slim disk: super-Eddington.'
-    });
-    var diskSelfIrradiationCtrl = addControl(diskFolder, p, 'disk_self_irradiation', {
-        name: 'self-irradiation',
-        trackBlackHolePreset: true,
-        onChange: function() {
-            updateShader();
-        },
-        help: 'Heuristic Cunningham-inspired inner-disk brightening. Increases local flux near the ISCO with a spin-scaled falloff; this is not recursive ray-traced returning radiation.'
-    });
-    var diskTempCtrl = addControl(diskFolder, p, 'disk_temperature', {
-        min: DISK_TEMPERATURE_MIN,
-        max: DISK_TEMPERATURE_MAX,
-        step: 1,
-        name: 'temperature (K)',
-        trackBlackHolePreset: true,
-        onChange: updateUniformsLive,
-        help: 'Rest-frame disk color temperature before relativistic shifts.'
-    });
-    var torusCenterCtrl = addControl(diskFolder, p.torus, 'r0', {
-        min: 1.5,
-        max: 10.0,
-        step: 0.1,
-        name: 'torus center r',
-        trackBlackHolePreset: true,
-        onChange: updateUniformsLive,
-        help: 'Center radius of the torus in r_s units (thick torus mode only).'
-    });
-    var torusHRCtrl = addControl(diskFolder, p.torus, 'h_ratio', {
-        min: 0.1,
-        max: 1.0,
-        step: 0.01,
-        name: 'torus H/R',
-        trackBlackHolePreset: true,
-        onChange: updateUniformsLive,
-        help: 'Height-to-radius ratio of the torus cross-section (thick torus mode only).'
-    });
-    var torusFalloffCtrl = addControl(diskFolder, p.torus, 'radial_falloff', {
-        min: 0.5,
-        max: 5.0,
-        step: 0.1,
-        name: 'radial falloff',
-        trackBlackHolePreset: true,
-        onChange: updateUniformsLive,
-        help: 'Power-law index for radial emissivity decay. Physical ADAF: 2-4. Lower = flatter profile, higher = more concentrated.'
-    });
-    var torusOpacityCtrl = addControl(diskFolder, p.torus, 'opacity', {
-        min: 0.001,
-        max: 0.15,
-        step: 0.001,
-        name: 'opacity',
-        trackBlackHolePreset: true,
-        onChange: updateUniformsLive,
-        help: 'Absorption coefficient. Low = optically thin (ADAF). Higher = more self-shielding and defined torus surface.'
-    });
-    var torusOuterCtrl = addControl(diskFolder, p.torus, 'outer_radius', {
-        min: 1.5,
-        max: 8.0,
-        step: 0.1,
-        name: 'outer extent',
-        trackBlackHolePreset: true,
-        onChange: updateUniformsLive,
-        help: 'Outer edge multiplier relative to torus center r0. Controls how far the torus extends.'
-    });
-
-    // â”€â”€â”€ Slim disk controls â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    var slimHRCtrl = addControl(diskFolder, p.slim, 'h_ratio', {
-        min: 0.05,
-        max: 0.5,
-        step: 0.01,
-        name: 'slim H/R',
-        trackBlackHolePreset: true,
-        onChange: updateUniformsLive,
-        help: 'Base height-to-radius ratio of the slim disk. Higher = geometrically thicker.'
-    });
-    var slimOpacityCtrl = addControl(diskFolder, p.slim, 'opacity', {
-        min: 0.1,
-        max: 2.0,
-        step: 0.01,
-        name: 'slim opacity',
-        trackBlackHolePreset: true,
-        onChange: updateUniformsLive,
-        help: 'Absorption coefficient. Higher = more opaque, surface-like. Lower = more translucent, volumetric.'
-    });
-    var slimPuffCtrl = addControl(diskFolder, p.slim, 'puff_factor', {
-        min: 0.0,
-        max: 6.0,
-        step: 0.1,
-        name: 'ISCO puff',
-        trackBlackHolePreset: true,
-        onChange: updateUniformsLive,
-        help: 'How much the disk puffs up near the ISCO due to radiation pressure. Higher = more pronounced thickening.'
-    });
-
-    // Store GUI row elements for conditional visibility
-    var torusRows = [torusCenterCtrl, torusHRCtrl, torusFalloffCtrl, torusOpacityCtrl, torusOuterCtrl];
-    var slimRows = [slimHRCtrl, slimOpacityCtrl, slimPuffCtrl];
-
-    // â”€â”€â”€ GRMHD-inspired toggle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    var grmhdEnabledCtrl = addControl(diskFolder, p.grmhd, 'enabled', {
-        name: 'GRMHD-inspired',
-        trackBlackHolePreset: true,
-        onChange: function() {
-            updateDependentVisibility();
-            updateShader();
-        },
-        help: 'Enables GRMHD-inspired morphology controls: two-temperature plasma weighting, synchrotron-inspired emissivity corrections, MRI-inspired turbulence, and magnetic-field effects. These are semi-analytic visual models, not full GRMHD evolution.'
-    });
-    var grmhdRHighCtrl = addControl(diskFolder, p.grmhd, 'r_high', {
-        min: 1.0,
-        max: 160.0,
-        step: 1.0,
-        name: 'R_high',
-        trackBlackHolePreset: true,
-        onChange: updateUniformsLive,
-        help: 'Renderer-side Ti:Te / electron-heating proxy. Higher R_high suppresses high-beta disk-body emission most strongly in the GRMHD torus branch, while thin/slim disks keep the effect deliberately milder so the RGB disk remains visible.'
-    });
-    var grmhdBetaCtrl = addControl(diskFolder, p.grmhd, 'magnetic_beta', {
-        min: 0.01,
-        max: 100.0,
-        step: 0.1,
-        name: 'plasma Î²',
-        trackBlackHolePreset: true,
-        onChange: updateUniformsLive,
-        help: 'Ratio of gas-to-magnetic pressure in the disk midplane. Low Î² = strongly magnetized, high Î² = gas dominated. GRMHD simulations: Î² ~ 1-30.'
-    });
-    var grmhdMADCtrl = addControl(diskFolder, p.grmhd, 'mad_flux', {
-        min: 0.0,
-        max: 1.0,
-        step: 0.01,
-        name: 'MAD flux',
-        trackBlackHolePreset: true,
-        onChange: updateUniformsLive,
-        help: 'Magnetically Arrested Disk saturation. 0 = SANE (standard), 1 = full MAD. MAD state creates stronger B-fields, prominent m=1 spiral arms, and more powerful jets (Tchekhovskoy+ 2011).'
-    });
-    var grmhdDensityCtrl = addControl(diskFolder, p.grmhd, 'density_scale', {
-        min: 0.1,
-        max: 5.0,
-        step: 0.1,
-        name: 'density scale',
-        trackBlackHolePreset: true,
-        onChange: updateUniformsLive,
-        help: 'Normalization of the GRMHD density profile. Higher values increase overall emissivity and absorption.'
-    });
-    var grmhdTurbCtrl = addControl(diskFolder, p.grmhd, 'turbulence_amp', {
-        min: 0.0,
-        max: 3.0,
-        step: 0.1,
-        name: 'MRI turbulence',
-        trackBlackHolePreset: true,
-        onChange: updateUniformsLive,
-        help: 'Amplitude of MRI-driven turbulent density fluctuations. 0 = smooth, 1 = typical GRMHD, 3 = strongly turbulent. Controls log-normal density PDF and spiral arm contrast.'
-    });
-    var grmhdKappaCtrl = addControl(diskFolder, p.grmhd, 'electron_kappa', {
-        min: 2.5,
-        max: 8.0,
-        step: 0.1,
-        name: 'Îº (non-thermal)',
-        trackBlackHolePreset: true,
-        onChange: updateUniformsLive,
-        help: 'Kappa-distribution index for non-thermal electrons from magnetic reconnection. Îº ~ 3.5 = strong non-thermal tail, Îº ~ 8 = nearly thermal. (Ball+ 2018, Werner+ 2018).'
-    });
-    var grmhdBFieldCtrl = addControl(diskFolder, p.grmhd, 'magnetic_field_str', {
-        min: 0.1,
-        max: 5.0,
-        step: 0.1,
-        name: 'B-field strength',
-        trackBlackHolePreset: true,
-        onChange: updateUniformsLive,
-        help: 'Overall magnetic field strength scaling. Affects synchrotron emissivity (j âˆ BÂ²), self-absorption, and electron temperature.'
-    });
-
-    var grmhdRows = [grmhdRHighCtrl, grmhdBetaCtrl, grmhdMADCtrl, grmhdDensityCtrl,
-                     grmhdTurbCtrl, grmhdKappaCtrl, grmhdBFieldCtrl];
-
-    // Apply initial accretion visibility immediately, even before the global
-    // dependency updater is assigned at the end of setupGUI().
-    setControlVisible(accretionModeCtrl, !!p.accretion_disk);
-    setControlVisible(diskSelfIrradiationCtrl, !!p.accretion_disk);
-    setControlVisible(diskTempCtrl, !!p.accretion_disk);
-    setControlsVisible(torusRows, !!p.accretion_disk && p.accretion_mode === 'thick_torus');
-    setControlsVisible(slimRows, !!p.accretion_disk && p.accretion_mode === 'slim_disk');
-    setControlVisible(grmhdEnabledCtrl, !!p.accretion_disk);
-    setControlsVisible(grmhdRows, !!p.accretion_disk && !!p.grmhd.enabled);
-
-    diskFolder.open();
-
-    // â”€â”€â”€ Relativistic Jets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    var jetFolder = gui.addFolder('Relativistic jets');
-    addControl(jetFolder, p.jet, 'enabled', {
-        name: 'enabled',
-        trackBlackHolePreset: true,
-        onChange: function() {
-            updateDependentVisibility();
-            updateShader();
-        },
-        help: 'Bipolar analytic jets aligned with the spin axis. The detailed mode adds GRMHD-inspired structure and Blandford-Znajek-like power scaling.'
-    });
-    var jetModeCtrl = addControl(jetFolder, p.jet, 'mode', {
-        name: 'jet model',
-        options: ['simple', 'physical'],
-        trackBlackHolePreset: true,
-        onChange: function() {
-            updateDependentVisibility();
-            updateShader();
-        },
-        help: 'Simple: smooth analytic jet. Physical: more detailed GRMHD-inspired jet model with spine/sheath, reconfinement knots, corona base, and disk occultation; RGB colour still uses an effective-temperature proxy rather than a literal synchrotron spectrum.'
-    });
-    var jetAngleCtrl = addControl(jetFolder, p.jet, 'half_angle', {
-        min: 1.0,
-        max: 25.0,
-        step: 0.5,
-        name: 'half-angle (Â°)',
-        trackBlackHolePreset: true,
-        onChange: updateUniformsLive,
-        help: 'Opening half-angle of the jet. Typical AGN jets: 2-7Â°. Parabolic collimation narrows the beam with distance.'
-    });
-    var jetLorentzCtrl = addControl(jetFolder, p.jet, 'lorentz_factor', {
-        min: 1.1,
-        max: 20.0,
-        step: 0.1,
-        name: 'Lorentz Î“',
-        trackBlackHolePreset: true,
-        onChange: updateUniformsLive,
-        help: 'Bulk Lorentz factor. Î“~2-5 for AGN jets, Î“~100+ for GRBs. Controls relativistic beaming.'
-    });
-    var jetBrightCtrl = addControl(jetFolder, p.jet, 'brightness', {
-        min: 0.05,
-        max: 3.0,
-        step: 0.01,
-        name: 'brightness',
-        trackBlackHolePreset: true,
-        onChange: updateUniformsLive,
-        help: 'Overall jet synchrotron emission strength.'
-    });
-    var jetLengthCtrl = addControl(jetFolder, p.jet, 'length', {
-        min: 5.0,
-        max: 60.0,
-        step: 1.0,
-        name: 'length (r_s)',
-        trackBlackHolePreset: true,
-        onChange: updateUniformsLive,
-        help: 'Visible jet length in Schwarzschild radii.'
-    });
-    var jetMagCtrl = addControl(jetFolder, p.jet, 'magnetization', {
-        min: 1.0,
-        max: 50.0,
-        step: 0.5,
-        name: 'Ïƒ (magnetization)',
-        trackBlackHolePreset: true,
-        onChange: updateUniformsLive,
-        help: 'Plasma magnetization at jet base (Ïƒ = BÂ²/4Ï€ÏcÂ²). Higher Ïƒ = more magnetically dominated, narrower spine. MAD jets: Ïƒ ~ 10-30.'
-    });
-    var jetKnotCtrl = addControl(jetFolder, p.jet, 'knot_spacing', {
-        min: 2.0,
-        max: 15.0,
-        step: 0.5,
-        name: 'knot spacing',
-        trackBlackHolePreset: true,
-        onChange: updateUniformsLive,
-        help: 'Spacing of reconfinement shock knots (in r_s). Observed in M87 (HST-1), 3C 273. Set high to minimize knots.'
-    });
-    var jetCoronaCtrl = addControl(jetFolder, p.jet, 'corona_brightness', {
-        min: 0.0,
-        max: 5.0,
-        step: 0.1,
-        name: 'corona glow',
-        trackBlackHolePreset: true,
-        onChange: updateUniformsLive,
-        help: 'Brightness of the jet-corona connection at the base. Hot plasma where the funnel meets the inner accretion flow.'
-    });
-    var jetBaseWidthCtrl = addControl(jetFolder, p.jet, 'base_width', {
-        min: 0.0,
-        max: 1.0,
-        step: 0.01,
-        name: 'base width',
-        trackBlackHolePreset: true,
-        onChange: updateUniformsLive,
-        help: 'Controls how wide the jet funnel is at the base. 0 = narrow collimated base, 1 = wide split-monopole funnel.'
-    });
-    var jetCoronaExtentCtrl = addControl(jetFolder, p.jet, 'corona_extent', {
-        min: 0.0,
-        max: 1.0,
-        step: 0.01,
-        name: 'corona extent',
-        trackBlackHolePreset: true,
-        onChange: updateUniformsLive,
-        help: 'Radial spread of the corona base emission. 0 = wide spread, 1 = tightly concentrated near the jet axis.'
-    });
-
-    // Store jet row groups for conditional visibility
-    var jetCommonCtrls = [jetModeCtrl, jetAngleCtrl, jetLorentzCtrl, jetBrightCtrl, jetLengthCtrl];
-    var jetPhysicalCtrls = [jetMagCtrl, jetKnotCtrl, jetCoronaCtrl, jetBaseWidthCtrl, jetCoronaExtentCtrl];
+    var accretionModeCtrl = accretionLookFolders.accretionModeCtrl;
+    var diskSelfIrradiationCtrl = accretionLookFolders.diskSelfIrradiationCtrl;
+    var diskTempCtrl = accretionLookFolders.diskTempCtrl;
+    var torusRows = accretionLookFolders.torusRows;
+    var slimRows = accretionLookFolders.slimRows;
+    var grmhdEnabledCtrl = accretionLookFolders.grmhdEnabledCtrl;
+    var grmhdRows = accretionLookFolders.grmhdRows;
+    var jetCommonCtrls = accretionLookFolders.jetCommonCtrls;
+    var jetPhysicalCtrls = accretionLookFolders.jetPhysicalCtrls;
+    var spinCtrl = accretionLookFolders.spinCtrl;
+    var spinStrengthCtrl = accretionLookFolders.spinStrengthCtrl;
+    var lookDiskGainCtrl = accretionLookFolders.lookDiskGainCtrl;
+    var lookGlowCtrl = accretionLookFolders.lookGlowCtrl;
+    var lookDopplerBoostCtrl = accretionLookFolders.lookDopplerBoostCtrl;
+    var lookAberrationStrengthCtrl = accretionLookFolders.lookAberrationStrengthCtrl;
+    var bloomStrengthCtrl = accretionLookFolders.bloomStrengthCtrl;
+    var bloomThresholdCtrl = accretionLookFolders.bloomThresholdCtrl;
+    var bloomRadiusCtrl = accretionLookFolders.bloomRadiusCtrl;
 
     applyBlackHolePreset = function(name) {
         if (name === 'Custom') {
@@ -1034,240 +549,21 @@ export function setupGUI() {
         refreshAllControllers();
     };
 
-    var spinFolder = gui.addFolder('Black hole');
-    addControl(spinFolder, p.black_hole, 'spin_enabled', {
-        name: 'rotation enabled',
-        trackBlackHolePreset: true,
-        onChange: function() {
-            updateDependentVisibility();
-            updateUniformsLive();
-        },
-        help: 'Enables Kerr-like rotation effects. Disable for a Schwarzschild-style shadow.'
+    var simulationFolders = setupSimulationFolders({
+        gui: gui,
+        parameters: p,
+        observer: observer,
+        addControl: addControl,
+        updateUniforms: updateUniforms,
+        updateShader: updateShader,
+        markShaderDirty: function() { shader.needsUpdate = true; },
+        planetOrbitMin: PLANET_ORBIT_MIN,
+        getUpdateDependentVisibility: function() { return updateDependentVisibility; }
     });
-    var spinCtrl = addControl(spinFolder, p.black_hole, 'spin', {
-        min: -0.99,
-        max: 0.99,
-        step: 0.01,
-        name: 'a/M',
-        trackBlackHolePreset: true,
-        onChange: updateUniformsLive,
-        help: 'Signed Kerr spin. Positive and negative values mirror the spin direction; the current UI does not expose a separate retrograde-disk toggle.'
-    });
-    var spinStrengthCtrl = addControl(spinFolder, p.black_hole, 'spin_strength', {
-        min: 0.0,
-        max: 1.4,
-        step: 0.01,
-        name: 'shadow squeeze',
-        trackBlackHolePreset: true,
-        onChange: updateUniformsLive,
-        help: 'Visual strength multiplier for rotation-induced asymmetry in the shadow.'
-    });
-    spinFolder.open();
-
-    var lookFolder = gui.addFolder('Look');
-    addControl(lookFolder, p.look, 'tonemap_mode', {
-        options: { 'ACES Filmic': 0, 'AgX': 1, 'Scientific (Log)': 2 },
-        name: 'tonemapper',
-        trackBlackHolePreset: true,
-        onChange: updateUniformsLive,
-        help: 'ACES: classic cinematic. AgX: better saturation handling for extreme HDR. Scientific: logarithmic false-color like EHT papers.'
-    });
-    addControl(lookFolder, p.look, 'exposure', {
-        min: 0.6,
-        max: 2.5,
-        step: 0.01,
-        name: 'exposure',
-        onChange: updateUniformsLive,
-        help: 'Overall tone-mapped brightness.'
-    });
-    var lookDiskGainCtrl = addControl(lookFolder, p.look, 'disk_gain', {
-        min: 0.4,
-        max: 4.0,
-        step: 0.01,
-        name: 'disk intensity',
-        trackBlackHolePreset: true,
-        onChange: updateUniformsLive,
-        help: 'Brightness multiplier applied to the accretion disk emission.'
-    });
-    var lookGlowCtrl = addControl(lookFolder, p.look, 'glow', {
-        min: 0.0,
-        max: 2.0,
-        step: 0.01,
-        name: 'inner glow',
-        trackBlackHolePreset: true,
-        onChange: updateUniformsLive,
-        help: 'Extra bloom-like emphasis near the hotter inner disk region.'
-    });
-    var lookDopplerBoostCtrl = addControl(lookFolder, p.look, 'doppler_boost', {
-        min: 0.0,
-        max: 2.5,
-        step: 0.01,
-        name: 'doppler boost',
-        onChange: updateUniformsLive,
-        help: 'Controls visual strength of relativistic beaming contrast.'
-    });
-    var lookAberrationStrengthCtrl = addControl(lookFolder, p.look, 'aberration_strength', {
-        min: 0.0,
-        max: 3.0,
-        step: 0.01,
-        name: 'aberration strength',
-        onChange: updateUniformsLive,
-        help: 'Scales apparent directional warping from observer motion.'
-    });
-    addControl(lookFolder, p.look, 'star_gain', {
-        min: 0.0,
-        max: 2.5,
-        step: 0.01,
-        name: 'star gain',
-        onChange: updateUniformsLive,
-        help: 'Brightness multiplier for background stars.'
-    });
-    addControl(lookFolder, p.look, 'galaxy_gain', {
-        min: 0.0,
-        max: 2.5,
-        step: 0.01,
-        name: 'galaxy gain',
-        onChange: updateUniformsLive,
-        help: 'Brightness multiplier for the background galaxy map.'
-    });
-    lookFolder.open();
-
-    // â”€â”€â”€ Post-processing (bloom) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    var ppFolder = gui.addFolder('Post-processing');
-    addControl(ppFolder, p.bloom, 'enabled', {
-        name: 'bloom',
-        trackBlackHolePreset: true,
-        onChange: function() {
-            updateDependentVisibility();
-            shader.needsUpdate = true;
-        },
-        help: 'Screen-space Gaussian bloom approximating lens glow and optical spill. Bright regions of the accretion disk bleed light into surrounding pixels.'
-    });
-    var bloomStrengthCtrl = addControl(ppFolder, p.bloom, 'strength', {
-        min: 0.0,
-        max: 2.0,
-        step: 0.01,
-        name: 'bloom strength',
-        trackBlackHolePreset: true,
-        onChange: function() { shader.needsUpdate = true; },
-        help: 'Overall intensity of the bloom glow added to the image.'
-    });
-    var bloomThresholdCtrl = addControl(ppFolder, p.bloom, 'threshold', {
-        min: 0.0,
-        max: 1.0,
-        step: 0.01,
-        name: 'bloom threshold',
-        trackBlackHolePreset: true,
-        onChange: function() { shader.needsUpdate = true; },
-        help: 'Minimum pixel brightness that contributes to bloom. Lower values bloom more of the disk.'
-    });
-    var bloomRadiusCtrl = addControl(ppFolder, p.bloom, 'radius', {
-        min: 0.0,
-        max: 1.0,
-        step: 0.01,
-        name: 'bloom radius',
-        trackBlackHolePreset: true,
-        onChange: function() { shader.needsUpdate = true; },
-        help: 'Controls the width of the bloom halo. Higher values give wider, more diffuse glow matching real optical PSFs.'
-    });
-    ppFolder.open();
-
-    var folder = gui.addFolder('Planet');
-    addControl(folder, p.planet, 'enabled', {
-        name: 'enabled',
-        help: 'Adds an orbiting planet used as a reference object.',
-        onChange: function() {
-            updateDependentVisibility();
-            updateShader();
-        }
-    });
-    var planetDistanceCtrl = addControl(folder, p.planet, 'distance', {
-        min: PLANET_ORBIT_MIN,
-        step: 0.1,
-        name: 'distance',
-        onChange: updateUniforms,
-        help: 'Orbital radius of the planet. Public controls clamp this to r >= 3 r_s so the reference body stays in the stable timelike-orbit regime.'
-    });
-    var planetRadiusCtrl = addControl(folder, p.planet, 'radius', {
-        min: 0.01,
-        max: 2.0,
-        step: 0.01,
-        name: 'radius',
-        onChange: updateUniforms,
-        help: 'Planet size in simulation units.'
-    });
-    $(folder.domElement).addClass('planet-controls');
-    //folder.open();
-
-    folder = gui.addFolder('Relativistic effects');
-    addControl(folder, p, 'aberration', {
-        name: 'aberration (ray dir)',
-        onChange: function() {
-            updateDependentVisibility();
-            updateShader();
-        },
-        help: 'Changes apparent incoming ray direction due to observer velocity.'
-    });
-    addControl(folder, p, 'beaming', {
-        name: 'beaming (intensity)',
-        trackBlackHolePreset: true,
-        onChange: function() {
-            updateDependentVisibility();
-            updateShader();
-        },
-        help: 'Applies relativistic intensity boosting/dimming to thermal emitters and the background-sky proxy. Jet branches keep their own synchrotron beaming model.'
-    });
-    var physicalBeamingCtrl = addControl(folder, p, 'physical_beaming', {
-        name: 'physical (DÂ³ Liouville)',
-        trackBlackHolePreset: true,
-        onChange: function() {
-            updateDependentVisibility();
-            updateShader();
-        },
-        help: 'Uses physically motivated Liouville transfer scaling for thermal emitters and the background-sky proxy instead of the softened cinematic curve.'
-    });
-    addControl(folder, p, 'doppler_shift', {
-        name: 'doppler shift (color)',
-        trackBlackHolePreset: true,
-        onChange: updateShader,
-        help: 'Shifts thermal emitters and the background-sky proxy by red/blue shift factors. Physical jet mode keeps its own synchrotron temperature-proxy shift.'
-    });
-    addControl(folder, p, 'gravitational_time_dilation', {
-        name: 'time dilation',
-        onChange: updateShader,
-        className: 'planet-controls indirect-planet-controls',
-        help: 'Accounts for rate differences between local and distant observer clocks.'
-    });
-    var lorentzContractionCtrl = addControl(folder, p, 'lorentz_contraction', {
-        name: 'lorentz contraction',
-        onChange: updateShader,
-        className: 'planet-controls indirect-planet-controls',
-        help: 'Applies length contraction effects to moving scene elements.'
-    });
-
-    folder.open();
-
-    folder = gui.addFolder('Time');
-    addControl(folder, p, 'light_travel_time', {
-        onChange: function() {
-            updateDependentVisibility();
-            updateShader();
-        },
-        help: 'Enables retarded-time rendering, where events are seen after light delay.'
-    });
-    addControl(folder, p, 'time_scale', {
-        min: 0,
-        max: 6,
-        step: 0.01,
-        name: 'time scale',
-        help: 'Simulation clock multiplier.'
-    });
-    var resetSimObj = { 'reset simulation': function() {
-        observer.time = 0.0;
-        shader.needsUpdate = true;
-    }};
-    folder.add(resetSimObj, 'reset simulation').name('â†º reset simulation');
-    //folder.open();
+    var planetDistanceCtrl = simulationFolders.planetDistanceCtrl;
+    var planetRadiusCtrl = simulationFolders.planetRadiusCtrl;
+    var physicalBeamingCtrl = simulationFolders.physicalBeamingCtrl;
+    var lorentzContractionCtrl = simulationFolders.lorentzContractionCtrl;
 
 
     updateDependentVisibility = function() {

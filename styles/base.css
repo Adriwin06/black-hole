@@ -1,0 +1,186 @@
+body {
+    background-color: #000;
+    margin: 0px;
+    overflow: hidden;
+
+    color: #fff;
+    font-family: Monospace;
+    font-size: 13px;
+    font-weight: bold;
+}
+
+.info {
+    text-align: center;
+
+    position: absolute;
+    padding: 10px;
+    width: 100%;
+    text-align: center;
+    color: #ffffff;
+}
+
+.link-bar {
+    position: absolute;
+    bottom: 10px;
+    width: 100%;
+    text-align: center;
+}
+
+#loader {
+    margin-top: 20%;
+}
+
+.disclaimer {
+    margin-top: 1em;
+    color: gray;
+}
+
+#hint-text {
+    position: absolute;
+    /*right: 270px;*/
+    width: 100%;
+    top: 10px;
+    text-align: center;
+    font-weight: normal;
+    color: #cccccc;
+}
+
+a {
+    color: white;
+    text-decoration: none;
+}
+
+a:hover {
+    color: #cccccc;
+}
+
+.initially-hidden {
+    visibility: hidden;
+}
+
+@media screen and (max-width: 800px) {
+    .hidden-phone {
+        visibility: hidden;
+    }
+
+}
+
+/* dat.GUI: hide built-in close button (we wrap in our own panel) */
+.dg.main .close-button { display: none !important; }
+
+@media screen and (max-width: 960px) {
+    #hint-text {
+        top: 6px;
+        padding: 0 8px;
+        font-size: 11px;
+        box-sizing: border-box;
+    }
+    .link-bar {
+        bottom: 6px;
+        font-size: 11px;
+        line-height: 1.45;
+        padding: 0 8px;
+        box-sizing: border-box;
+    }
+    .dg .cr.number input[type=text] {
+        font-size: 16px;
+    }
+
+    /* â”€â”€ Side panels â€” mobile â”€â”€ */
+    .sp-panel {
+        width: min(88vw, 400px) !important;
+        min-width: 0 !important;
+    }
+    .sp-resize { display: none; }
+
+    /* Close button inside panel â€” larger tap target */
+    .sp-close {
+        width: 36px;
+        height: 36px;
+        font-size: 20px;
+        border-radius: 6px;
+    }
+
+    /* â”€â”€ Side open buttons â€” mobile redesign â”€â”€ */
+    .sp-open-btn {
+        top: auto !important;
+        /* Clear the link-bar (â‰ˆ40px) plus safe-area for iPhones */
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 52px) !important;
+        height: 40px !important;
+        min-height: unset !important;
+        line-height: 40px !important;
+        padding: 0 16px !important;
+        font-size: 11px !important;
+        letter-spacing: 0.8px !important;
+        font-weight: 700 !important;
+        border-radius: 20px !important;
+        border: 1px solid #3e6090 !important;
+        background: rgba(10, 18, 38, 0.93) !important;
+        box-shadow: 0 3px 14px rgba(0, 0, 0, 0.6) !important;
+        transform: none !important;
+        -webkit-tap-highlight-color: transparent;
+        white-space: nowrap;
+    }
+    .sp-open-btn:active {
+        background: rgba(20, 38, 74, 0.98) !important;
+        border-color: #5a86bc !important;
+        color: #d0eaff !important;
+    }
+    .sp-open-btn--left {
+        left: 10px !important;
+        right: auto !important;
+    }
+    .sp-open-btn--right {
+        right: 10px !important;
+        left: auto !important;
+    }
+
+    /* â”€â”€ Timeline: hidden on mobile â”€â”€ */
+    #tl-open-btn { display: none !important; }
+    .tl-panel    { display: none !important; }
+
+    /* Undo has-timeline-panel shifts that are desktop-only */
+    body.has-timeline-panel .sp-panel   { bottom: 0; }
+    body.has-timeline-panel .link-bar   { bottom: 6px; }
+    body.has-timeline-panel #axes-gizmo-container { bottom: auto !important; }
+
+    #axes-gizmo-container {
+        left: auto !important;
+        right: 8px !important;
+        top: 8px !important;
+        bottom: auto !important;
+        transform: scale(0.9) !important;
+        transform-origin: right top !important;
+        z-index: 145 !important;
+        pointer-events: auto !important;
+    }
+    #observer-orbit-shell {
+        pointer-events: auto !important;
+    }
+}
+
+@media screen and (max-width: 520px) {
+    #axes-gizmo-container {
+        right: 4px !important;
+        top: 4px !important;
+        transform: scale(0.84) !important;
+    }
+
+    /* Extra-small screens: compact side buttons */
+    .sp-open-btn {
+        padding: 0 12px !important;
+        font-size: 10px !important;
+        height: 36px !important;
+        line-height: 36px !important;
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 46px) !important;
+        letter-spacing: 0.4px !important;
+    }
+    .sp-open-btn--left  { left: 6px !important; }
+    .sp-open-btn--right { right: 6px !important; }
+
+    /* Panels take nearly full width on small phones */
+    .sp-panel { width: min(93vw, 400px) !important; }
+
+    /* Smaller panel header on tiny screens */
+    .sp-title { font-size: 10px; letter-spacing: 1.5px; }
+}
