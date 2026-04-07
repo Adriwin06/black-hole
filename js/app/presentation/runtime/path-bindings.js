@@ -8,7 +8,7 @@
     refreshAllControllersGlobal
 } from '../../core/runtime/runtime-state.js';
 import { diveState, hoverState } from '../../core/scenarios/scenario-state.js';
-import { updateCamera } from '../../scene/camera.js';
+import { updateCamera } from '../../scene/camera-runtime.js';
 import { seekDive } from '../../core/scenarios/dive.js';
 import { seekHover } from '../../core/scenarios/hover.js';
 import { getBlackHoleUiBinding } from '../../core/runtime/runtime-registry.js';

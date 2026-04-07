@@ -11,10 +11,13 @@ import {
     shader,
     scene,
     camera,
+    renderer,
     cameraControls,
     cameraPan,
     observer,
     updateUniforms,
+    applyRenderScaleFromSettings,
+    resetTemporalAAHistory,
     setDistanceController,
     setRefreshAllControllersGlobal
 } from '../core/runtime/runtime-state.js';
@@ -25,7 +28,7 @@ import {
     PLANET_ORBIT_MIN,
     clampObserverDistance
 } from '../core/observer.js';
-import { updateCamera } from '../scene/camera.js';
+import { updateCamera } from '../scene/camera-runtime.js';
 import {
     applyQualityPresetValues,
     QUALITY_PRESETS,

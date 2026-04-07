@@ -7,7 +7,7 @@ import {
     clampObserverDistance,
     clampPlanetOrbitDistance
 } from '../observer.js';
-import { initializeCamera, updateCamera } from '../../scene/camera.js';
+import { initializeCamera, updateCamera } from '../../scene/camera-runtime.js';
 import { setupBloom } from '../../graphics/bloom.js';
 import { setupTemporalAA } from './temporal-aa.js';
 import { setupGUI } from '../../ui/gui.js';

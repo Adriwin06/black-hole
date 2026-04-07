@@ -11,7 +11,7 @@ import {
     cameraControls
 } from '../../core/runtime/runtime-state.js';
 import { diveState, hoverState } from '../../core/scenarios/scenario-state.js';
-import { initializeCamera } from '../../scene/camera.js';
+import { initializeCamera } from '../../scene/camera-runtime.js';
 import { startDive, resetDive } from '../../core/scenarios/dive.js';
 import { startHover, resetHover } from '../../core/scenarios/hover.js';
 import {

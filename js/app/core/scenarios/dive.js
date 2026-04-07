@@ -2,7 +2,7 @@
 
 import { observer, shader, scene } from '../runtime/runtime-state.js';
 import { diveState, hoverState, animationTimelineCaptureState } from './scenario-state.js';
-import { updateCamera } from '../../scene/camera.js';
+import { updateCamera } from '../../scene/camera-runtime.js';
 import { refreshRendererUiBindings } from '../runtime/ui-bindings.js';
 import {
     readAnimationCaptureAnchorPosition,

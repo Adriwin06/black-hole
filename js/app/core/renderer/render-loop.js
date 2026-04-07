@@ -30,7 +30,7 @@ import {
     updateHover,
     advanceTimelineDrivenHoverObserverTime
 } from '../scenarios/hover.js';
-import { updateCamera, frobeniusDistance } from '../../scene/camera.js';
+import { updateCamera, frobeniusDistance } from '../../scene/camera-runtime.js';
 import { advanceQualityBenchmark } from './renderer-quality.js';
 import { updateAnimationTimelineCaptureFrame } from '../scenarios/animation-capture.js';
 import { resizeRendererAndPasses, updateAxesGizmo } from './renderer.js';
